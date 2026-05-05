@@ -1,463 +1,294 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  TrendingUp, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Filter,
-  RefreshCw,
-  Coins,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-  LayoutDashboard,
-  Wallet
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evolução Mensal do Património</title>
+  
+  <!-- Carregamento do Chart.js para o Gráfico -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    :root {
+      --primaria: #081c15;
+      --secundaria: #1b4332;
+      --destaque: #2d6a4f;
+      --fundo: #f4f7f6;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--fundo);
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
 
-// --- Utilitários de Parsing ---
+    .contentor {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
 
-const parseCSV = (str) => {
-  const arr = [];
-  let quote = false;
-  let col = 0, row = 0;
-  for (let c = 0; c < str.length; c++) {
-    let cc = str[c], nc = str[c + 1];
-    arr[row] = arr[row] || [];
-    arr[row][col] = arr[row][col] || '';
-    if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
-    if (cc === '"') { quote = !quote; continue; }
-    if (cc === ',' && !quote) { ++col; continue; }
-    if (cc === '\r' && nc === '\n' && !quote) { ++row; col = 0; ++c; continue; }
-    if (cc === '\n' && !quote) { ++row; col = 0; continue; }
-    if (cc === '\r' && !quote) { ++row; col = 0; continue; }
-    arr[row][col] += cc;
-  }
-  return arr;
-};
+    .cabecalho {
+      text-align: center;
+      margin-bottom: 30px;
+    }
 
-const parseBRNumber = (val) => {
-  if (!val) return 0;
-  if (typeof val === 'number') return val;
-  let clean = val.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
-  const n = parseFloat(clean);
-  return isNaN(n) ? 0 : n;
-};
+    .cabecalho h1 {
+      color: var(--primaria);
+      margin: 0 0 10px 0;
+    }
 
-const formatBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+    .cartao {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      margin-bottom: 25px;
+      border-top: 5px solid var(--destaque);
+    }
 
-const URLS = {
-  PATRIMONIO: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=1605208368&single=true&output=csv',
-  DIVIDENDOS: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=948257245&single=true&output=csv',
-  ATIVOS: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=713165597&single=true&output=csv'
-};
+    .grafico-contentor {
+      position: relative;
+      height: 400px;
+      width: 100%;
+    }
 
-export default function App() {
-  const [loading, setLoading] = useState(true);
-  const [rawPatrimonio, setRawPatrimonio] = useState([]);
-  const [rawAtivos, setRawAtivos] = useState({});
-  const [rawDividendos, setRawDividendos] = useState([]);
-  const [selectedClient, setSelectedClient] = useState('Geral');
-  const [openSegments, setOpenSegments] = useState({});
+    /* Estilos da Tabela */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [resPat, resDiv, resAtiv] = await Promise.all([
-        fetch(URLS.PATRIMONIO).then(r => r.text()),
-        fetch(URLS.DIVIDENDOS).then(r => r.text()),
-        fetch(URLS.ATIVOS).then(r => r.text())
-      ]);
+    th {
+      background-color: var(--primaria);
+      color: white;
+      padding: 12px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
 
-      const dataPat = parseCSV(resPat);
-      const dataDiv = parseCSV(resDiv);
-      const dataAtiv = parseCSV(resAtiv);
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      text-align: center;
+    }
 
-      // BASE_ATIVOS Coluna D (Preço Atual)
-      const ativosMap = {};
-      dataAtiv.slice(1).forEach(row => {
-        const ticker = (row[2] || '').trim();
-        const preco = parseBRNumber(row[3]); // Coluna D
-        if (ticker) ativosMap[ticker] = preco;
+    tr:hover {
+      background-color: #f8f9fa;
+    }
+
+    .valor-monetario {
+      font-weight: bold;
+      color: var(--destaque);
+    }
+
+    #loading {
+      text-align: center;
+      padding: 50px;
+      font-size: 1.2rem;
+      color: var(--secundaria);
+      font-weight: bold;
+    }
+
+    .escondido {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="contentor">
+    <div class="cabecalho">
+      <h1>Evolução Mensal (Base Património)</h1>
+      <p>Análise de valores agregados por Mês e Ano - Ambiente GitHub</p>
+    </div>
+
+    <div id="loading">
+      <p>A carregar e a processar dados locais...</p>
+    </div>
+
+    <div id="painel-dados" class="escondido">
+      
+      <!-- O Gráfico (Eixo X e Y) -->
+      <div class="cartao">
+        <h3 style="margin-top: 0; color: #1b4332;">Gráfico de Evolução</h3>
+        <div class="grafico-contentor">
+          <canvas id="meuGrafico"></canvas>
+        </div>
+      </div>
+
+      <!-- A Tabela Detalhada -->
+      <div class="cartao">
+        <h3 style="margin-top: 0; color: #1b4332;">Tabela de Resumo</h3>
+        <div style="overflow-x: auto;">
+          <table id="tabela-resumo">
+            <thead>
+              <tr>
+                <th>Mês / Ano</th>
+                <th>Valor Total (R$)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Inserido via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let graficoInstancia = null;
+
+    // SIMULAÇÃO DE DADOS: O que seria lido de um ficheiro JSON ou CSV no GitHub
+    // Representa a Coluna G (valor) e Coluna H (dataLanc)
+    const DADOS_BASE_PATRIMONIO = [
+      { valor: "R$ 5.000,00", dataLanc: "15/01/2024" },
+      { valor: "10000", dataLanc: "28/01/2024" },
+      { valor: "18200.50", dataLanc: "10/02/2024" },
+      { valor: "R$ 17.500,25", dataLanc: "05/03/2024" },
+      { valor: "2000", dataLanc: "20/03/2024" },
+      { valor: "R$ 22.000,00", dataLanc: "15/04/2024" },
+      { valor: "25400.75", dataLanc: "10/05/2024" },
+      { valor: "3000.00", dataLanc: "25/05/2024" }
+    ];
+
+    window.onload = function() {
+      // Simula o tempo de carregamento de um ficheiro estático no GitHub (500ms)
+      setTimeout(() => {
+        const dadosProcessados = processarDados(DADOS_BASE_PATRIMONIO);
+        desenharPainel(dadosProcessados);
+      }, 500);
+    };
+
+    /**
+     * Motor de Cálculo em JavaScript Puro (Substitui o Google Apps Script)
+     * Lê a matriz, agrupa por mês/ano e soma os valores.
+     */
+    function processarDados(dadosBrutos) {
+      const resumoMeses = {};
+
+      dadosBrutos.forEach(linha => {
+        let valorBruto = linha.valor;
+        let dataBruta = linha.dataLanc;
+
+        if (!dataBruta || !valorBruto) return;
+
+        // 1. Converter Data (DD/MM/AAAA)
+        let partes = dataBruta.toString().trim().split('/');
+        if (partes.length !== 3) return;
+        
+        // Criar chave YYYY-MM para garantir a ordenação cronológica correta
+        let ano = partes[2];
+        let mes = partes[1].padStart(2, '0');
+        let chave = `${ano}-${mes}`; 
+
+        // 2. Limpar e Converter Valor (Remove R$, pontos separadores de milhar e troca vírgula por ponto)
+        let valorTratado = valorBruto.toString().replace(/R\$/g, '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.').trim();
+        let valorNumerico = parseFloat(valorTratado);
+        if (isNaN(valorNumerico)) valorNumerico = 0;
+
+        // 3. Agrupar e Somar
+        if (!resumoMeses[chave]) {
+          resumoMeses[chave] = 0;
+        }
+        resumoMeses[chave] += valorNumerico;
       });
 
-      const headPat = dataPat[0];
-      const patrimonioList = dataPat.slice(1).map(row => {
-        const obj = {};
-        headPat.forEach((h, i) => obj[h.trim()] = row[i]);
-        obj['_clientName'] = row[0] ? row[0].trim() : '';
-        obj['_segmento'] = row[2] ? row[2].trim() : 'Outros';
-        obj['_operacao'] = row[3] ? row[3].trim().toLowerCase() : 'compra';
-        obj['_qtd'] = parseBRNumber(row[4]); // Coluna E
-        obj['_valorAplicado'] = parseBRNumber(row[6]); // Coluna G
-        obj['_patrimonioMes'] = parseBRNumber(row[7]); // Coluna H
-        obj['_mesAno'] = `${row[11]}/${row[10]}`;
-        return obj;
-      }).filter(i => i._clientName !== '');
+      // 4. Preparar Arrays para o Gráfico (Ordenados cronologicamente)
+      const chavesOrdenadas = Object.keys(resumoMeses).sort();
+      const labels = [];
+      const valores = [];
 
-      const dividendosList = dataDiv.slice(1).map(row => ({
-        ticker: (row[0] || '').trim(),
-        segmento: row[1],
-        dataCom: row[2],
-        dataPagto: row[3],
-        tipo: row[4],
-        valorPorCota: parseBRNumber(row[5]),
-        mesAnoMatch: row[2] ? row[2].split('/')[1] + '/' + row[2].split('/')[2] : ''
-      }));
+      chavesOrdenadas.forEach(chave => {
+        let [a, m] = chave.split('-');
+        labels.push(`${m}/${a}`); // Converte de volta para MM/AAAA para o Eixo X
+        valores.push(resumoMeses[chave]); // Eixo Y
+      });
 
-      setRawPatrimonio(patrimonioList);
-      setRawAtivos(ativosMap);
-      setRawDividendos(dividendosList);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
-  const clients = useMemo(() => {
-    const list = Array.from(new Set(rawPatrimonio.map(i => i._clientName)));
-    return ['Geral', ...list.sort()];
-  }, [rawPatrimonio]);
-
-  const dashboardData = useMemo(() => {
-    let basePat = rawPatrimonio;
-    if (selectedClient !== 'Geral') {
-      basePat = basePat.filter(i => i._clientName === selectedClient);
+      return { labels, valores };
     }
 
-    const summary = {};
-    const dividendosRecebidos = [];
+    function desenharPainel(dados) {
+      document.getElementById('loading').className = 'escondido';
+      document.getElementById('painel-dados').className = '';
 
-    // 1. Processar Patrimônio e Ativos
-    basePat.forEach(item => {
-      const ticker = (item['Ativo'] || item['Ticker'] || '').trim();
-      const seg = item._segmento;
-      if (!ticker) return;
-
-      if (!summary[ticker]) {
-        summary[ticker] = {
-          ticker,
-          segmento: seg,
-          qtdTotal: 0,
-          valorAplicadoTotal: 0,
-          dividendosNoTicker: 0
-        };
+      if (!dados || dados.labels.length === 0) {
+        document.getElementById('painel-dados').innerHTML = "<p style='text-align:center;'>Nenhum dado encontrado com datas e valores válidos.</p>";
+        return;
       }
 
-      const isVenda = item._operacao === 'venda';
-      summary[ticker].qtdTotal += isVenda ? -item._qtd : item._qtd;
-      summary[ticker].valorAplicadoTotal += isVenda ? -item._valorAplicado : item._valorAplicado;
-    });
+      desenharGrafico(dados.labels, dados.valores);
+      preencherTabela(dados.labels, dados.valores);
+    }
 
-    // 2. Dividendos
-    rawDividendos.forEach(div => {
-      const patNoMes = basePat.filter(p => 
-        (p['Ativo'] || p['Ticker'] || '').trim() === div.ticker && 
-        p._mesAno.includes(div.mesAnoMatch || 'N/A')
-      );
-      const qtdNaDataCom = patNoMes.reduce((acc, curr) => acc + curr._patrimonioMes, 0);
-      if (qtdNaDataCom > 0) {
-        const totalRecebido = qtdNaDataCom * div.valorPorCota;
-        dividendosRecebidos.push({ ...div, qtdBase: qtdNaDataCom, totalRecebido });
-        if (summary[div.ticker]) summary[div.ticker].dividendosNoTicker += totalRecebido;
-      }
-    });
-
-    const assetsList = Object.values(summary).filter(a => Math.abs(a.qtdTotal) > 0.001);
-    const totalTickersGlobal = assetsList.length;
-    const porcentagemIdealGlobal = totalTickersGlobal > 0 ? (100 / totalTickersGlobal) : 0;
-
-    let globalSaldoAtual = 0;
-    let globalValorAplicado = 0;
-
-    const processedAssets = assetsList.map(asset => {
-      const precoAtual = rawAtivos[asset.ticker] || 0;
-      const saldoAtual = asset.qtdTotal * precoAtual;
+    function desenharGrafico(etiquetas, valores) {
+      const ctx = document.getElementById('meuGrafico').getContext('2d');
       
-      // P. Médio = Aplicado (G) / Qtd (E)
-      const precoMedio = asset.qtdTotal > 0 ? asset.valorAplicadoTotal / asset.qtdTotal : 0;
-      
-      // Var % baseada no Aplicado e Saldo Atual
-      const variacaoPercentual = asset.valorAplicadoTotal > 0 ? ((saldoAtual / asset.valorAplicadoTotal) - 1) * 100 : 0;
-      const lucroPerdaBruto = saldoAtual - asset.valorAplicadoTotal;
-
-      globalSaldoAtual += saldoAtual;
-      globalValorAplicado += asset.valorAplicadoTotal;
-
-      return {
-        ...asset,
-        precoMedio,
-        precoAtual,
-        saldoAtual,
-        variacaoPercentual,
-        lucroPerdaBruto,
-        idealGlobal: porcentagemIdealGlobal
-      };
-    });
-
-    const segmentsMap = {};
-    processedAssets.forEach(asset => {
-      const seg = asset.segmento;
-      if (!segmentsMap[seg]) {
-        segmentsMap[seg] = {
-          nome: seg,
-          assets: [],
-          saldoTotal: 0,
-          aplicadoTotal: 0,
-          lucroTotal: 0,
-          idealTotal: 0,
-          divTotalSeg: 0
-        };
+      if (graficoInstancia) {
+        graficoInstancia.destroy();
       }
-      segmentsMap[seg].assets.push(asset);
-      segmentsMap[seg].saldoTotal += asset.saldoAtual;
-      segmentsMap[seg].aplicadoTotal += asset.valorAplicadoTotal;
-      segmentsMap[seg].lucroTotal += asset.lucroPerdaBruto;
-      segmentsMap[seg].idealTotal += asset.idealGlobal;
-      segmentsMap[seg].divTotalSeg += asset.dividendosNoTicker;
-    });
 
-    const segmentsList = Object.values(segmentsMap).map(s => ({
-      ...s,
-      variacaoSeg: s.aplicadoTotal > 0 ? ((s.saldoTotal / s.aplicadoTotal) - 1) * 100 : 0,
-      alocacaoAtualTotal: globalSaldoAtual > 0 ? (s.saldoTotal / globalSaldoAtual) * 100 : 0,
-      assets: s.assets.map(a => ({
-        ...a,
-        pesoNaCarteira: globalSaldoAtual > 0 ? (a.saldoAtual / globalSaldoAtual) * 100 : 0
-      })).sort((a, b) => b.saldoAtual - a.saldoAtual)
-    })).sort((a, b) => b.saldoTotal - a.saldoTotal);
+      graficoInstancia = new Chart(ctx, {
+        type: 'bar', // Altere para 'line' se desejar um gráfico de linhas
+        data: {
+          labels: etiquetas, // Eixo X (Meses/Anos)
+          datasets: [{
+            label: 'Valor Total Agregado (R$)',
+            data: valores, // Eixo Y (Valores)
+            backgroundColor: 'rgba(45, 106, 79, 0.8)',
+            borderColor: '#1b4332',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top' },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  let valor = context.raw;
+                  return 'R$ ' + valor.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return 'R$ ' + value.toLocaleString('pt-BR');
+                }
+              }
+            }
+          }
+        }
+      });
+    }
 
-    return {
-      totalSaldoAtual: globalSaldoAtual,
-      totalValorAplicado: globalValorAplicado,
-      totalLucro: globalSaldoAtual - globalValorAplicado,
-      totalDividendos: dividendosRecebidos.reduce((acc, curr) => acc + curr.totalRecebido, 0),
-      retornoTotal: (globalSaldoAtual - globalValorAplicado) + dividendosRecebidos.reduce((acc, curr) => acc + curr.totalRecebido, 0),
-      segments: segmentsList,
-      dividendosTabela: dividendosRecebidos.sort((a, b) => (b.dataPagto?.split('/').reverse().join('') || '').localeCompare(a.dataPagto?.split('/').reverse().join('') || ''))
-    };
-  }, [rawPatrimonio, rawAtivos, rawDividendos, selectedClient]);
+    function preencherTabela(etiquetas, valores) {
+      const tbody = document.querySelector('#tabela-resumo tbody');
+      let html = '';
 
-  const toggleSegment = (name) => {
-    setOpenSegments(prev => ({ ...prev, [name]: !prev[name] }));
-  };
+      for (let i = 0; i < etiquetas.length; i++) {
+        let valorFormatado = valores[i].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        html += `
+          <tr>
+            <td><strong>${etiquetas[i]}</strong></td>
+            <td class="valor-monetario">${valorFormatado}</td>
+          </tr>
+        `;
+      }
 
-  if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white">
-      <RefreshCw className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs animate-pulse">Calculando P. Médio e Variações...</p>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans">
-      {/* Header */}
-      <div className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-900/20">
-            <LayoutDashboard className="text-white w-8 h-8" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight italic">Focus Patrimonial</h1>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Controle de Ativos & Proventos</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 bg-slate-900 p-3 rounded-2xl border border-slate-800">
-          <Filter className="w-5 h-5 text-indigo-400 ml-2" />
-          <div className="flex flex-col min-w-[180px]">
-            <span className="text-[9px] uppercase font-black text-slate-500">Titular Selecionado</span>
-            <select 
-              value={selectedClient} 
-              onChange={(e) => setSelectedClient(e.target.value)}
-              className="bg-transparent border-none focus:ring-0 text-white font-bold text-sm p-0 cursor-pointer"
-            >
-              {clients.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto space-y-6">
-        
-        {/* KPIs principais */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard title="Saldo em Custódia" value={formatBRL(dashboardData.totalSaldoAtual)} icon={<TrendingUp className="text-emerald-500" />} />
-          <StatCard title="Valor Aplicado (G)" value={formatBRL(dashboardData.totalValorAplicado)} icon={<Wallet className="text-blue-500" />} />
-          <StatCard title="Ganho/Perda Capital" value={formatBRL(dashboardData.totalLucro)} icon={dashboardData.totalLucro >= 0 ? <ArrowUpRight className="text-emerald-400" /> : <ArrowDownRight className="text-rose-400" />} color={dashboardData.totalLucro >= 0 ? 'text-emerald-400' : 'text-rose-400'} />
-          <StatCard 
-            title="Retorno Total (+Proventos)" 
-            value={formatBRL(dashboardData.retornoTotal)} 
-            icon={<Coins className="text-white" />}
-            color="text-indigo-400"
-            bg="bg-indigo-950/30 border-indigo-500/30"
-          />
-        </div>
-
-        {/* Listagem por Segmentos */}
-        <div className="space-y-4">
-          <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.3em] ml-2 mb-2">Carteira por Segmento</h2>
-          {dashboardData.segments.map((segment) => (
-            <div key={segment.nome} className="bg-slate-900 rounded-[2rem] border border-slate-800 overflow-hidden shadow-lg">
-              <button 
-                onClick={() => toggleSegment(segment.nome)}
-                className="w-full px-8 py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left hover:bg-slate-800/30 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-400">
-                    {openSegments[segment.nome] ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black text-white italic uppercase tracking-tight">{segment.nome}</h3>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">{segment.assets.length} Ativos no Grupo</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Saldo Atual</span>
-                    <span className="text-sm font-black text-white">{formatBRL(segment.saldoTotal)}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Var. Total (%)</span>
-                    <span className={`text-sm font-black ${segment.variacaoSeg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {segment.variacaoSeg.toFixed(2)}%
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Alocação Atual</span>
-                    <span className="text-sm font-black text-indigo-400">{segment.alocacaoAtualTotal.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Ideal</span>
-                    <span className="text-sm font-black text-slate-600">{segment.idealTotal.toFixed(1)}%</span>
-                  </div>
-                </div>
-              </button>
-
-              {openSegments[segment.nome] && (
-                <div className="border-t border-slate-800/50 bg-slate-950/20 overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] bg-slate-950/40">
-                      <tr>
-                        <th className="py-4 px-8">Ticker</th>
-                        <th className="py-4 px-4">Qtd (E)</th>
-                        <th className="py-4 px-4">P. Médio (G/E)</th>
-                        <th className="py-4 px-4">Vlr Aplicado (G)</th>
-                        <th className="py-4 px-4">P. Atual (D)</th>
-                        <th className="py-4 px-4">Var (%)</th>
-                        <th className="py-4 px-4">L&P Bruto (R$)</th>
-                        <th className="py-4 px-4">Saldo Atual</th>
-                        <th className="py-4 px-4">% Aloc.</th>
-                        <th className="py-4 px-8 text-right">% Ideal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/30">
-                      {segment.assets.map((asset, idx) => (
-                        <tr key={idx} className="hover:bg-indigo-500/5 transition-all">
-                          <td className="py-4 px-8 font-black text-indigo-400 text-xs">{asset.ticker}</td>
-                          <td className="py-4 px-4 text-slate-300 font-bold text-xs">{asset.qtdTotal}</td>
-                          <td className="py-4 px-4 text-slate-500 font-mono text-[10px]">{formatBRL(asset.precoMedio)}</td>
-                          <td className="py-4 px-4 text-slate-400 font-medium text-xs">{formatBRL(asset.valorAplicadoTotal)}</td>
-                          <td className="py-4 px-4 text-white font-bold text-xs">{formatBRL(asset.precoAtual)}</td>
-                          <td className={`py-4 px-4 font-black text-[10px] ${asset.variacaoPercentual >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {asset.variacaoPercentual.toFixed(2)}%
-                          </td>
-                          <td className={`py-4 px-4 font-bold text-[10px] ${asset.lucroPerdaBruto >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {formatBRL(asset.lucroPerdaBruto)}
-                          </td>
-                          <td className="py-4 px-4 text-white font-black text-xs">{formatBRL(asset.saldoAtual)}</td>
-                          <td className="py-4 px-4">
-                            <div className="flex flex-col gap-1 w-24">
-                              <span className="text-[10px] font-black text-indigo-400">{asset.pesoNaCarteira.toFixed(1)}%</span>
-                              <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                                <div className="bg-indigo-500 h-full" style={{ width: `${asset.pesoNaCarteira}%` }}></div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-8 text-right text-[10px] font-black text-slate-600">
-                            {asset.idealGlobal.toFixed(1)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Tabela de Dividendos Recebidos */}
-        <div className="bg-slate-900 rounded-[2rem] border border-slate-800 overflow-hidden shadow-2xl">
-          <div className="px-8 py-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-            <div className="flex items-center gap-3">
-              <Coins className="text-amber-500 w-5 h-5" />
-              <h2 className="text-lg font-black text-white italic uppercase tracking-tight">Extrato de Dividendos</h2>
-            </div>
-            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-              Coluna H da Patrimônio vs Valor da Cota
-            </div>
-          </div>
-          <div className="overflow-x-auto max-h-[400px]">
-            <table className="w-full text-left">
-              <thead className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] bg-slate-950/40 sticky top-0 z-10">
-                <tr>
-                  <th className="py-4 px-8">Ticker</th>
-                  <th className="py-4 px-4">Data Pagto</th>
-                  <th className="py-4 px-4">Tipo</th>
-                  <th className="py-4 px-4">Qtd. Base (H)</th>
-                  <th className="py-4 px-4">Vlr. Cota</th>
-                  <th className="py-4 px-8 text-right">Total Recebido</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {dashboardData.dividendosTabela.map((div, i) => (
-                  <tr key={i} className="hover:bg-amber-500/5 transition-all">
-                    <td className="py-4 px-8 font-black text-amber-500 text-xs">{div.ticker}</td>
-                    <td className="py-4 px-4 text-slate-300 font-bold text-xs">{div.dataPagto}</td>
-                    <td className="py-4 px-4">
-                      <span className="px-2 py-0.5 bg-slate-800 rounded text-[9px] font-black uppercase text-slate-400 border border-slate-700">
-                        {div.tipo}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-slate-400 font-bold text-xs">{div.qtdBase}</td>
-                    <td className="py-4 px-4 text-slate-500 font-mono text-[10px]">{formatBRL(div.valorPorCota)}</td>
-                    <td className="py-4 px-8 text-right text-emerald-400 font-black text-xs">{formatBRL(div.totalRecebido)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Footer info */}
-        <div className="bg-slate-900/30 border border-slate-800 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-            <span>Fórmulas Aplicadas: P.Médio (G/E) | Saldo Atual (D*E) | Var (Saldo/Aplicado-1)</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <span className="text-indigo-400">Status: Sincronizado</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ title, value, icon, color = "text-white", bg = "bg-slate-900 border-slate-800" }) {
-  return (
-    <div className={`${bg} border p-8 rounded-[2rem] relative overflow-hidden group hover:border-indigo-500/50 transition-all shadow-lg`}>
-      <div className="flex justify-between items-start mb-4">
-        <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">{title}</p>
-        <div className="p-3 bg-slate-800 rounded-2xl group-hover:bg-indigo-500/10 transition-colors">
-          {icon}
-        </div>
-      </div>
-      <h3 className={`text-2xl font-black tracking-tighter ${color} leading-none`}>{value}</h3>
-      <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-    </div>
-  );
-}
+      tbody.innerHTML = html;
+    }
+  </script>
+</body>
+</html>
