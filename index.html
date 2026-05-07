@@ -41,7 +41,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 16px;
   overflow: hidden;
 }
 
@@ -258,7 +258,7 @@ html, body {
 }
 
 /* ---- CONTENT AREA ---- */
-.content-area { padding: 32px; max-width: 1300px; }
+.content-area { padding: 32px; max-width: 1400px; margin: 0 auto; width: 100%; }
 
 /* ---- LOADING ---- */
 #loading-overlay {
@@ -306,17 +306,17 @@ html, body {
 .kpi-card.negative::after { background: var(--red); }
 .kpi-card:hover { border-color: rgba(255,255,255,0.12); }
 .kpi-label {
-  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 2px;
   color: var(--muted); font-family: var(--font-mono); margin-bottom: 10px;
 }
 .kpi-value {
-  font-family: var(--font-mono); font-size: 1.35rem;
+  font-family: var(--font-mono); font-size: 1.55rem;
   font-weight: 500; color: var(--text); line-height: 1.2;
 }
 .kpi-value.positive { color: var(--accent); }
 .kpi-value.negative { color: var(--red); }
 .kpi-sub {
-  font-family: var(--font-mono); font-size: 0.7rem;
+  font-family: var(--font-mono); font-size: 0.8rem;
   color: var(--muted); margin-top: 4px;
 }
 
@@ -329,7 +329,7 @@ html, body {
 }
 .section-head h3 {
   font-family: var(--font-display); font-weight: 400;
-  font-size: 1.1rem; color: var(--text);
+  font-size: 1.3rem; color: var(--text);
 }
 .section-head .pill {
   background: var(--accent-glow); color: var(--accent);
@@ -373,24 +373,24 @@ html, body {
 .tbl-scroll { overflow-x: auto; }
 table {
   width: 100%; border-collapse: collapse;
-  min-width: 900px; font-size: 0.82rem;
+  min-width: 900px; font-size: 0.92rem;
 }
 thead th {
   background: var(--panel);
   color: var(--muted); font-family: var(--font-mono);
-  font-size: 0.65rem; font-weight: 500;
+  font-size: 0.72rem; font-weight: 500;
   text-transform: uppercase; letter-spacing: 1.5px;
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
   cursor: pointer; white-space: nowrap; user-select: none;
   transition: color 0.2s;
 }
 thead th:hover { color: var(--accent); }
 
 tbody td {
-  padding: 0 16px; height: 48px;
+  padding: 0 16px; height: 52px;
   border-bottom: 1px solid var(--border);
   text-align: center; color: var(--text);
-  font-family: var(--font-mono); font-size: 0.78rem;
+  font-family: var(--font-mono); font-size: 0.88rem;
   transition: background 0.15s;
 }
 tbody tr:last-child td { border-bottom: none; }
@@ -432,10 +432,10 @@ tfoot .td-ticker {
 
 /* provento cell detail */
 .prov-cell { line-height: 1.3; }
-.prov-unit { color: var(--text); font-size: 0.78rem; }
-.prov-extra { display: none; font-size: 0.65rem; color: var(--muted); margin-top: 3px; }
-.prov-total { display: none; font-size: 0.65rem; color: var(--accent); }
-.col-active .prov-unit { color: var(--muted); font-size: 0.65rem; }
+.prov-unit { color: var(--text); font-size: 0.88rem; }
+.prov-extra { display: none; font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
+.prov-total { display: none; font-size: 0.72rem; color: var(--accent); }
+.col-active .prov-unit { color: var(--muted); font-size: 0.72rem; }
 .col-active .prov-extra,
 .col-active .prov-total { display: block; }
 
