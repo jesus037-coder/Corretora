@@ -651,6 +651,7 @@ tfoot .td-ticker {
     <div class="ano-block">
       <label>Ano de referência</label>
       <select id="sel-ano" onchange="recarregarDados()">
+        <option value="TODOS">📅 Todos os Anos</option>
         <option value="2026" selected>2026</option>
         <option value="2025">2025</option>
         <option value="2024">2024</option>
@@ -694,9 +695,1063 @@ const CSV = {
 ======================================================= */
 let SESSION = { nome: '', isAdmin: false };
 let GLOBAL  = { patrimonio: {}, proventos: {}, precos: {}, evolucao: {}, listaClientes: [] };
-let anoSel  = 2026;
+// Cache dos CSVs brutos para reprocessar por ano sem refetch
+let RAW = { ativos: [], pat: [], div: [] };
+let anoSel  = 2026; // número ou string 'TODOS'
+let clienteAtivo = null;
 let chartsBar = null, chartsPie = null, chartsEvol = null;
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const SEG_PALETTE = ['#3ddc84','#4da6ff','#b388ff','#f25c5c','#ffb347','#40c4ff','#a5d6a7','#ef9a9a'];
+
+/* =======================================================
+   UTILITÁRIOS
+======================================================= */
+function limpar(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return val;
+  let n = parseFloat(val.toString().replace('R$','').replace(/\./g,'').replace(',','.').trim());
+  return isNaN(n) ? 0 : n;
+}
+
+function tratarData(s) {
+  if (!s) return null;
+  s = s.toString().trim();
+  if (s.includes('/')) {
+    const p = s.split('/');
+    if (p.length === 3) return new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+async function fetchCSV(url) {
+  const r = await fetch(url);
+  const t = await r.text();
+  return parseCSV(t);
+}
+
+function parseCSV(text) {
+  const rows = [];
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cols = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; continue; }
+      if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+    cols.push(cur.trim());
+    rows.push(cols);
+  }
+  return rows;
+}
+
+function fmt(n) {
+  return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+}
+
+function badgeClass(tipo) {
+  if (!tipo) return 'badge-other';
+  const t = tipo.toUpperCase();
+  if (t.includes('FII')) return 'badge-fii';
+  if (t.includes('ETF')) return 'badge-etf';
+  if (t.includes('AÇ') || t.includes('ACAO') || t.includes('AÇÃO')) return 'badge-acao';
+  return 'badge-other';
+}
+
+function showLoading(v) {
+  document.getElementById('loading-overlay').classList.toggle('visible', v);
+}
+
+// Detecta todos os anos presentes nos CSVs de patrimônio
+function detectarAnos() {
+  const anos = new Set();
+  for (let r = 1; r < RAW.pat.length; r++) {
+    const d = tratarData(RAW.pat[r][7]);
+    if (d) anos.add(d.getFullYear());
+  }
+  return [...anos].sort((a,b) => a - b);
+}
+
+/* =======================================================
+   LOGIN
+======================================================= */
+document.getElementById('inp-senha').addEventListener('keypress', e => {
+  if (e.key === 'Enter') fazerLogin();
+});
+
+async function fazerLogin() {
+  const email = document.getElementById('inp-email').value.trim().toLowerCase();
+  const senha = document.getElementById('inp-senha').value.trim();
+  const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('btn-login');
+  errEl.style.display = 'none';
+
+  if (!email || !senha) {
+    errEl.textContent = 'Preencha todos os campos.';
+    errEl.style.display = 'block'; return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Verificando…';
+  showLoading(true);
+
+  try {
+    const rows = await fetchCSV(CSV.CLIENTES);
+    let found = false;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const emailDb = (row[1] || '').trim().toLowerCase();
+      const senhaDb = (row[2] || '').trim();
+      if (emailDb === email && senhaDb === senha) {
+        SESSION.nome    = (row[3] || '').trim();
+        const status    = (row[5] || '').trim().toUpperCase();
+        SESSION.isAdmin = (status === 'ADMIN' || status === 'ADMINISTRADOR');
+        found = true; break;
+      }
+    }
+    if (!found) throw new Error('E-mail ou senha incorretos.');
+
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').classList.add('visible');
+    document.getElementById('role-tag').textContent =
+      SESSION.isAdmin ? 'Administrador' : SESSION.nome;
+
+    await iniciarDados();
+  } catch(e) {
+    errEl.textContent = e.message || 'Erro ao conectar.';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Entrar';
+    showLoading(false);
+  }
+}
+
+function logout() {
+  SESSION = { nome: '', isAdmin: false };
+  GLOBAL  = { patrimonio: {}, proventos: {}, precos: {}, evolucao: {}, listaClientes: [] };
+  RAW = { ativos: [], pat: [], div: [] };
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('inp-email').value = '';
+  document.getElementById('inp-senha').value = '';
+  document.getElementById('content-area').innerHTML = '';
+  document.getElementById('nav-list').innerHTML = '';
+}
+
+/* =======================================================
+   CARREGAMENTO DE DADOS
+======================================================= */
+async function iniciarDados() {
+  showLoading(true);
+  const selVal = document.getElementById('sel-ano').value;
+  anoSel = selVal === 'TODOS' ? 'TODOS' : parseInt(selVal);
+
+  try {
+    // Fetch CSV brutos apenas na primeira vez ou após logout
+    if (!RAW.pat.length) {
+      const [rowsAtivos, rowsPat, rowsDiv] = await Promise.all([
+        fetchCSV(CSV.ATIVOS),
+        fetchCSV(CSV.PATRIMONIO),
+        fetchCSV(CSV.DIVIDENDOS),
+      ]);
+      RAW.ativos = rowsAtivos;
+      RAW.pat    = rowsPat;
+      RAW.div    = rowsDiv;
+    }
+
+    // Atualiza select com anos reais dos dados
+    popularSelectAnos();
+
+    processarDados();
+    renderSidebar();
+
+    if (GLOBAL.listaClientes.length > 0) {
+      const alvo = clienteAtivo && GLOBAL.listaClientes.includes(clienteAtivo)
+        ? clienteAtivo
+        : (SESSION.isAdmin ? GLOBAL.listaClientes[0] : SESSION.nome);
+      selectCliente(alvo);
+    } else {
+      document.getElementById('content-area').innerHTML =
+        '<div class="empty-state"><div class="icon">🔍</div><p>Nenhum dado encontrado para este usuário.</p></div>';
+    }
+  } catch(e) {
+    document.getElementById('content-area').innerHTML =
+      `<div class="empty-state"><div class="icon">⚠️</div><p>Erro ao carregar: ${e.message}</p></div>`;
+  }
+  showLoading(false);
+}
+
+function popularSelectAnos() {
+  const sel = document.getElementById('sel-ano');
+  const anos = detectarAnos();
+  const valAtual = sel.value;
+
+  // Mantém "Todos os Anos" + adiciona anos detectados dinamicamente
+  sel.innerHTML = `<option value="TODOS">📅 Todos os Anos</option>`;
+  anos.reverse().forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    if (String(a) === valAtual) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  // Restaura seleção
+  if (valAtual && valAtual !== 'TODOS') sel.value = valAtual;
+}
+
+function processarDados() {
+  GLOBAL.precos = {};
+  GLOBAL.patrimonio = {};
+  GLOBAL.evolucao   = {};
+  GLOBAL.listaClientes = [];
+
+  // 1. Preços
+  for (let i = 1; i < RAW.ativos.length; i++) {
+    const ticker = (RAW.ativos[i][2] || '').trim().toUpperCase();
+    if (ticker) GLOBAL.precos[ticker] = limpar(RAW.ativos[i][3]);
+  }
+
+  // Define o ano limite para patrimônio (TODOS = ano mais recente para carteira atual)
+  const anoLimite = anoSel === 'TODOS'
+    ? Math.max(...detectarAnos())
+    : anoSel;
+
+  // 2. Patrimônio
+  for (let r = 1; r < RAW.pat.length; r++) {
+    const row = RAW.pat[r];
+    let cliente = (row[0] || '').trim();
+    if (!cliente || cliente.toUpperCase() === 'CLIENTE' || cliente.length < 3) continue;
+    if (/[A-Z]{4}[0-9]/.test(cliente)) continue;
+    if (!SESSION.isAdmin && cliente.toUpperCase() !== SESSION.nome.toUpperCase()) continue;
+
+    if (!GLOBAL.listaClientes.includes(cliente)) GLOBAL.listaClientes.push(cliente);
+    if (!GLOBAL.patrimonio[cliente]) GLOBAL.patrimonio[cliente] = [];
+    if (!GLOBAL.evolucao[cliente])   GLOBAL.evolucao[cliente]   = {};
+
+    const dataObj = tratarData(row[7]);
+    if (dataObj) {
+      const anoLanc = dataObj.getFullYear();
+      if (anoLanc <= anoLimite) {
+        const cv      = (row[3] || '').toUpperCase();
+        const totalOp = limpar(row[6]);
+        const valorAjustado = cv.includes('C') ? totalOp : -totalOp;
+
+        GLOBAL.patrimonio[cliente].push({
+          ativo: (row[1] || '').trim().toUpperCase(),
+          tipo:  (row[2] || '').trim().toUpperCase(),
+          cv, qtd: limpar(row[4]), total: totalOp, dataLanc: row[7],
+        });
+
+        // Evolução: acumula por ANO e MÊS
+        if (!GLOBAL.evolucao[cliente][anoLanc])
+          GLOBAL.evolucao[cliente][anoLanc] = Array(12).fill(0);
+
+        const mesInicio = dataObj.getMonth();
+        for (let m = mesInicio; m < 12; m++) {
+          GLOBAL.evolucao[cliente][anoLanc][m] += valorAjustado;
+        }
+      }
+    }
+  }
+
+  // Propagar valores de anos anteriores para os seguintes (saldo acumulado)
+  const todosAnos = detectarAnos();
+  GLOBAL.listaClientes.forEach(cliente => {
+    const evol = GLOBAL.evolucao[cliente];
+    if (!evol) return;
+    for (let i = 1; i < todosAnos.length; i++) {
+      const anoAnterior = todosAnos[i - 1];
+      const anoAtual    = todosAnos[i];
+      if (!evol[anoAtual]) evol[anoAtual] = Array(12).fill(0);
+      if (evol[anoAnterior]) {
+        const saldoFinal = evol[anoAnterior][11]; // dezembro do ano anterior
+        for (let m = 0; m < 12; m++) {
+          evol[anoAtual][m] += saldoFinal;
+        }
+      }
+    }
+  });
+
+  // 3. Proventos
+  if (anoSel === 'TODOS') {
+    GLOBAL.proventos = {};
+    GLOBAL.listaClientes.forEach(c => { GLOBAL.proventos[c] = { segmentos: {}, totaisMensais: Array(12).fill(0) }; });
+    todosAnos.forEach(ano => {
+      const provAno = processarProventos(RAW.div, GLOBAL.patrimonio, ano);
+      Object.entries(provAno).forEach(([cliente, dados]) => {
+        if (!GLOBAL.proventos[cliente]) {
+          GLOBAL.proventos[cliente] = { segmentos: {}, totaisMensais: Array(12).fill(0) };
+        }
+        // Soma mensais (apenas para referência, tabela mostrará por ano)
+        dados.totaisMensais.forEach((v, m) => { GLOBAL.proventos[cliente].totaisMensais[m] += v; });
+        // Merge segmentos
+        Object.entries(dados.segmentos).forEach(([seg, ativos]) => {
+          if (!GLOBAL.proventos[cliente].segmentos[seg]) GLOBAL.proventos[cliente].segmentos[seg] = [];
+          ativos.forEach(at => {
+            const existe = GLOBAL.proventos[cliente].segmentos[seg].find(x => x.ticker === at.ticker);
+            if (!existe) GLOBAL.proventos[cliente].segmentos[seg].push(at);
+          });
+        });
+      });
+    });
+    // Guardar proventos por ano separado para tabela multi-ano
+    GLOBAL.proventosPorAno = {};
+    todosAnos.forEach(ano => {
+      GLOBAL.proventosPorAno[ano] = processarProventos(RAW.div, GLOBAL.patrimonio, ano);
+    });
+  } else {
+    GLOBAL.proventos = processarProventos(RAW.div, GLOBAL.patrimonio, anoSel);
+    GLOBAL.proventosPorAno = null;
+  }
+
+  GLOBAL.listaClientes.sort();
+}
+
+function recarregarDados() {
+  document.getElementById('content-area').innerHTML = '';
+  iniciarDados();
+}
+
+/* =======================================================
+   PROCESSAR PROVENTOS (para um ano específico)
+======================================================= */
+function processarProventos(rowsDiv, patrimonio, anoAlvo) {
+  const resultado = {};
+  const anuncios  = {};
+
+  for (let r = 1; r < rowsDiv.length; r++) {
+    const row = rowsDiv[r];
+    const ticker  = (row[0] || '').trim().toUpperCase();
+    const seg     = (row[1] || 'OUTROS').trim().toUpperCase();
+    const dataCom = tratarData(row[2]);
+    const dataPag = tratarData(row[3]);
+    const tipo    = (row[4] || '').toUpperCase();
+    const valorUnit = limpar(row[5]);
+
+    const dataRef = dataPag || dataCom;
+    if (!ticker || !dataRef || dataRef.getFullYear() !== anoAlvo) continue;
+
+    let fator = 1.0;
+    if (tipo.includes('JCP') || tipo.includes('ETF')) fator = 0.85;
+    else if (tipo.includes('EXTERIOR') || tipo.includes('BDR')) fator = 0.70;
+
+    const vliq = Math.round(valorUnit * fator * 100) / 100;
+    const mes  = dataRef.getMonth();
+
+    if (!anuncios[ticker]) anuncios[ticker] = {};
+    if (!anuncios[ticker][mes]) anuncios[ticker][mes] = { valor: 0, dataCom, segmento: seg };
+    anuncios[ticker][mes].valor = Math.round((anuncios[ticker][mes].valor + vliq) * 100) / 100;
+  }
+
+  for (const cliente in patrimonio) {
+    resultado[cliente] = { segmentos: {}, totaisMensais: Array(12).fill(0) };
+    const movs    = patrimonio[cliente];
+    const tickers = [...new Set(movs.map(m => m.ativo))];
+
+    tickers.forEach(ticker => {
+      const dadosMeses = [];
+      let segmentoAtivo = '';
+
+      for (let m = 0; m < 12; m++) {
+        const info = anuncios[ticker]?.[m] || null;
+        let qtdSaldo = 0, subtotal = 0;
+
+        if (info) {
+          segmentoAtivo = info.segmento;
+          movs.forEach(mov => {
+            if (mov.ativo !== ticker) return;
+            const dMov = tratarData(mov.dataLanc);
+            if (dMov && dMov <= info.dataCom) {
+              const q = limpar(mov.qtd);
+              qtdSaldo += mov.cv.includes('C') ? q : -q;
+            }
+          });
+          if (qtdSaldo > 0) {
+            subtotal = Math.round(qtdSaldo * info.valor * 100) / 100;
+            resultado[cliente].totaisMensais[m] =
+              Math.round((resultado[cliente].totaisMensais[m] + subtotal) * 100) / 100;
+          }
+        }
+        dadosMeses.push({ qtd: qtdSaldo, unit: info ? info.valor.toFixed(2) : '0.00', sub: subtotal });
+      }
+
+      if (dadosMeses.some(d => d.sub > 0)) {
+        const seg = segmentoAtivo || 'OUTROS';
+        if (!resultado[cliente].segmentos[seg]) resultado[cliente].segmentos[seg] = [];
+        resultado[cliente].segmentos[seg].push({ ticker, dadosMeses });
+      }
+    });
+  }
+  return resultado;
+}
+
+/* =======================================================
+   SIDEBAR
+======================================================= */
+function renderSidebar() {
+  const nav = document.getElementById('nav-list');
+  nav.innerHTML = '';
+  GLOBAL.listaClientes.forEach(nome => {
+    const div = document.createElement('div');
+    div.className = 'nav-item';
+    div.dataset.nome = nome;
+    div.innerHTML = `<span class="dot"></span>${nome}`;
+    div.onclick = () => selectCliente(nome);
+    nav.appendChild(div);
+  });
+}
+
+function setNavActive(nome) {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.nome === nome);
+  });
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  setTimeout(() => {
+    chartsBar?.resize(); chartsPie?.resize(); chartsEvol?.resize();
+  }, 320);
+}
+
+/* =======================================================
+   RENDERIZAR CLIENTE — dispatcher
+======================================================= */
+function selectCliente(nome) {
+  clienteAtivo = nome;
+  setNavActive(nome);
+  document.getElementById('topbar-title').textContent = nome;
+  document.getElementById('topbar-meta').textContent  =
+    anoSel === 'TODOS' ? 'Todos os Anos · Histórico completo' : `Ano ${anoSel} · Atualizado agora`;
+
+  if (anoSel === 'TODOS') {
+    renderClienteTodos(nome);
+  } else {
+    renderClienteAno(nome);
+  }
+}
+
+/* =======================================================
+   RENDER — ANO ESPECÍFICO (lógica original)
+======================================================= */
+function renderClienteAno(nome) {
+  const info   = GLOBAL.proventos[nome]  || { segmentos: {}, totaisMensais: Array(12).fill(0) };
+  const movs   = GLOBAL.patrimonio[nome] || [];
+  const precos = GLOBAL.precos;
+
+  /* Consolidar carteira */
+  const consolid = {};
+  movs.forEach(item => {
+    const ticker = item.ativo;
+    const seg    = item.tipo || 'OUTROS';
+    const qtd    = limpar(item.qtd);
+    const total  = limpar(item.total);
+    const isC    = item.cv?.toUpperCase().includes('C');
+    if (!consolid[seg]) consolid[seg] = {};
+    if (!consolid[seg][ticker]) consolid[seg][ticker] = { qtdTotal: 0, valorAplicado: 0 };
+    if (isC) {
+      consolid[seg][ticker].qtdTotal     += qtd;
+      consolid[seg][ticker].valorAplicado += total;
+    } else {
+      const prev = consolid[seg][ticker];
+      const pm   = prev.qtdTotal > 0 ? prev.valorAplicado / prev.qtdTotal : 0;
+      prev.qtdTotal     -= qtd;
+      prev.valorAplicado -= qtd * pm;
+    }
+  });
+
+  let totalAplAtual = 0, totalAtualMkt = 0, qtdAtivos = 0;
+  Object.entries(consolid).forEach(([seg, tickers]) => {
+    Object.entries(tickers).forEach(([ticker, item]) => {
+      if (item.qtdTotal > 0.0001) {
+        totalAplAtual += item.valorAplicado;
+        totalAtualMkt += item.qtdTotal * (precos[ticker] || 0);
+        qtdAtivos++;
+      }
+    });
+  });
+
+  const totalProv  = info.totaisMensais.reduce((a,b) => a+b, 0);
+  const lucroPatr  = totalAtualMkt - totalAplAtual;
+  const lucroTotal = lucroPatr + totalProv;
+  const rentTotal  = totalAplAtual > 0 ? (lucroTotal / totalAplAtual) * 100 : 0;
+  const pctIdeal   = qtdAtivos > 0 ? 100 / qtdAtivos : 0;
+
+  let html = '';
+
+  /* KPIs */
+  html += `<div class="kpi-grid">`;
+  html += kpiCard('Valor Aplicado',       fmt(totalAplAtual), '');
+  html += kpiCard('Valor Atual (Mercado)',fmt(totalAtualMkt),  '', '', 'positive');
+  html += kpiCard('Proventos no Ano',     fmt(totalProv),      '');
+  html += kpiCard('Rentabilidade Total',
+    `${rentTotal >= 0 ? '▲' : '▼'} ${rentTotal.toFixed(2)}%`,
+    fmt(lucroTotal),
+    rentTotal >= 0 ? '' : 'negative',
+    rentTotal >= 0 ? 'positive' : 'negative');
+  html += `</div>`;
+
+  /* Gráfico Evolução Mensal */
+  html += `
+    <div class="section-head"><h3>Evolução do Patrimônio</h3><span class="pill">mensal ${anoSel}</span></div>
+    <div class="chart-block">
+      <div class="chart-block-title">Patrimônio Investido — ${anoSel}</div>
+      <div style="height:240px;"><canvas id="cvs-evol"></canvas></div>
+    </div>`;
+
+  /* Cards de Segmento */
+  let segIdx = 0;
+  const segsComAtivos = Object.keys(consolid).filter(s =>
+    Object.values(consolid[s]).some(v => v.qtdTotal > 0.0001)
+  );
+  html += `<div class="section-head"><h3>Consolidação de Carteira</h3><span class="pill">${qtdAtivos} ativos · ${segsComAtivos.length} segmentos</span></div>`;
+  html += `<div class="seg-cards-grid">`;
+
+  Object.entries(consolid).forEach(([seg, tickers]) => {
+    const valid = Object.keys(tickers).filter(t => tickers[t].qtdTotal > 0.0001);
+    if (!valid.length) return;
+
+    const color   = SEG_PALETTE[segIdx % SEG_PALETTE.length];
+    const colorBg = color + '18';
+    const colorBd = color + '40';
+    const cardId  = 'sc-' + seg.replace(/\W+/g, '-') + '-' + segIdx;
+    segIdx++;
+
+    let segApl = 0, segMkt = 0;
+    valid.forEach(ticker => {
+      const item = tickers[ticker];
+      segApl    += item.valorAplicado;
+      segMkt    += item.qtdTotal * (precos[ticker] || 0);
+    });
+    const segLP      = segMkt - segApl;
+    const segVar     = segApl > 0 ? ((segMkt / segApl) - 1) * 100 : 0;
+    const segPctCart = totalAtualMkt > 0 ? (segMkt / totalAtualMkt) * 100 : 0;
+    const segIdeal   = pctIdeal * valid.length;
+
+    html += buildSegCard(cardId, seg, color, colorBg, colorBd, segMkt, segLP, segVar, segPctCart, segIdeal,
+      valid, tickers, precos, totalAtualMkt, pctIdeal, color);
+  });
+
+  html += `</div>`;
+
+  /* Proventos */
+  html += `<div class="section-head" style="margin-top:40px"><h3>Proventos Recebidos</h3><span class="pill">ano ${anoSel}</span></div>`;
+  html += `<div class="charts-row">
+    <div class="chart-block" style="margin-bottom:0">
+      <div class="chart-block-title">Distribuição Mensal (R$)</div>
+      <div style="height:200px;"><canvas id="cvs-bar"></canvas></div>
+    </div>
+    <div class="chart-block" style="margin-bottom:0">
+      <div class="chart-block-title">Por Segmento</div>
+      <div style="height:200px;"><canvas id="cvs-pie"></canvas></div>
+    </div>
+  </div>`;
+
+  html += `<div class="table-wrap" style="margin-top:20px"><div class="tbl-scroll"><table>
+    <thead><tr>
+      <th style="text-align:left">
+        <button class="btn-reiniciar" onclick="updateCharts('${nome}','TOTAL')">↺ Reiniciar</button>
+      </th>
+      ${MESES.map((m,i) => `<th onclick="toggleColProv(${i},'${nome}')">${m}</th>`).join('')}
+    </tr></thead>
+    <tbody>`;
+
+  Object.entries(info.segmentos).forEach(([seg, ativos]) => {
+    const segId = 'pv-' + seg.replace(/\W+/g,'-');
+    html += `<tr class="seg-row" onclick="toggleProvSeg('${segId}','${seg}','${nome}')">
+      <td colspan="13">▸ ${seg}</td>
+    </tr>`;
+    ativos.forEach(ativo => {
+      html += `<tr class="${segId} hidden-row">
+        <td class="td-ticker" style="padding-left:28px">${ativo.ticker}</td>
+        ${ativo.dadosMeses.map((mes,i) => `
+          <td class="prov-col-${i}">
+            <div class="prov-cell">
+              <div class="prov-unit">${mes.sub > 0 ? 'R$&nbsp;'+mes.unit : '—'}</div>
+              <div class="prov-extra">${mes.qtd > 0 ? mes.qtd+' cotas' : ''}</div>
+              <div class="prov-total">${mes.sub > 0 ? fmt(mes.sub) : ''}</div>
+            </div>
+          </td>`).join('')}
+      </tr>`;
+    });
+  });
+
+  html += `</tbody>
+    <tfoot><tr>
+      <td class="td-ticker">TOTAL GERAL</td>
+      ${info.totaisMensais.map(t => `<td>${fmt(t)}</td>`).join('')}
+    </tr></tfoot>
+  </table></div></div>`;
+
+  document.getElementById('content-area').innerHTML = html;
+  requestAnimationFrame(() => {
+    renderEvolucaoAno(nome, anoSel);
+    renderBarPie(nome);
+  });
+}
+
+/* =======================================================
+   RENDER — TODOS OS ANOS
+======================================================= */
+function renderClienteTodos(nome) {
+  const anos = detectarAnos();
+  if (!anos.length) {
+    document.getElementById('content-area').innerHTML =
+      '<div class="empty-state"><div class="icon">📅</div><p>Sem dados históricos.</p></div>';
+    return;
+  }
+
+  const precos = GLOBAL.precos;
+  const movs   = GLOBAL.patrimonio[nome] || [];
+
+  /* Patrimônio atual (último ano disponível) */
+  const consolid = {};
+  movs.forEach(item => {
+    const ticker = item.ativo;
+    const seg    = item.tipo || 'OUTROS';
+    const qtd    = limpar(item.qtd);
+    const isC    = item.cv?.toUpperCase().includes('C');
+    if (!consolid[seg]) consolid[seg] = {};
+    if (!consolid[seg][ticker]) consolid[seg][ticker] = { qtdTotal: 0, valorAplicado: 0 };
+    if (isC) {
+      consolid[seg][ticker].qtdTotal     += qtd;
+      consolid[seg][ticker].valorAplicado += limpar(item.total);
+    } else {
+      const prev = consolid[seg][ticker];
+      const pm   = prev.qtdTotal > 0 ? prev.valorAplicado / prev.qtdTotal : 0;
+      prev.qtdTotal     -= qtd;
+      prev.valorAplicado -= qtd * pm;
+    }
+  });
+
+  let totalAplAtual = 0, totalAtualMkt = 0, qtdAtivos = 0;
+  Object.entries(consolid).forEach(([seg, tks]) => {
+    Object.entries(tks).forEach(([ticker, item]) => {
+      if (item.qtdTotal > 0.0001) {
+        totalAplAtual += item.valorAplicado;
+        totalAtualMkt += item.qtdTotal * (precos[ticker] || 0);
+        qtdAtivos++;
+      }
+    });
+  });
+
+  /* Proventos por ano */
+  const provPorAno = {};
+  let totalProvGeral = 0;
+  anos.forEach(ano => {
+    const pv = GLOBAL.proventosPorAno?.[ano]?.[nome];
+    const t  = pv ? pv.totaisMensais.reduce((a,b) => a+b, 0) : 0;
+    provPorAno[ano] = { total: t, mensais: pv?.totaisMensais || Array(12).fill(0), segmentos: pv?.segmentos || {} };
+    totalProvGeral += t;
+  });
+
+  /* Saldo patrimonial acumulado por ano (dez de cada ano) */
+  const saldoPorAno = {};
+  anos.forEach(ano => {
+    const evol = GLOBAL.evolucao[nome]?.[ano];
+    saldoPorAno[ano] = evol ? evol[11] : 0;
+  });
+
+  const lucroTotal = (totalAtualMkt - totalAplAtual) + totalProvGeral;
+  const rentTotal  = totalAplAtual > 0 ? (lucroTotal / totalAplAtual) * 100 : 0;
+  const pctIdeal   = qtdAtivos > 0 ? 100 / qtdAtivos : 0;
+
+  let html = '';
+
+  /* KPIs gerais */
+  html += `<div class="kpi-grid">`;
+  html += kpiCard('Patrimônio Atual',     fmt(totalAtualMkt),  `${anos.length} anos de histórico`, '', 'positive');
+  html += kpiCard('Total Aplicado',       fmt(totalAplAtual),  '');
+  html += kpiCard('Proventos Históricos', fmt(totalProvGeral), 'todos os anos', '', 'positive');
+  html += kpiCard('Rentabilidade Total',
+    `${rentTotal >= 0 ? '▲' : '▼'} ${Math.abs(rentTotal).toFixed(2)}%`,
+    fmt(lucroTotal),
+    rentTotal >= 0 ? '' : 'negative',
+    rentTotal >= 0 ? 'positive' : 'negative');
+  html += `</div>`;
+
+  /* Gráfico evolução anual + proventos anuais */
+  html += `
+    <div class="section-head"><h3>Evolução Histórica</h3><span class="pill">${anos[0]} → ${anos[anos.length-1]}</span></div>
+    <div class="charts-row" style="margin-bottom:24px">
+      <div class="chart-block" style="margin-bottom:0">
+        <div class="chart-block-title">Patrimônio Acumulado por Ano (R$)</div>
+        <div style="height:260px"><canvas id="cvs-evol"></canvas></div>
+      </div>
+      <div class="chart-block" style="margin-bottom:0">
+        <div class="chart-block-title">Proventos por Ano (R$)</div>
+        <div style="height:260px"><canvas id="cvs-bar"></canvas></div>
+      </div>
+    </div>`;
+
+  /* Tabela comparativa anual de proventos */
+  html += `
+    <div class="section-head"><h3>Proventos por Ano</h3><span class="pill">comparativo histórico</span></div>
+    <div class="table-wrap"><div class="tbl-scroll">
+    <table>
+      <thead><tr>
+        <th style="text-align:left">Segmento / Ativo</th>
+        ${anos.map(a => `<th>${a}</th>`).join('')}
+        <th>Total</th>
+      </tr></thead>
+      <tbody>`;
+
+  /* Montar linhas por segmento e ticker */
+  const todosSegs = new Set();
+  anos.forEach(ano => Object.keys(provPorAno[ano].segmentos).forEach(s => todosSegs.add(s)));
+
+  todosSegs.forEach(seg => {
+    const segRowId = 'pvt-' + seg.replace(/\W+/g,'-');
+    // Totais do segmento por ano
+    const totaisSegPorAno = anos.map(ano => {
+      const ativos = provPorAno[ano].segmentos[seg] || [];
+      return ativos.reduce((s, at) => s + at.dadosMeses.reduce((x,m) => x+m.sub, 0), 0);
+    });
+    const totalSeg = totaisSegPorAno.reduce((a,b) => a+b, 0);
+    if (totalSeg <= 0) return;
+
+    html += `<tr class="seg-row" onclick="toggleSeg('${segRowId}')">
+      <td colspan="${anos.length + 2}">▸ ${seg}</td>
+    </tr>`;
+
+    // Linhas por ticker
+    const todosTickersSeg = new Set();
+    anos.forEach(ano => {
+      (provPorAno[ano].segmentos[seg] || []).forEach(at => todosTickersSeg.add(at.ticker));
+    });
+
+    todosTickersSeg.forEach(ticker => {
+      const valoresPorAno = anos.map(ano => {
+        const ativos = provPorAno[ano].segmentos[seg] || [];
+        const at = ativos.find(a => a.ticker === ticker);
+        return at ? at.dadosMeses.reduce((s,m) => s+m.sub, 0) : 0;
+      });
+      const totalTicker = valoresPorAno.reduce((a,b) => a+b, 0);
+      if (totalTicker <= 0) return;
+
+      html += `<tr class="${segRowId} hidden-row">
+        <td class="td-ticker" style="padding-left:28px">${ticker}</td>
+        ${valoresPorAno.map(v => `<td style="color:${v>0?'var(--accent)':'var(--muted)'}">${v > 0 ? fmt(v) : '—'}</td>`).join('')}
+        <td style="color:var(--accent);font-weight:600">${fmt(totalTicker)}</td>
+      </tr>`;
+    });
+
+    // Linha de total do segmento
+    html += `<tr class="${segRowId} hidden-row" style="background:var(--panel)">
+      <td class="td-ticker" style="padding-left:28px;color:var(--muted);font-size:0.75rem">TOTAL ${seg}</td>
+      ${totaisSegPorAno.map(v => `<td style="color:${v>0?'var(--accent)':'var(--muted)'}"><strong>${v > 0 ? fmt(v) : '—'}</strong></td>`).join('')}
+      <td style="color:var(--accent)"><strong>${fmt(totalSeg)}</strong></td>
+    </tr>`;
+  });
+
+  /* Linha de totais gerais por ano */
+  html += `</tbody><tfoot><tr>
+    <td class="td-ticker">TOTAL ANUAL</td>
+    ${anos.map(ano => `<td>${fmt(provPorAno[ano].total)}</td>`).join('')}
+    <td>${fmt(totalProvGeral)}</td>
+  </tr></tfoot>
+  </table></div></div>`;
+
+  /* Cards de Carteira — igual ao modo ano único */
+  let segIdx2 = 0;
+  const segsComAtivos2 = Object.keys(consolid).filter(s =>
+    Object.values(consolid[s]).some(v => v.qtdTotal > 0.0001)
+  );
+  html += `<div class="section-head" style="margin-top:36px"><h3>Consolidação de Carteira</h3><span class="pill">posição atual · ${qtdAtivos} ativos</span></div>`;
+  html += `<div class="seg-cards-grid">`;
+  Object.entries(consolid).forEach(([seg, tickers]) => {
+    const valid = Object.keys(tickers).filter(t => tickers[t].qtdTotal > 0.0001);
+    if (!valid.length) return;
+    const color   = SEG_PALETTE[segIdx2 % SEG_PALETTE.length];
+    const colorBg = color + '18';
+    const colorBd = color + '40';
+    const cardId  = 'sc2-' + seg.replace(/\W+/g, '-') + '-' + segIdx2;
+    segIdx2++;
+    let segApl = 0, segMkt = 0;
+    valid.forEach(t => { segApl += tickers[t].valorAplicado; segMkt += tickers[t].qtdTotal * (precos[t] || 0); });
+    const segLP = segMkt - segApl;
+    const segVar = segApl > 0 ? ((segMkt/segApl)-1)*100 : 0;
+    const segPctCart = totalAtualMkt > 0 ? (segMkt/totalAtualMkt)*100 : 0;
+    const segIdeal = pctIdeal * valid.length;
+    html += buildSegCard(cardId, seg, color, colorBg, colorBd, segMkt, segLP, segVar, segPctCart, segIdeal,
+      valid, tickers, precos, totalAtualMkt, pctIdeal, color);
+  });
+  html += `</div>`;
+
+  document.getElementById('content-area').innerHTML = html;
+  requestAnimationFrame(() => {
+    renderEvolucaoHistorica(nome, anos, saldoPorAno, provPorAno);
+  });
+}
+
+/* =======================================================
+   BUILDER — Card de Segmento (reutilizável)
+======================================================= */
+function buildSegCard(cardId, seg, color, colorBg, colorBd, segMkt, segLP, segVar, segPctCart, segIdeal,
+                      valid, tickers, precos, totalAtualMkt, pctIdeal, tickerColor) {
+  let h = `
+  <div class="seg-card" id="${cardId}">
+    <div class="seg-card-bar" style="background:${color}"></div>
+    <div class="seg-card-header" onclick="toggleSegCard('${cardId}')">
+      <div class="seg-card-icon" style="background:${colorBg};color:${color};border:1px solid ${colorBd}">
+        ${seg.slice(0,5)}
+      </div>
+      <div class="seg-card-kpis">
+        <div class="seg-kpi-item">
+          <span class="seg-kpi-label">Total Atual</span>
+          <span class="seg-kpi-val">${fmt(segMkt)}</span>
+        </div>
+        <div class="seg-kpi-item">
+          <span class="seg-kpi-label">L / P</span>
+          <span class="seg-kpi-val ${segLP >= 0 ? 'pos' : 'neg'}">${fmt(segLP)}</span>
+        </div>
+        <div class="seg-kpi-item">
+          <span class="seg-kpi-label">Var %</span>
+          <span class="seg-kpi-val ${segVar >= 0 ? 'pos' : 'neg'}">${segVar.toFixed(2)}%</span>
+        </div>
+        <div class="seg-kpi-item">
+          <span class="seg-kpi-label">% Cart.</span>
+          <span class="seg-kpi-val">${segPctCart.toFixed(2)}%</span>
+        </div>
+        <div class="seg-kpi-item">
+          <span class="seg-kpi-label">% Ideal</span>
+          <span class="seg-kpi-val" style="color:var(--muted)">${segIdeal.toFixed(2)}%</span>
+        </div>
+      </div>
+      <span class="seg-card-chevron">▶</span>
+    </div>
+    <div class="seg-card-body">
+      <table class="seg-inner-table">
+        <thead><tr>
+          <th>Ativo</th><th>Qtd</th><th>Preço Médio</th><th>Vlr Aplicado</th>
+          <th>Preço Atual</th><th>Var %</th><th>L / P</th>
+          <th>Total Atual</th><th>% Cart.</th><th>% Ideal</th>
+        </tr></thead>
+        <tbody>`;
+
+  valid.forEach(ticker => {
+    const item   = tickers[ticker];
+    const pmkt   = precos[ticker] || 0;
+    const pm     = item.qtdTotal > 0 ? item.valorAplicado / item.qtdTotal : 0;
+    const vAtual = item.qtdTotal * pmkt;
+    const lp     = vAtual - item.valorAplicado;
+    const varpct = pm > 0 ? ((pmkt/pm)-1)*100 : 0;
+    const pctCart= totalAtualMkt > 0 ? (vAtual/totalAtualMkt)*100 : 0;
+
+    h += `<tr>
+      <td>${ticker}</td>
+      <td>${item.qtdTotal.toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
+      <td>${fmt(pm)}</td>
+      <td>${fmt(item.valorAplicado)}</td>
+      <td style="color:${tickerColor}">${fmt(pmkt)}</td>
+      <td style="color:${varpct>=0?'var(--accent)':'var(--red)'}">${varpct.toFixed(2)}%</td>
+      <td style="color:${lp>=0?'var(--accent)':'var(--red)'}">${fmt(lp)}</td>
+      <td>${fmt(vAtual)}</td>
+      <td>${pctCart.toFixed(2)}%</td>
+      <td style="color:var(--muted)">${pctIdeal.toFixed(2)}%</td>
+    </tr>`;
+  });
+
+  h += `</tbody></table></div></div>`;
+  return h;
+}
+
+function kpiCard(label, value, sub, cardCls='', valCls='') {
+  return `<div class="kpi-card animate-in ${cardCls}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value ${valCls}">${value}</div>
+    ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+/* =======================================================
+   CHART HELPERS
+======================================================= */
+const CHART_COLORS = ['#3ddc84','#4da6ff','#b388ff','#f25c5c','#ffb347','#40c4ff'];
+
+/* Gráfico mensal — ano único */
+function renderEvolucaoAno(nome, ano) {
+  const ctx = document.getElementById('cvs-evol');
+  if (!ctx) return;
+  chartsEvol?.destroy();
+  const hoje   = new Date();
+  const mesLim = (ano < hoje.getFullYear()) ? 11 : hoje.getMonth();
+  const brutos = GLOBAL.evolucao[nome]?.[ano] || Array(12).fill(0);
+  const labels = MESES.slice(0, mesLim+1);
+  const data   = brutos.slice(0, mesLim+1);
+
+  chartsEvol = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{
+      label: 'Patrimônio', data,
+      borderColor: '#3ddc84', backgroundColor: 'rgba(61,220,132,0.08)',
+      fill: true, tension: 0.35, pointRadius: 4,
+      pointBackgroundColor: '#3ddc84', pointBorderColor: 'transparent', borderWidth: 2,
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmt(c.parsed.y) } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7a9480' } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7a9480', callback: v => fmt(v) }, beginAtZero: false }
+      }
+    }
+  });
+}
+
+/* Gráficos históricos — TODOS os anos */
+function renderEvolucaoHistorica(nome, anos, saldoPorAno, provPorAno) {
+  chartsEvol?.destroy(); chartsBar?.destroy(); chartsPie?.destroy();
+
+  const saldos  = anos.map(a => saldoPorAno[a] || 0);
+  const provTot = anos.map(a => provPorAno[a].total);
+  const gc = 'rgba(255,255,255,0.04)', tc = '#7a9480';
+
+  /* Patrimônio acumulado — linha */
+  const ctxE = document.getElementById('cvs-evol');
+  if (ctxE) {
+    chartsEvol = new Chart(ctxE, {
+      type: 'bar',
+      data: { labels: anos.map(String), datasets: [
+        { label: 'Patrimônio (R$)', data: saldos,
+          backgroundColor: 'rgba(61,220,132,0.6)', borderRadius: 6 },
+        { label: 'Proventos (R$)', data: provTot,
+          backgroundColor: 'rgba(77,166,255,0.5)', borderRadius: 6 },
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: tc } },
+          tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)}` } }
+        },
+        scales: {
+          x: { grid: { color: gc }, ticks: { color: tc } },
+          y: { grid: { color: gc }, ticks: { color: tc, callback: v => fmt(v) }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  /* Proventos por ano — barras */
+  const ctxB = document.getElementById('cvs-bar');
+  if (ctxB) {
+    chartsBar = new Chart(ctxB, {
+      type: 'bar',
+      data: { labels: anos.map(String), datasets: [{
+        label: 'Proventos R$', data: provTot,
+        backgroundColor: anos.map((_,i) => CHART_COLORS[i % CHART_COLORS.length]),
+        borderRadius: 6
+      }]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => fmt(c.parsed.y) } }
+        },
+        scales: {
+          x: { grid: { color: gc }, ticks: { color: tc } },
+          y: { grid: { color: gc }, ticks: { color: tc, callback: v => fmt(v) } }
+        }
+      }
+    });
+  }
+}
+
+function renderBarPie(nome) {
+  const info = GLOBAL.proventos[nome] || { totaisMensais: Array(12).fill(0), segmentos: {} };
+  const ctxB = document.getElementById('cvs-bar');
+  const ctxP = document.getElementById('cvs-pie');
+  chartsBar?.destroy(); chartsPie?.destroy();
+
+  if (ctxB) {
+    chartsBar = new Chart(ctxB, {
+      type: 'bar',
+      data: { labels: MESES, datasets: [{ label: 'Proventos R$', data: info.totaisMensais,
+        backgroundColor: 'rgba(61,220,132,0.7)', borderRadius: 4 }]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmt(c.parsed.y) } } },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7a9480' } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7a9480', callback: v => fmt(v) } }
+        }
+      }
+    });
+  }
+
+  if (ctxP) {
+    const segs = Object.keys(info.segmentos);
+    const vals = segs.map(s => info.segmentos[s].reduce((a,at) => a+at.dadosMeses.reduce((x,m)=>x+m.sub,0),0));
+    chartsPie = new Chart(ctxP, {
+      type: 'doughnut',
+      data: { labels: segs, datasets: [{ data: vals, backgroundColor: CHART_COLORS,
+        borderColor: 'transparent', hoverOffset: 6 }]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { color: '#7a9480', font: { size: 11 }, boxWidth: 10 } },
+          tooltip: { callbacks: { label: c => `${c.label}: ${fmt(c.parsed)}` } }
+        },
+        cutout: '65%',
+      }
+    });
+  }
+}
+
+function updateCharts(nome, filtro) {
+  const info = GLOBAL.proventos[nome];
+  if (!info || !chartsBar || !chartsPie) return;
+  let dBar = Array(12).fill(0), lPie = [], dPie = [];
+
+  if (filtro === 'TOTAL') {
+    dBar = info.totaisMensais;
+    Object.entries(info.segmentos).forEach(([s, ativos]) => {
+      lPie.push(s);
+      dPie.push(ativos.reduce((a,at) => a+at.dadosMeses.reduce((x,m)=>x+m.sub,0),0));
+    });
+  } else if (info.segmentos[filtro]) {
+    info.segmentos[filtro].forEach(at => {
+      lPie.push(at.ticker); let soma = 0;
+      at.dadosMeses.forEach((m,i) => { dBar[i] += m.sub; soma += m.sub; });
+      dPie.push(soma);
+    });
+  }
+  chartsBar.data.datasets[0].data  = dBar;
+  chartsBar.data.datasets[0].label = `Filtro: ${filtro}`;
+  chartsBar.update();
+  chartsPie.data.labels = lPie;
+  chartsPie.data.datasets[0].data = dPie;
+  chartsPie.update();
+}
+
+/* =======================================================
+   UI HELPERS
+======================================================= */
+function toggleSegCard(id) {
+  const card = document.getElementById(id);
+  if (card) card.classList.toggle('open');
+}
+
+function toggleSeg(cls) {
+  document.querySelectorAll(`.${cls}`).forEach(r => r.classList.toggle('hidden-row'));
+}
+
+function toggleProvSeg(cls, seg, nome) {
+  const rows   = document.querySelectorAll(`.${cls}`);
+  const hidden = rows.length > 0 && rows[0].classList.contains('hidden-row');
+  document.querySelectorAll('[class*="pv-"]').forEach(r => r.classList.add('hidden-row'));
+  if (hidden) {
+    rows.forEach(r => r.classList.remove('hidden-row'));
+    updateCharts(nome, seg);
+  } else {
+    updateCharts(nome, 'TOTAL');
+  }
+}
+
+function toggleColProv(idx) {
+  document.querySelectorAll(`.prov-col-${idx}`).forEach(c => c.classList.toggle('col-active'));
+}
 
 /* =======================================================
    UTILITÁRIOS
