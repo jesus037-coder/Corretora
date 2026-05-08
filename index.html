@@ -480,6 +480,129 @@ tfoot .td-ticker {
   transition: color 0.2s, border-color 0.2s;
 }
 .btn-reiniciar:hover { color: var(--accent); border-color: var(--accent); }
+
+/* =========================================================
+   SEGMENT CARDS — Consolidação de Carteira
+========================================================= */
+.seg-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+/* Card container */
+.seg-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.seg-card:hover {
+  border-color: rgba(255,255,255,0.13);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+/* Coloured top accent bar */
+.seg-card-bar { height: 3px; width: 100%; }
+
+/* Header row — always visible */
+.seg-card-header {
+  padding: 16px 20px 14px;
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.seg-card-header:hover { background: rgba(255,255,255,0.02); }
+
+.seg-card-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; font-family: var(--font-mono);
+  flex-shrink: 0; letter-spacing: 0.5px;
+}
+.seg-card-name {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;
+  flex: 1;
+}
+.seg-card-chevron {
+  font-size: 0.75rem; color: var(--muted);
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+  font-family: var(--font-mono);
+}
+.seg-card.open .seg-card-chevron { transform: rotate(90deg); }
+
+/* Summary strip — 5 KPIs always visible below header */
+.seg-card-summary {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  padding: 14px 16px; gap: 4px;
+}
+.seg-sum-item { text-align: center; }
+.seg-sum-label {
+  font-family: var(--font-mono); font-size: 0.58rem;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); margin-bottom: 5px;
+}
+.seg-sum-val {
+  font-family: var(--font-mono); font-size: 0.82rem; font-weight: 500;
+  color: var(--text);
+}
+.seg-sum-val.pos { color: var(--accent); }
+.seg-sum-val.neg { color: var(--red); }
+
+/* Expandable body */
+.seg-card-body {
+  display: none;
+  overflow-x: auto;
+  border-top: 1px solid var(--border);
+}
+.seg-card.open .seg-card-body { display: block; }
+
+/* Inner table */
+.seg-inner-table {
+  width: 100%; border-collapse: collapse;
+  min-width: 680px; font-size: 0.82rem;
+}
+.seg-inner-table thead th {
+  background: var(--panel);
+  color: var(--muted); font-family: var(--font-mono);
+  font-size: 0.62rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 1px;
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  text-align: center; white-space: nowrap; cursor: default;
+}
+.seg-inner-table thead th:first-child { text-align: left; }
+.seg-inner-table tbody td {
+  padding: 0 14px; height: 46px;
+  border-bottom: 1px solid var(--border);
+  text-align: center; color: var(--text);
+  font-family: var(--font-mono); font-size: 0.82rem;
+}
+.seg-inner-table tbody tr:last-child td { border-bottom: none; }
+.seg-inner-table tbody tr:hover td { background: rgba(255,255,255,0.025); }
+.seg-inner-table td:first-child {
+  text-align: left; font-weight: 700; font-size: 0.88rem;
+}
+/* Footer totals row */
+.seg-inner-table tfoot td {
+  background: var(--panel); font-family: var(--font-mono);
+  font-size: 0.8rem; font-weight: 700;
+  border-top: 2px solid var(--border);
+  padding: 12px 14px; text-align: center;
+}
+.seg-inner-table tfoot td:first-child { text-align: left; }
+.seg-foot-pos { color: var(--accent) !important; }
+.seg-foot-neg { color: var(--red) !important; }
+.seg-foot-muted { color: var(--muted) !important; }
+
+/* Colour palette for segments (index 0-7) */
+:root {
+  --sc0: #3ddc84; --sc1: #4da6ff; --sc2: #b388ff; --sc3: #f25c5c;
+  --sc4: #ffb347; --sc5: #40c4ff; --sc6: #a5d6a7; --sc7: #ef9a9a;
+}
 </style>
 </head>
 <body>
@@ -984,60 +1107,139 @@ function selectCliente(nome) {
       <div style="height:240px;"><canvas id="cvs-evol"></canvas></div>
     </div>`;
 
-  /* Carteira */
-  html += `<div class="section-head"><h3>Consolidação de Carteira</h3><span class="pill">${qtdAtivos} ativos</span></div>`;
-  html += `<div class="table-wrap"><div class="tbl-scroll"><table>
-    <thead><tr>
-      <th style="text-align:left">Ativo</th>
-      <th>Qtd</th><th>Preço Médio</th><th>Vlr Aplicado</th>
-      <th>Preço Atual</th><th>Var %</th><th>L/P (R$)</th>
-      <th>Total Atual</th><th>% Atual</th><th>% Ideal</th>
-    </tr></thead>
-    <tbody>`;
+  /* ---- Carteira: Cards por Segmento ---- */
+  const SEG_PALETTE = ['#3ddc84','#4da6ff','#b388ff','#f25c5c','#ffb347','#40c4ff','#a5d6a7','#ef9a9a'];
+  let segIdx = 0;
+
+  html += `<div class="section-head"><h3>Consolidação de Carteira</h3><span class="pill">${qtdAtivos} ativos · ${Object.keys(consolid).filter(s => Object.values(consolid[s]).some(v => v.qtdTotal > 0.0001)).length} segmentos</span></div>`;
+  html += `<div class="seg-cards-grid">`;
 
   Object.entries(consolid).forEach(([seg, tickers]) => {
     const valid = Object.keys(tickers).filter(t => tickers[t].qtdTotal > 0.0001);
     if (!valid.length) return;
-    const segId = 'cs-' + seg.replace(/\W+/g,'-');
-    html += `<tr class="seg-row" onclick="toggleSeg('${segId}')">
-      <td colspan="10">▸ ${seg} <span class="type-badge ${badgeClass(seg)}">${seg}</span></td>
-    </tr>`;
+
+    const color   = SEG_PALETTE[segIdx % SEG_PALETTE.length];
+    const colorBg = color + '18'; // ~10% opacity background
+    const colorBd = color + '40'; // ~25% opacity border
+    const cardId  = 'sc-' + seg.replace(/\W+/g, '-') + '-' + segIdx;
+    segIdx++;
+
+    /* Segment totals */
+    let segApl = 0, segMkt = 0, segQtd = 0;
     valid.forEach(ticker => {
-      const item     = tickers[ticker];
-      const pmkt     = precos[ticker] || 0;
-      const pm       = item.valorAplicado / item.qtdTotal;
-      const vAtual   = item.qtdTotal * pmkt;
-      const lp       = vAtual - item.valorAplicado;
-      const varpct   = pm > 0 ? ((pmkt / pm) - 1) * 100 : 0;
-      const pctCart  = totalAtualMkt > 0 ? (vAtual / totalAtualMkt) * 100 : 0;
-      html += `<tr class="${segId} hidden-row">
-        <td class="td-ticker">${ticker}</td>
-        <td>${item.qtdTotal.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
-        <td>${fmt(pm)}</td>
-        <td>${fmt(item.valorAplicado)}</td>
-        <td style="color:var(--accent)">${fmt(pmkt)}</td>
-        <td style="color:${varpct>=0?'var(--accent)':'var(--red)'}">${varpct.toFixed(2)}%</td>
-        <td style="color:${lp>=0?'var(--accent)':'var(--red)'}">${fmt(lp)}</td>
-        <td>${fmt(vAtual)}</td>
-        <td>${pctCart.toFixed(2)}%</td>
-        <td style="color:var(--muted)">${pctIdeal.toFixed(2)}%</td>
-      </tr>`;
+      const item  = tickers[ticker];
+      const pmkt  = precos[ticker] || 0;
+      segApl     += item.valorAplicado;
+      segMkt     += item.qtdTotal * pmkt;
+      segQtd     += item.qtdTotal;
     });
+    const segLP      = segMkt - segApl;
+    const segVar     = segApl > 0 ? ((segMkt / segApl) - 1) * 100 : 0;
+    const segPctCart = totalAtualMkt > 0 ? (segMkt / totalAtualMkt) * 100 : 0;
+    const segIdeal   = pctIdeal * valid.length;
+
+    /* --- Card header + summary (always visible) --- */
+    html += `
+    <div class="seg-card" id="${cardId}">
+      <div class="seg-card-bar" style="background:${color}"></div>
+      <div class="seg-card-header" onclick="toggleSegCard('${cardId}')">
+        <div class="seg-card-icon" style="background:${colorBg};color:${color};border:1px solid ${colorBd}">
+          ${seg.slice(0,3)}
+        </div>
+        <span class="seg-card-name" style="color:${color}">${seg}</span>
+        <span class="seg-card-chevron">▶</span>
+      </div>
+
+      <div class="seg-card-summary">
+        <div class="seg-sum-item">
+          <div class="seg-sum-label">Total Atual</div>
+          <div class="seg-sum-val">${fmt(segMkt)}</div>
+        </div>
+        <div class="seg-sum-item">
+          <div class="seg-sum-label">L / P</div>
+          <div class="seg-sum-val ${segLP >= 0 ? 'pos' : 'neg'}">${fmt(segLP)}</div>
+        </div>
+        <div class="seg-sum-item">
+          <div class="seg-sum-label">Var %</div>
+          <div class="seg-sum-val ${segVar >= 0 ? 'pos' : 'neg'}">${segVar.toFixed(2)}%</div>
+        </div>
+        <div class="seg-sum-item">
+          <div class="seg-sum-label">% Cart.</div>
+          <div class="seg-sum-val">${segPctCart.toFixed(2)}%</div>
+        </div>
+        <div class="seg-sum-item">
+          <div class="seg-sum-label">% Ideal</div>
+          <div class="seg-sum-val" style="color:var(--muted)">${segIdeal.toFixed(2)}%</div>
+        </div>
+      </div>
+
+      <!-- Expandable detail table -->
+      <div class="seg-card-body">
+        <table class="seg-inner-table">
+          <thead>
+            <tr>
+              <th>Ativo</th>
+              <th>Qtd</th>
+              <th>Preço Médio</th>
+              <th>Vlr Aplicado</th>
+              <th>Preço Atual</th>
+              <th>Var %</th>
+              <th>L / P</th>
+              <th>Total Atual</th>
+              <th>% Cart.</th>
+              <th>% Ideal</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    /* --- Per-ticker rows --- */
+    valid.forEach(ticker => {
+      const item    = tickers[ticker];
+      const pmkt    = precos[ticker] || 0;
+      const pm      = item.qtdTotal > 0 ? item.valorAplicado / item.qtdTotal : 0;
+      const vAtual  = item.qtdTotal * pmkt;
+      const lp      = vAtual - item.valorAplicado;
+      const varpct  = pm > 0 ? ((pmkt / pm) - 1) * 100 : 0;
+      const pctCart = totalAtualMkt > 0 ? (vAtual / totalAtualMkt) * 100 : 0;
+
+      html += `
+            <tr>
+              <td>${ticker}</td>
+              <td>${item.qtdTotal.toLocaleString('pt-BR', {maximumFractionDigits: 2})}</td>
+              <td>${fmt(pm)}</td>
+              <td>${fmt(item.valorAplicado)}</td>
+              <td style="color:${color}">${fmt(pmkt)}</td>
+              <td style="color:${varpct >= 0 ? 'var(--accent)' : 'var(--red)'}">${varpct.toFixed(2)}%</td>
+              <td style="color:${lp >= 0 ? 'var(--accent)' : 'var(--red)'}">${fmt(lp)}</td>
+              <td>${fmt(vAtual)}</td>
+              <td>${pctCart.toFixed(2)}%</td>
+              <td style="color:var(--muted)">${pctIdeal.toFixed(2)}%</td>
+            </tr>`;
+    });
+
+    /* --- Footer totals row (negative = red) --- */
+    html += `
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>TOTAL ${seg}</td>
+              <td>—</td>
+              <td>—</td>
+              <td>${fmt(segApl)}</td>
+              <td>—</td>
+              <td class="${segVar >= 0 ? 'seg-foot-pos' : 'seg-foot-neg'}">${segVar.toFixed(2)}%</td>
+              <td class="${segLP >= 0 ? 'seg-foot-pos' : 'seg-foot-neg'}">${fmt(segLP)}</td>
+              <td class="${segLP >= 0 ? 'seg-foot-pos' : 'seg-foot-neg'}">${fmt(segMkt)}</td>
+              <td class="${segPctCart > 0 ? 'seg-foot-pos' : 'seg-foot-muted'}">${segPctCart.toFixed(2)}%</td>
+              <td class="seg-foot-muted">${segIdeal.toFixed(2)}%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
   });
 
-  html += `</tbody>
-    <tfoot><tr>
-      <td class="td-ticker" colspan="3">TOTAL GERAL</td>
-      <td>${fmt(totalAplAtual)}</td>
-      <td></td>
-      <td style="color:${lucroPatr>=0?'var(--accent)':'var(--red)'}">
-        ${(totalAplAtual>0?(lucroPatr/totalAplAtual*100):0).toFixed(2)}%
-      </td>
-      <td style="color:${lucroPatr>=0?'var(--accent)':'var(--red)'}">${fmt(lucroPatr)}</td>
-      <td>${fmt(totalAtualMkt)}</td>
-      <td colspan="2">100%</td>
-    </tr></tfoot>
-  </table></div></div>`;
+  html += `</div>`; /* end seg-cards-grid */
 
   /* Proventos */
   html += `<div class="section-head" style="margin-top:40px"><h3>Proventos Recebidos</h3><span class="pill">ano ${anoSel}</span></div>`;
@@ -1231,6 +1433,11 @@ function updateCharts(nome, filtro) {
 /* =======================================================
    UI HELPERS
 ======================================================= */
+function toggleSegCard(id) {
+  const card = document.getElementById(id);
+  if (card) card.classList.toggle('open');
+}
+
 function toggleSeg(cls) {
   document.querySelectorAll(`.${cls}`).forEach(r =>
     r.classList.toggle('hidden-row')
