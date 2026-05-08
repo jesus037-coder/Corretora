@@ -509,49 +509,52 @@ tfoot .td-ticker {
 
 /* Header row — always visible */
 .seg-card-header {
-  padding: 16px 20px 14px;
-  display: flex; align-items: center; gap: 12px;
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 16px;
   cursor: pointer;
-  border-bottom: 1px solid var(--border);
   transition: background 0.15s;
 }
 .seg-card-header:hover { background: rgba(255,255,255,0.02); }
 
 .seg-card-icon {
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 44px; height: 44px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.65rem; font-weight: 700; font-family: var(--font-mono);
-  flex-shrink: 0; letter-spacing: 0.5px;
+  font-size: 0.6rem; font-weight: 700; font-family: var(--font-mono);
+  flex-shrink: 0; letter-spacing: 0.5px; text-align: center;
+  line-height: 1.2;
 }
-.seg-card-name {
-  font-family: var(--font-mono); font-size: 0.78rem;
-  text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;
+
+/* KPI strip inside header */
+.seg-card-kpis {
   flex: 1;
+  display: flex; align-items: center;
+  gap: 0;
 }
+.seg-kpi-item {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+.seg-kpi-item:last-child { border-right: none; }
+.seg-kpi-label {
+  font-family: var(--font-mono); font-size: 0.58rem;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); margin-bottom: 4px;
+}
+.seg-kpi-val {
+  font-family: var(--font-mono); font-size: 0.88rem; font-weight: 600;
+  color: var(--text);
+}
+.seg-kpi-val.pos { color: var(--accent); }
+.seg-kpi-val.neg { color: var(--red); }
+
 .seg-card-chevron {
   font-size: 0.75rem; color: var(--muted);
   transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
-  font-family: var(--font-mono);
+  font-family: var(--font-mono); flex-shrink: 0;
 }
 .seg-card.open .seg-card-chevron { transform: rotate(90deg); }
-
-/* Summary strip — 5 KPIs always visible below header */
-.seg-card-summary {
-  display: grid; grid-template-columns: repeat(5, 1fr);
-  padding: 14px 16px; gap: 4px;
-}
-.seg-sum-item { text-align: center; }
-.seg-sum-label {
-  font-family: var(--font-mono); font-size: 0.58rem;
-  text-transform: uppercase; letter-spacing: 1px;
-  color: var(--muted); margin-bottom: 5px;
-}
-.seg-sum-val {
-  font-family: var(--font-mono); font-size: 0.82rem; font-weight: 500;
-  color: var(--text);
-}
-.seg-sum-val.pos { color: var(--accent); }
-.seg-sum-val.neg { color: var(--red); }
 
 /* Expandable body */
 .seg-card-body {
@@ -1119,58 +1122,58 @@ function selectCliente(nome) {
     if (!valid.length) return;
 
     const color   = SEG_PALETTE[segIdx % SEG_PALETTE.length];
-    const colorBg = color + '18'; // ~10% opacity background
-    const colorBd = color + '40'; // ~25% opacity border
+    const colorBg = color + '18';
+    const colorBd = color + '40';
     const cardId  = 'sc-' + seg.replace(/\W+/g, '-') + '-' + segIdx;
     segIdx++;
 
     /* Segment totals */
-    let segApl = 0, segMkt = 0, segQtd = 0;
+    let segApl = 0, segMkt = 0;
     valid.forEach(ticker => {
-      const item  = tickers[ticker];
-      const pmkt  = precos[ticker] || 0;
-      segApl     += item.valorAplicado;
-      segMkt     += item.qtdTotal * pmkt;
-      segQtd     += item.qtdTotal;
+      const item = tickers[ticker];
+      const pmkt = precos[ticker] || 0;
+      segApl    += item.valorAplicado;
+      segMkt    += item.qtdTotal * pmkt;
     });
     const segLP      = segMkt - segApl;
     const segVar     = segApl > 0 ? ((segMkt / segApl) - 1) * 100 : 0;
     const segPctCart = totalAtualMkt > 0 ? (segMkt / totalAtualMkt) * 100 : 0;
     const segIdeal   = pctIdeal * valid.length;
 
-    /* --- Card header + summary (always visible) --- */
     html += `
     <div class="seg-card" id="${cardId}">
       <div class="seg-card-bar" style="background:${color}"></div>
+
+      <!-- Header: icon + all totals inline + chevron -->
       <div class="seg-card-header" onclick="toggleSegCard('${cardId}')">
         <div class="seg-card-icon" style="background:${colorBg};color:${color};border:1px solid ${colorBd}">
-          ${seg.slice(0,3)}
+          ${seg.slice(0,5)}
         </div>
-        <span class="seg-card-name" style="color:${color}">${seg}</span>
-        <span class="seg-card-chevron">▶</span>
-      </div>
 
-      <div class="seg-card-summary">
-        <div class="seg-sum-item">
-          <div class="seg-sum-label">Total Atual</div>
-          <div class="seg-sum-val">${fmt(segMkt)}</div>
+        <div class="seg-card-kpis">
+          <div class="seg-kpi-item">
+            <span class="seg-kpi-label">Total Atual</span>
+            <span class="seg-kpi-val">${fmt(segMkt)}</span>
+          </div>
+          <div class="seg-kpi-item">
+            <span class="seg-kpi-label">L / P</span>
+            <span class="seg-kpi-val ${segLP >= 0 ? 'pos' : 'neg'}">${fmt(segLP)}</span>
+          </div>
+          <div class="seg-kpi-item">
+            <span class="seg-kpi-label">Var %</span>
+            <span class="seg-kpi-val ${segVar >= 0 ? 'pos' : 'neg'}">${segVar.toFixed(2)}%</span>
+          </div>
+          <div class="seg-kpi-item">
+            <span class="seg-kpi-label">% Cart.</span>
+            <span class="seg-kpi-val">${segPctCart.toFixed(2)}%</span>
+          </div>
+          <div class="seg-kpi-item">
+            <span class="seg-kpi-label">% Ideal</span>
+            <span class="seg-kpi-val" style="color:var(--muted)">${segIdeal.toFixed(2)}%</span>
+          </div>
         </div>
-        <div class="seg-sum-item">
-          <div class="seg-sum-label">L / P</div>
-          <div class="seg-sum-val ${segLP >= 0 ? 'pos' : 'neg'}">${fmt(segLP)}</div>
-        </div>
-        <div class="seg-sum-item">
-          <div class="seg-sum-label">Var %</div>
-          <div class="seg-sum-val ${segVar >= 0 ? 'pos' : 'neg'}">${segVar.toFixed(2)}%</div>
-        </div>
-        <div class="seg-sum-item">
-          <div class="seg-sum-label">% Cart.</div>
-          <div class="seg-sum-val">${segPctCart.toFixed(2)}%</div>
-        </div>
-        <div class="seg-sum-item">
-          <div class="seg-sum-label">% Ideal</div>
-          <div class="seg-sum-val" style="color:var(--muted)">${segIdeal.toFixed(2)}%</div>
-        </div>
+
+        <span class="seg-card-chevron">▶</span>
       </div>
 
       <!-- Expandable detail table -->
@@ -1192,7 +1195,6 @@ function selectCliente(nome) {
           </thead>
           <tbody>`;
 
-    /* --- Per-ticker rows --- */
     valid.forEach(ticker => {
       const item    = tickers[ticker];
       const pmkt    = precos[ticker] || 0;
@@ -1217,23 +1219,8 @@ function selectCliente(nome) {
             </tr>`;
     });
 
-    /* --- Footer totals row (negative = red) --- */
     html += `
           </tbody>
-          <tfoot>
-            <tr>
-              <td>TOTAL ${seg}</td>
-              <td>—</td>
-              <td>—</td>
-              <td>${fmt(segApl)}</td>
-              <td>—</td>
-              <td class="${segVar >= 0 ? 'seg-foot-pos' : 'seg-foot-neg'}">${segVar.toFixed(2)}%</td>
-              <td class="${segLP >= 0 ? 'seg-foot-pos' : 'seg-foot-neg'}">${fmt(segLP)}</td>
-              <td class="${segLP >= 0 ? 'seg-foot-pos' : 'seg-foot-neg'}">${fmt(segMkt)}</td>
-              <td class="${segPctCart > 0 ? 'seg-foot-pos' : 'seg-foot-muted'}">${segPctCart.toFixed(2)}%</td>
-              <td class="seg-foot-muted">${segIdeal.toFixed(2)}%</td>
-            </tr>
-          </tfoot>
         </table>
       </div>
     </div>`;
