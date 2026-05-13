@@ -142,6 +142,8 @@ width:7px;height:7px;border-radius:50%;
 background:var(–muted);flex-shrink:0;transition:background .15s;
 }
 .nav-item.on .nav-dot{background:var(–accent)}
+.nav-ze{color:var(–orange)!important}
+.nav-ze.on{background:rgba(255,179,71,.1)!important;border-left-color:var(–orange)!important}
 .sb-foot{padding:14px 20px;border-top:1px solid var(–border)}
 .btn-out{
 width:100%;background:transparent;
@@ -598,12 +600,16 @@ function init(){
     if(prev)sel.value=prev;
     DADOS={};
     anos.forEach(function(a){DADOS[a]=buildAno(a);});
+    // Injetar usuário "Zé" que consolida TODOS os clientes (apenas admin vê)
+    if(SES.admin){
+      anos.forEach(function(a){injetarZe(a);});
+    }
     var cSet={};
     anos.forEach(function(a){(DADOS[a].cl||[]).forEach(function(c){cSet[c]=1;});});
     CLIENTES=Object.keys(cSet).sort();
     buildNav();
-    var alvo=clienteAtivo&&CLIENTES.indexOf(clienteAtivo)>=0
-      ?clienteAtivo:(SES.admin?CLIENTES[0]:SES.nome);
+    var alvo=clienteAtivo&&(CLIENTES.indexOf(clienteAtivo)>=0||clienteAtivo==='__ZE__')
+      ?clienteAtivo:(SES.admin?'__ZE__':SES.nome);
     if(alvo)pick(alvo);
     else document.getElementById('content').innerHTML='<div class="empty"><div class="ico">🔍</div><p>Sem dados.</p></div>';
   }).catch(function(e){
@@ -620,6 +626,7 @@ function buildAno(ano){
     var cli=(row[0]||'').trim();
     if(!cli||cli.toUpperCase()==='CLIENTE'||cli.length<3)continue;
     if(/[A-Z]{4}[0-9]/.test(cli))continue;
+    // Admin vê todos; cliente normal só vê o próprio
     if(!SES.admin&&cli.toUpperCase()!==SES.nome.toUpperCase())continue;
     var d=dt(row[7]);if(!d)continue;
     var yr=d.getFullYear();if(yr>ano)continue;
@@ -635,7 +642,6 @@ function buildAno(ano){
     for(var r2=1;r2<RAW.pa.length;r2++){
       var row2=RAW.pa[r2];
       if((row2[0]||'').trim()!==c)continue;
-      if(!SES.admin&&c.toUpperCase()!==SES.nome.toUpperCase())continue;
       var d2=dt(row2[7]);if(!d2||d2.getFullYear()>ano)continue;
       var cv2=(row2[3]||'').toUpperCase();
       var op2=n(row2[6]);
@@ -649,6 +655,61 @@ function buildAno(ano){
   });
   cl.sort();
   return {pat:pat,evol:evol,prov:buildProv(pat,ano),cl:cl};
+}
+
+/* ── USUÁRIO ZÉ — consolida todas as carteiras ── */
+function injetarZe(ano){
+  var d=DADOS[ano];
+  if(!d)return;
+  var ZE='__ZE__';
+
+  // 1. Patrimônio: merge de todos os clientes
+  var patZe=[];
+  d.cl.forEach(function(c){
+    (d.pat[c]||[]).forEach(function(mv){patZe.push(mv);});
+  });
+  d.pat[ZE]=patZe;
+
+  // 2. Evolução: soma mensal de todos os clientes
+  var evolZe=Array(12).fill(0);
+  d.cl.forEach(function(c){
+    var ev=d.evol[c]||Array(12).fill(0);
+    for(var m=0;m<12;m++)evolZe[m]+=ev[m];
+  });
+  d.evol[ZE]=evolZe;
+
+  // 3. Proventos: merge dos segmentos e soma dos totais mensais
+  var provZe={segs:{},tot:Array(12).fill(0)};
+  d.cl.forEach(function(c){
+    var pv=d.prov[c];if(!pv)return;
+    // soma totais mensais
+    for(var m=0;m<12;m++)provZe.tot[m]=R(provZe.tot[m]+(pv.tot[m]||0));
+    // merge segmentos
+    Object.keys(pv.segs).forEach(function(sg){
+      if(!provZe.segs[sg])provZe.segs[sg]=[];
+      pv.segs[sg].forEach(function(at){
+        // agrupa por ticker: soma dadosMeses
+        var ex=null;
+        for(var i=0;i<provZe.segs[sg].length;i++){if(provZe.segs[sg][i].tk===at.tk){ex=provZe.segs[sg][i];break;}}
+        if(!ex){
+          // copia profunda dos meses
+          ex={tk:at.tk,m:at.m.map(function(x){return {q:x.q,u:x.u,s:x.s};})};
+          provZe.segs[sg].push(ex);
+        }else{
+          for(var m2=0;m2<12;m2++){
+            ex.m[m2].q+=at.m[m2].q;
+            ex.m[m2].s=R(ex.m[m2].s+at.m[m2].s);
+            // valor unitário: mantém o maior (mesmo ativo, mesmo anuncio)
+            if(parseFloat(at.m[m2].u)>parseFloat(ex.m[m2].u))ex.m[m2].u=at.m[m2].u;
+          }
+        }
+      });
+    });
+  });
+  d.prov[ZE]=provZe;
+
+  // 4. Adicionar Zé à lista de clientes do ano (se ainda não estiver)
+  if(d.cl.indexOf(ZE)<0)d.cl.push(ZE);
 }
 
 /* ── PROVENTOS ────────────────────────────── */
@@ -706,7 +767,20 @@ function buildProv(pat,ano){
 /* ── NAV ──────────────────────────────────── */
 function buildNav(){
   var nav=document.getElementById('nav-list');nav.innerHTML='';
-  CLIENTES.forEach(function(c){
+  // Zé primeiro (só admin)
+  if(SES.admin){
+    var ze=document.createElement('div');
+    ze.className='nav-item nav-ze';ze.dataset.c='__ZE__';
+    ze.innerHTML='<span class="nav-dot" style="background:var(--orange)"></span>⭐ Corretora — Zé';
+    ze.onclick=function(){pick('__ZE__');};
+    // separador visual
+    var sep=document.createElement('div');
+    sep.style.cssText='height:1px;background:var(--border);margin:6px 16px';
+    nav.appendChild(ze);
+    nav.appendChild(sep);
+  }
+  // Clientes normais (excluindo __ZE__)
+  CLIENTES.filter(function(c){return c!=='__ZE__';}).forEach(function(c){
     var d=document.createElement('div');
     d.className='nav-item';d.dataset.c=c;
     d.innerHTML='<span class="nav-dot"></span>'+c;
@@ -725,7 +799,8 @@ function toggleSB(){
 /* ── PICK CLIENT ──────────────────────────── */
 function pick(c){
   clienteAtivo=c;setActive(c);
-  document.getElementById('tb-title').textContent=c;
+  var nome=c==='__ZE__'?'⭐ Corretora — Zé':c;
+  document.getElementById('tb-title').textContent=nome;
   document.getElementById('tb-meta').textContent=anoSel==='TODOS'?'Todos os Anos':'Ano '+anoSel;
   if(anoSel==='TODOS')viewTodos(c);else viewAno(c,anoSel);
 }
