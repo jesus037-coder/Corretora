@@ -1539,59 +1539,64 @@ function enviarLancamento(){
   btn.disabled=true;btn.textContent='Enviando…';showMsg('','');
   var payload={acao:'lancar',cliente:cliente,ativo:ativo,tipo:tipo,cv:_cvSel,qtd:qtd,preco:preco,total:total,data:dataFmt};
   if(APPS_SCRIPT_URL.indexOf('SEU_ID_AQUI')>=0){
-    console.log('Payload pronto (configure APPS_SCRIPT_URL):',payload);
-    showMsg('⚠️ Configure APPS_SCRIPT_URL no código. Dados no console (F12).','err');
+    console.log('Payload:',payload);
+    showMsg('⚠️ Configure APPS_SCRIPT_URL.','err');
     btn.disabled=false;btn.textContent='Confirmar Lançamento';return;
   }
   fetch(APPS_SCRIPT_URL,{
     method:'POST',
-    headers:{'Content-Type':'text/plain'}, // text/plain evita preflight CORS
+    headers:{'Content-Type':'text/plain'},
     body:JSON.stringify(payload)
   })
   .then(function(resp){return resp.text();})
   .then(function(txt){
-    // Apps Script respondeu — dado gravado com sucesso
-    showMsg('✓ Lançamento gravado! Atualizando…','ok');
-    // Fecha modal após breve confirmação visual
-    setTimeout(function(){fecharModal();},900);
-    // Busca dados novos com cache-bust agressivo, tentando até 3x
-    fetchComRetry(3,2000);
+    // Apps Script retorna o CSV atualizado da BASE_PATRIMONIO após gravar
+    // Formato esperado: "ok|<csv_patrimonio>"
+    var parts=txt.split('\n|||CSVSTART|||\n');
+    if(parts.length===2){
+      // Atualiza RAW.pa imediatamente com os dados que o Apps Script retornou
+      RAW.pa=parseCSV(parts[1]);
+      processarEAtualizar();
+      showMsg('✓ Lançado e atualizado!','ok');
+      setTimeout(function(){fecharModal();},700);
+      indicadorOk();
+    } else {
+      // Apps Script antigo sem CSV — fecha e rebusca
+      showMsg('✓ Lançado! Atualizando…','ok');
+      setTimeout(function(){fecharModal();rebuscarTudo();},700);
+    }
   })
   .catch(function(e){
-    showMsg('Erro ao enviar: '+e.message,'err');
+    showMsg('Erro: '+e.message,'err');
     btn.disabled=false;btn.textContent='Confirmar Lançamento';
   });
 }
 
-/* Busca os CSVs com cache-bust e retenta até N vezes com intervalo */
-function fetchComRetry(tentativas,intervalo){
+function indicadorOk(){
+  var dot=document.getElementById('refresh-dot');
+  if(!dot)return;
+  dot.style.background='var(--accent)';dot.style.opacity='1';
+  setTimeout(function(){dot.style.opacity='.5';},2000);
+}
+
+/* Rebusca tudo do zero (fallback ou refresh automático) */
+function rebuscarTudo(){
   var dot=document.getElementById('refresh-dot');
   if(dot){dot.style.opacity='1';dot.style.background='var(--orange)';}
   var bust='&_cb='+Date.now();
   Promise.all([
-    fetch(URLS.PA+bust).then(function(r){return r.text();}),
     fetch(URLS.AT+bust).then(function(r){return r.text();}),
+    fetch(URLS.PA+bust).then(function(r){return r.text();}),
     fetch(URLS.DI+bust).then(function(r){return r.text();})
   ]).then(function(txts){
-    var novoPa=parseCSV(txts[0]);
-    // Verifica se o novo dado já está presente (compara contagem de linhas)
-    if(novoPa.length<=RAW.pa.length&&tentativas>1){
-      // Planilha ainda não atualizou — tenta de novo
-      setTimeout(function(){fetchComRetry(tentativas-1,intervalo+1000);},intervalo);
-      return;
-    }
-    // Dado confirmado — processa
-    RAW.pa=novoPa;
-    RAW.at=parseCSV(txts[1]);
-    RAW.di=parseCSV(txts[2]);
+    RAW.at=parseCSV(txts[0]);RAW.pa=parseCSV(txts[1]);RAW.di=parseCSV(txts[2]);
     processarEAtualizar();
     if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
     var now=new Date();
     var hm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
     document.getElementById('tb-meta').textContent='Atualizado '+hm;
   }).catch(function(){
-    if(tentativas>1)setTimeout(function(){fetchComRetry(tentativas-1,intervalo);},intervalo);
-    else if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
+    if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
   });
 }
 
@@ -1609,9 +1614,7 @@ function processarEAtualizar(){
   if(clienteAtivo)pick(clienteAtivo);
 }
 
-function silentRefresh(){
-  fetchComRetry(1,0);
-}
+function silentRefresh(){rebuscarTudo();}
 </script>
 </body>
 </html>
