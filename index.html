@@ -601,8 +601,8 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
       <div class="mfield">
         <label>Tipo de Operação</label>
         <div class="cv-toggle">
-          <button class="cv-btn compra on" id="cv-c" onclick="setCv('C')">COMPRA</button>
-          <button class="cv-btn venda" id="cv-v" onclick="setCv('V')">VENDA</button>
+          <button class="cv-btn compra on" id="cv-c" onclick="setCv('Compra')">COMPRA</button>
+          <button class="cv-btn venda" id="cv-v" onclick="setCv('Venda')">VENDA</button>
         </div>
       </div>
       <div class="modal-row">
@@ -613,12 +613,12 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
         <div class="mfield">
           <label>Segmento / Tipo</label>
           <select id="m-tipo">
-            <option value="FII">FII</option>
-            <option value="AÇÃO">AÇÃO</option>
-            <option value="ETF">ETF</option>
-            <option value="BDR">BDR</option>
-            <option value="RENDA FIXA">RENDA FIXA</option>
-            <option value="OUTROS">OUTROS</option>
+            <option value="FIIs">FIIs</option>
+            <option value="Ações">Ações</option>
+            <option value="ETFs">ETFs</option>
+            <option value="BDRs">BDRs</option>
+            <option value="Renda Fixa">Renda Fixa</option>
+            <option value="Outros">Outros</option>
           </select>
         </div>
       </div>
@@ -709,6 +709,17 @@ function R(x){return Math.round(x*100)/100;}
 function M(v){return(+(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});}
 function load(v){document.getElementById('loader').classList.toggle('on',v);}
 function gc(v){return v>=0?'g':'r';}
+// Normaliza C/Compra → 'Compra' | V/Venda → 'Venda'
+function normCV(raw){
+  var s=(raw||'').toString().trim().toUpperCase();
+  if(s==='C'||s==='COMPRA')return 'Compra';
+  if(s==='V'||s==='VENDA')return 'Venda';
+  return raw; // mantém original se não reconhecido
+}
+function isCompra(cv){
+  var s=(cv||'').toString().trim().toUpperCase();
+  return s==='C'||s==='COMPRA';
+}
 
 /* ── LOGIN ────────────────────────────────── */
 document.getElementById('inp-senha').addEventListener('keypress',function(e){if(e.key==='Enter')doLogin();});
@@ -870,7 +881,8 @@ function buildAno(ano){
     var yr=d.getFullYear();if(yr>ano)continue;
     if(cl.indexOf(cli)<0)cl.push(cli);
     if(!pat[cli])pat[cli]=[];
-    var cv=(row[3]||'').toUpperCase();
+    var cvRaw=(row[3]||'').trim();
+    var cv=normCV(cvRaw);
     var tot=n(row[6]);
     pat[cli].push({a:(row[1]||'').trim().toUpperCase(),t:(row[2]||'').trim().toUpperCase(),cv:cv,q:n(row[4]),tot:tot,dt:row[7],_d:d});
   }
@@ -885,9 +897,9 @@ function buildAno(ano){
       var row2=RAW.pa[r2];
       if((row2[0]||'').trim()!==c)continue;
       var d2=dt(row2[7]);if(!d2||d2.getFullYear()>ano)continue;
-      var cv2=(row2[3]||'').toUpperCase();
+      var cv2=normCV(row2[3]||'');
       var op2=n(row2[6]);
-      var aj2=cv2.indexOf('C')>=0?op2:-op2;
+      var aj2=isCompra(cv2)?op2:-op2;
       var yr2=d2.getFullYear();
       var ms2=d2.getMonth();
       var mStart=yr2<ano?0:ms2;
@@ -990,7 +1002,7 @@ function buildProv(pat,ano){
           movs.forEach(function(mv){
             if(mv.a!==tk)return;
             var dm=dt(mv.dt);
-            if(dm&&dm<=info.dCom){var q=n(mv.q);qd+=mv.cv.indexOf('C')>=0?q:-q;}
+            if(dm&&dm<=info.dCom){var q=n(mv.q);qd+=isCompra(mv.cv)?q:-q;}
           });
           if(qd<0)qd=0; // protege contra dados fora de ordem
           if(qd>0){sub=R(qd*info.v);res[cli].tot[m]=R(res[cli].tot[m]+sub);}
@@ -1058,7 +1070,7 @@ function consolidar(movs){
     if(!seg[s])seg[s]={};
     if(!seg[s][tk])seg[s][tk]={q:0,apl:0};
     var p=seg[s][tk];
-    var isC=mv.cv.indexOf('C')>=0;
+    var isC=isCompra(mv.cv);
     if(isC){
       // Compra: atualiza PM ponderado
       p.apl+=mv.tot;
@@ -1456,7 +1468,7 @@ function togCol(i){
 // Veja o arquivo codigo_gs.html para o código do Apps Script a usar
 var APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbyKuM7FoPSMUZ_AGbisCgmPeK4L6nSeCjpPH2qjuIq3TyvjrQ9zGjagQ5Zpd-sy5LHw/exec';
 
-var _cvSel='C';
+var _cvSel='Compra';
 
 function abrirModal(){
   var sel=document.getElementById('m-cliente');
@@ -1472,23 +1484,37 @@ function abrirModal(){
   var dd=String(hoje.getDate()).padStart(2,'0');
   var mm=String(hoje.getMonth()+1).padStart(2,'0');
   document.getElementById('m-data').value=hoje.getFullYear()+'-'+mm+'-'+dd;
+  // Reset completo de todos os campos
   document.getElementById('m-ativo').value='';
   document.getElementById('m-qtd').value='';
   document.getElementById('m-preco').value='';
+  document.getElementById('m-tipo').selectedIndex=0;
   document.getElementById('m-total').textContent='R$ 0,00';
   document.getElementById('m-total').className='';
-  setCv('C');showMsg('','');
+  _cvSel='Compra';
+  document.getElementById('cv-c').classList.add('on');
+  document.getElementById('cv-v').classList.remove('on');
+  showMsg('','');
   document.getElementById('btn-submit').disabled=false;
   document.getElementById('btn-submit').textContent='Confirmar Lançamento';
   document.getElementById('modal-overlay').classList.add('on');
   setTimeout(function(){document.getElementById('m-ativo').focus();},100);
 }
-function fecharModal(){document.getElementById('modal-overlay').classList.remove('on');}
+function fecharModal(){
+  document.getElementById('modal-overlay').classList.remove('on');
+  // Limpa tudo ao fechar para não vazar dados entre lançamentos
+  document.getElementById('m-ativo').value='';
+  document.getElementById('m-qtd').value='';
+  document.getElementById('m-preco').value='';
+  document.getElementById('m-total').textContent='R$ 0,00';
+  document.getElementById('m-total').className='';
+  showMsg('','');
+}
 function fecharModalFora(e){if(e.target===document.getElementById('modal-overlay'))fecharModal();}
 function setCv(v){
   _cvSel=v;
-  document.getElementById('cv-c').classList.toggle('on',v==='C');
-  document.getElementById('cv-v').classList.toggle('on',v==='V');
+  document.getElementById('cv-c').classList.toggle('on',v==='Compra');
+  document.getElementById('cv-v').classList.toggle('on',v==='Venda');
   calcTotal();
 }
 function calcTotal(){
@@ -1497,7 +1523,7 @@ function calcTotal(){
   var total=qtd*preco;
   var el=document.getElementById('m-total');
   el.textContent=total.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});
-  el.className=_cvSel==='V'?'r':'';
+  el.className=_cvSel==='Venda'?'r':'';
 }
 function showMsg(txt,tipo){
   var el=document.getElementById('modal-msg');
