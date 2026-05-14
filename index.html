@@ -613,10 +613,10 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
         <div class="mfield">
           <label>Segmento / Tipo</label>
           <select id="m-tipo">
-            <option value="FIIs">FIIs</option>
-            <option value="Ações">Ações</option>
-            <option value="ETFs">ETFs</option>
-            <option value="BDRs">BDRs</option>
+            <option value="FII">FII</option>
+            <option value="AÇÃO">AÇÃO</option>
+            <option value="ETF">ETF</option>
+            <option value="BDR">BDR</option>
             <option value="RENDA FIXA">RENDA FIXA</option>
             <option value="OUTROS">OUTROS</option>
           </select>
@@ -872,8 +872,12 @@ function buildAno(ano){
     if(!pat[cli])pat[cli]=[];
     var cv=(row[3]||'').toUpperCase();
     var tot=n(row[6]);
-    pat[cli].push({a:(row[1]||'').trim().toUpperCase(),t:(row[2]||'').trim().toUpperCase(),cv:cv,q:n(row[4]),tot:tot,dt:row[7]});
+    pat[cli].push({a:(row[1]||'').trim().toUpperCase(),t:(row[2]||'').trim().toUpperCase(),cv:cv,q:n(row[4]),tot:tot,dt:row[7],_d:d});
   }
+  // Ordenar movimentações de cada cliente por data ASC — crítico para PM correto
+  Object.keys(pat).forEach(function(c){
+    pat[c].sort(function(a,b){return a._d-b._d;});
+  });
   // Calcular evolução mensal acumulada (todas as movs até cada mês do ano)
   cl.forEach(function(c){
     var arr=Array(12).fill(0);
@@ -988,6 +992,7 @@ function buildProv(pat,ano){
             var dm=dt(mv.dt);
             if(dm&&dm<=info.dCom){var q=n(mv.q);qd+=mv.cv.indexOf('C')>=0?q:-q;}
           });
+          if(qd<0)qd=0; // protege contra dados fora de ordem
           if(qd>0){sub=R(qd*info.v);res[cli].tot[m]=R(res[cli].tot[m]+sub);}
         }
         meses.push({q:qd,u:info?info.v.toFixed(2):'0.00',s:sub});
@@ -1043,22 +1048,41 @@ function pick(c){
   if(anoSel==='TODOS')viewTodos(c);else viewAno(c,anoSel);
 }
 
+/* ── CONSOLIDAR CARTEIRA (PM correto, ordenado por data) ── */
+function consolidar(movs){
+  var seg={};
+  // movs já chegam ordenadas por data (feito em buildAno)
+  movs.forEach(function(mv){
+    var s=mv.t||'OUTROS';
+    var tk=mv.a;
+    if(!seg[s])seg[s]={};
+    if(!seg[s][tk])seg[s][tk]={q:0,apl:0};
+    var p=seg[s][tk];
+    var isC=mv.cv.indexOf('C')>=0;
+    if(isC){
+      // Compra: atualiza PM ponderado
+      p.apl+=mv.tot;
+      p.q+=mv.q;
+    } else {
+      // Venda: desconta pelo PM atual
+      var pm=p.q>0?p.apl/p.q:0;
+      p.q-=mv.q;
+      p.apl=p.q>0.0001?p.q*pm:0; // zera custo se zerou posição
+      // Garante que q negativa (erro de dados) não apareça
+      if(p.q<0.0001){p.q=0;p.apl=0;}
+    }
+  });
+  return seg;
+}
+
 /* ── VIEW: ANO ÚNICO ──────────────────────── */
 function viewAno(c,ano){
   var d=DADOS[ano]||{pat:{},evol:{},prov:{},cl:[]};
   var pv=d.prov[c]||{segs:{},tot:Array(12).fill(0)};
   var movs=d.pat[c]||[];
 
-  // Consolidar por segmento/ticker
-  var seg={};
-  movs.forEach(function(mv){
-    var s=mv.t||'OUTROS';
-    if(!seg[s])seg[s]={};
-    if(!seg[s][mv.a])seg[s][mv.a]={q:0,apl:0};
-    var isC=mv.cv.indexOf('C')>=0;
-    if(isC){seg[s][mv.a].q+=mv.q;seg[s][mv.a].apl+=mv.tot;}
-    else{var p=seg[s][mv.a];var pm=p.q>0?p.apl/p.q:0;p.q-=mv.q;p.apl-=mv.q*pm;}
-  });
+  // Consolidar por segmento/ticker (ordenado por data já garantido em buildAno)
+  var seg=consolidar(movs);
 
   var totApl=0,totMkt=0,nAt=0;
   Object.keys(seg).forEach(function(s){
@@ -1116,15 +1140,7 @@ function viewTodos(c){
 
   var anoUlt=anos[anos.length-1];
   var movs=(DADOS[anoUlt].pat||{})[c]||[];
-  var seg={};
-  movs.forEach(function(mv){
-    var s=mv.t||'OUTROS';
-    if(!seg[s])seg[s]={};
-    if(!seg[s][mv.a])seg[s][mv.a]={q:0,apl:0};
-    var isC=mv.cv.indexOf('C')>=0;
-    if(isC){seg[s][mv.a].q+=mv.q;seg[s][mv.a].apl+=mv.tot;}
-    else{var p=seg[s][mv.a];var pm=p.q>0?p.apl/p.q:0;p.q-=mv.q;p.apl-=mv.q*pm;}
-  });
+  var seg=consolidar(movs);
   var totApl=0,totMkt=0,nAt=0;
   Object.keys(seg).forEach(function(s){
     Object.keys(seg[s]).forEach(function(tk){
