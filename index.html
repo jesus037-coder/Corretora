@@ -430,6 +430,88 @@ font-size:.6rem;padding:5px 10px;border-radius:6px;cursor:pointer;
 transition:color .2s,border-color .2s;
 }
 .btn-rst:hover{color:var(–accent);border-color:var(–accent)}
+/* ── MODAL LANÇAMENTO ───────────────────────── */
+.modal-overlay{
+position:fixed;inset:0;z-index:1000;
+background:rgba(0,0,0,.72);backdrop-filter:blur(8px);
+display:none;align-items:center;justify-content:center;padding:20px;
+}
+.modal-overlay.on{display:flex;}
+.modal{
+background:var(–surface);border:1px solid var(–border);
+border-radius:20px;width:100%;max-width:520px;
+box-shadow:0 40px 80px rgba(0,0,0,.6);
+overflow:hidden;animation:up .25s ease;
+}
+.modal-header{
+display:flex;align-items:center;justify-content:space-between;
+padding:22px 28px 18px;border-bottom:1px solid var(–border);
+}
+.modal-header h3{
+font-family:‘DM Serif Display’,serif;font-weight:400;font-size:1.25rem;
+}
+.modal-close{
+background:var(–panel);border:1px solid var(–border);border-radius:8px;
+color:var(–muted);width:32px;height:32px;font-size:1rem;cursor:pointer;
+display:flex;align-items:center;justify-content:center;transition:color .2s;
+}
+.modal-close:hover{color:var(–red);border-color:var(–red);}
+.modal-body{padding:24px 28px;display:flex;flex-direction:column;gap:16px;}
+.modal-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.modal-row.triple{grid-template-columns:1fr 1fr 1fr;}
+.mfield{display:flex;flex-direction:column;gap:6px;}
+.mfield label{
+font-family:‘DM Mono’,monospace;font-size:.62rem;
+text-transform:uppercase;letter-spacing:1.5px;color:var(–muted);
+}
+.mfield input,.mfield select{
+background:var(–panel);border:1px solid var(–border);border-radius:8px;
+padding:11px 14px;color:var(–text);
+font-family:‘DM Mono’,monospace;font-size:.88rem;
+outline:none;transition:border-color .2s,box-shadow .2s;width:100%;
+}
+.mfield input:focus,.mfield select:focus{
+border-color:var(–accent);box-shadow:0 0 0 3px var(–accent-glow);
+}
+.mfield select option{background:var(–panel);}
+/* CV toggle */
+.cv-toggle{display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(–border);}
+.cv-btn{
+flex:1;padding:11px 0;font-family:‘DM Mono’,monospace;font-size:.82rem;
+font-weight:600;cursor:pointer;border:none;background:var(–panel);
+color:var(–muted);transition:background .15s,color .15s;letter-spacing:1px;
+}
+.cv-btn.compra.on{background:var(–accent);color:#09110e;}
+.cv-btn.venda.on{background:var(–red);color:#fff;}
+/* total preview */
+.total-preview{
+background:var(–panel);border:1px solid var(–border);border-radius:8px;
+padding:14px 18px;display:flex;justify-content:space-between;align-items:center;
+}
+.total-preview span:first-child{font-family:‘DM Mono’,monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:2px;color:var(–muted);}
+.total-preview span:last-child{font-family:‘DM Mono’,monospace;font-size:1.1rem;font-weight:600;color:var(–accent);}
+.total-preview span:last-child.r{color:var(–red);}
+.modal-footer{padding:0 28px 24px;display:flex;gap:12px;}
+.btn-submit{
+flex:1;background:var(–accent);color:#09110e;border:none;border-radius:10px;
+padding:14px;font-family:‘Outfit’,sans-serif;font-size:.95rem;font-weight:700;
+cursor:pointer;transition:opacity .2s;letter-spacing:.3px;
+}
+.btn-submit:hover{opacity:.88;}
+.btn-submit:disabled{opacity:.4;cursor:not-allowed;}
+.btn-cancel{
+background:transparent;border:1px solid var(–border);border-radius:10px;
+color:var(–muted);padding:14px 20px;font-family:‘Outfit’,sans-serif;
+font-size:.9rem;cursor:pointer;transition:color .2s,border-color .2s;
+}
+.btn-cancel:hover{color:var(–red);border-color:var(–red);}
+.modal-msg{
+margin:0 28px 20px;padding:10px 14px;border-radius:8px;
+font-family:‘DM Mono’,monospace;font-size:.78rem;text-align:center;
+display:none;
+}
+.modal-msg.ok{background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3);color:var(–accent);}
+.modal-msg.err{background:rgba(242,92,92,.1);border:1px solid rgba(242,92,92,.3);color:var(–red);}
 </style>
 
 </head>
@@ -497,6 +579,7 @@ transition:color .2s,border-color .2s;
       <div class="topbar-actions">
         <div class="topbar-meta" id="tb-meta"></div>
         <span id="refresh-dot" title="Atualização automática a cada 2 min" style="width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;opacity:.5;transition:opacity .3s;flex-shrink:0"></span>
+        <button class="tb-btn" id="btn-lancar" onclick="abrirModal()" style="color:var(--accent);border-color:var(--accent-dim);">＋ Lançar</button>
         <button class="tb-btn" id="btn-font" onclick="cycleFont()" title="Ajustar tamanho do texto">Aa</button>
         <button class="tb-btn" id="btn-hide" onclick="toggleHide()">👁 Ocultar</button>
         <button class="tb-btn" id="btn-theme" onclick="toggleTheme()">☀️ Claro</button>
@@ -504,6 +587,70 @@ transition:color .2s,border-color .2s;
     </div>
     <div class="content" id="content">
       <div class="empty"><div class="ico">📊</div><p>Selecione um cliente na barra lateral.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL LANÇAMENTO ── -->
+
+<div class="modal-overlay" id="modal-overlay" onclick="fecharModalFora(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h3>Lançar Operação</h3>
+      <button class="modal-close" onclick="fecharModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="mfield">
+        <label>Cliente</label>
+        <select id="m-cliente"></select>
+      </div>
+      <div class="mfield">
+        <label>Tipo de Operação</label>
+        <div class="cv-toggle">
+          <button class="cv-btn compra on" id="cv-c" onclick="setCv('C')">COMPRA</button>
+          <button class="cv-btn venda" id="cv-v" onclick="setCv('V')">VENDA</button>
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="mfield">
+          <label>Ativo (ticker)</label>
+          <input id="m-ativo" type="text" placeholder="Ex: MXRF11" oninput="this.value=this.value.toUpperCase();calcTotal()"/>
+        </div>
+        <div class="mfield">
+          <label>Segmento / Tipo</label>
+          <select id="m-tipo">
+            <option value="FII">FII</option>
+            <option value="AÇÃO">AÇÃO</option>
+            <option value="ETF">ETF</option>
+            <option value="BDR">BDR</option>
+            <option value="RENDA FIXA">RENDA FIXA</option>
+            <option value="OUTROS">OUTROS</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row triple">
+        <div class="mfield">
+          <label>Quantidade</label>
+          <input id="m-qtd" type="number" min="0" step="1" placeholder="0" oninput="calcTotal()"/>
+        </div>
+        <div class="mfield">
+          <label>Preço Unit. (R$)</label>
+          <input id="m-preco" type="number" min="0" step="0.01" placeholder="0,00" oninput="calcTotal()"/>
+        </div>
+        <div class="mfield">
+          <label>Data</label>
+          <input id="m-data" type="date"/>
+        </div>
+      </div>
+      <div class="total-preview">
+        <span>Total da Operação</span>
+        <span id="m-total">R$ 0,00</span>
+      </div>
+    </div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-submit" id="btn-submit" onclick="enviarLancamento()">Confirmar Lançamento</button>
     </div>
   </div>
 </div>
@@ -1292,6 +1439,110 @@ function togProv(cls,sg,c){
 }
 function togCol(i){
   document.querySelectorAll('.ci'+i).forEach(function(c){c.classList.toggle('col-on');});
+}
+
+/* ── MODAL LANÇAMENTO ─────────────────────── */
+// Cole aqui a URL do seu Google Apps Script após publicar como Web App
+// Veja o arquivo codigo_gs.html para o código do Apps Script a usar
+var APPS_SCRIPT_URL='https://script.google.com/macros/s/SEU_ID_AQUI/exec';
+
+var _cvSel='C';
+
+function abrirModal(){
+  var sel=document.getElementById('m-cliente');
+  sel.innerHTML='';
+  var lista=CLIENTES.filter(function(c){return c!=='__ZE__';});
+  lista.forEach(function(c){
+    var o=document.createElement('option');
+    o.value=c;o.textContent=c;
+    if(c===clienteAtivo)o.selected=true;
+    sel.appendChild(o);
+  });
+  var hoje=new Date();
+  var dd=String(hoje.getDate()).padStart(2,'0');
+  var mm=String(hoje.getMonth()+1).padStart(2,'0');
+  document.getElementById('m-data').value=hoje.getFullYear()+'-'+mm+'-'+dd;
+  document.getElementById('m-ativo').value='';
+  document.getElementById('m-qtd').value='';
+  document.getElementById('m-preco').value='';
+  document.getElementById('m-total').textContent='R$ 0,00';
+  document.getElementById('m-total').className='';
+  setCv('C');showMsg('','');
+  document.getElementById('btn-submit').disabled=false;
+  document.getElementById('btn-submit').textContent='Confirmar Lançamento';
+  document.getElementById('modal-overlay').classList.add('on');
+  setTimeout(function(){document.getElementById('m-ativo').focus();},100);
+}
+function fecharModal(){document.getElementById('modal-overlay').classList.remove('on');}
+function fecharModalFora(e){if(e.target===document.getElementById('modal-overlay'))fecharModal();}
+function setCv(v){
+  _cvSel=v;
+  document.getElementById('cv-c').classList.toggle('on',v==='C');
+  document.getElementById('cv-v').classList.toggle('on',v==='V');
+  calcTotal();
+}
+function calcTotal(){
+  var qtd=parseFloat(document.getElementById('m-qtd').value)||0;
+  var preco=parseFloat(document.getElementById('m-preco').value)||0;
+  var total=qtd*preco;
+  var el=document.getElementById('m-total');
+  el.textContent=total.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});
+  el.className=_cvSel==='V'?'r':'';
+}
+function showMsg(txt,tipo){
+  var el=document.getElementById('modal-msg');
+  if(!txt){el.style.display='none';return;}
+  el.textContent=txt;el.className='modal-msg '+tipo;el.style.display='block';
+}
+function enviarLancamento(){
+  var cliente=document.getElementById('m-cliente').value;
+  var ativo=document.getElementById('m-ativo').value.trim().toUpperCase();
+  var tipo=document.getElementById('m-tipo').value;
+  var qtd=parseFloat(document.getElementById('m-qtd').value);
+  var preco=parseFloat(document.getElementById('m-preco').value);
+  var dataVal=document.getElementById('m-data').value;
+  if(!cliente){showMsg('Selecione um cliente.','err');return;}
+  if(!ativo){showMsg('Informe o ticker do ativo.','err');return;}
+  if(!qtd||qtd<=0){showMsg('Quantidade deve ser maior que zero.','err');return;}
+  if(!preco||preco<=0){showMsg('Preço deve ser maior que zero.','err');return;}
+  if(!dataVal){showMsg('Informe a data da operação.','err');return;}
+  var p=dataVal.split('-');
+  var dataFmt=p[2]+'/'+p[1]+'/'+p[0];
+  var total=Math.round(qtd*preco*100)/100;
+  var btn=document.getElementById('btn-submit');
+  btn.disabled=true;btn.textContent='Enviando…';showMsg('','');
+  var payload={acao:'lancar',cliente:cliente,ativo:ativo,tipo:tipo,cv:_cvSel,qtd:qtd,preco:preco,total:total,data:dataFmt};
+  if(APPS_SCRIPT_URL.indexOf('SEU_ID_AQUI')>=0){
+    console.log('Payload pronto (configure APPS_SCRIPT_URL):',payload);
+    showMsg('⚠️ Configure APPS_SCRIPT_URL no código. Dados no console (F12).','err');
+    btn.disabled=false;btn.textContent='Confirmar Lançamento';return;
+  }
+  fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+  .then(function(){
+    showMsg('✓ Operação lançada com sucesso!','ok');
+    setTimeout(function(){fecharModal();silentRefresh();},1800);
+  }).catch(function(e){
+    showMsg('Erro: '+e.message,'err');
+    btn.disabled=false;btn.textContent='Confirmar Lançamento';
+  });
+}
+function silentRefresh(){
+  var dot=document.getElementById('refresh-dot');
+  if(dot){dot.style.opacity='1';dot.style.background='var(--orange)';}
+  Promise.all([csv(URLS.AT),csv(URLS.PA),csv(URLS.DI)]).then(function(r){
+    RAW.at=r[0];RAW.pa=r[1];RAW.di=r[2];
+    PRECOS={};
+    for(var i=1;i<RAW.at.length;i++){var tk=(RAW.at[i][2]||'').trim().toUpperCase();if(tk)PRECOS[tk]=n(RAW.at[i][3]);}
+    var aSet={};
+    for(var j=1;j<RAW.pa.length;j++){var d=dt(RAW.pa[j][7]);if(d)aSet[d.getFullYear()]=1;}
+    var anos=Object.keys(aSet).map(Number).sort();
+    DADOS={};anos.forEach(function(a){DADOS[a]=buildAno(a);});
+    if(SES.admin)anos.forEach(function(a){injetarZe(a);});
+    var cSet={};anos.forEach(function(a){(DADOS[a].cl||[]).forEach(function(c){cSet[c]=1;});});
+    CLIENTES=Object.keys(cSet).filter(function(c){return c!=='__ZE__';}).sort();
+    buildNav();if(clienteAtivo)pick(clienteAtivo);
+    if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
+  });
 }
 </script>
 
