@@ -24,7 +24,7 @@
   --sw:260px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;font-size:15px;overflow:hidden}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;font-size:16.95px;overflow:hidden}
 html{transition:font-size .22s ease;}
 .kpi-val{font-size:clamp(.85rem,1.45em,2.4rem)!important;}
 .sc-kpi-val{font-size:clamp(.65rem,.88em,1.5rem)!important;}
@@ -593,9 +593,9 @@ display:none;
         <button class="tb-btn icon-btn" id="btn-refresh" onclick="refreshManual()" title="Atualizar dados agora">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M12.5 7.5a5 5 0 1 1-1.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 1v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <!-- Tamanho fonte -->
-        <button class="tb-btn icon-btn" id="btn-font" onclick="cycleFont()" title="Ajustar tamanho do texto">
-          <svg width="16" height="14" viewBox="0 0 16 14" fill="none"><text x="0" y="12" font-family="serif" font-size="13" fill="currentColor" font-weight="700">A</text><text x="9" y="10" font-family="serif" font-size="8" fill="currentColor" font-weight="700">a</text></svg>
+        <!-- Tamanho fonte / layout -->
+        <button class="tb-btn icon-btn" id="btn-font" onclick="cycleFont()" title="Mudar para modo Mobile">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 15h6M8 11v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
         </button>
         <!-- Ocultar valores -->
         <button class="tb-btn icon-btn" id="btn-hide" onclick="toggleHide()" title="Ocultar/mostrar valores">
@@ -708,7 +708,7 @@ var anoSel=2026;
 var clienteAtivo=null;
 var cE=null,cB=null,cP=null;
 var _refreshTimer=null;
-var _fontSize=1; /* scale factor: 0.8 | 1 | 1.15 | 1.3 */
+var _fontSize=1;
 
 /* ── UTILS ────────────────────────────────── */
 function n(v){
@@ -835,23 +835,32 @@ function stopRefresh(){
 }
 
 /* ── FONT SIZE CYCLE ──────────────────────── */
-var _fontSteps=[
-  {scale:0.82,label:'Aa⁻'},
-  {scale:1,   label:'Aa'},
-  {scale:1.13,label:'Aa⁺'},
-  {scale:1.28,label:'Aa⁺⁺'}
-];
-var _fontIdx=1; /* default = 1 (100%) */
+/* Dois modos: desktop (113% = 16.95px) e mobile (85% = 12.75px) */
+var _modoMobile=false;
 function cycleFont(){
-  _fontIdx=(_fontIdx+1)%_fontSteps.length;
-  var step=_fontSteps[_fontIdx];
-  document.documentElement.style.fontSize=(step.scale*15)+'px';
+  _modoMobile=!_modoMobile;
   var btn=document.getElementById('btn-font');
-  if(btn)btn.textContent=step.label;
-  /* Redimensionar charts após reflow */
+  if(_modoMobile){
+    /* Modo mobile: sidebar recolhida, fonte menor, layout mais compacto */
+    document.documentElement.style.fontSize='12.75px';
+    document.getElementById('sidebar').classList.add('off');
+    if(btn){
+      btn.title='Mudar para modo Desktop';
+      btn.innerHTML='<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 14h4M6 10v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="11" y="6" width="4" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/><circle cx="13" cy="13" r=".8" fill="currentColor"/></svg>';
+      btn.classList.add('on');
+    }
+  }else{
+    /* Modo desktop: 113% do base 15px = ~16.95px */
+    document.documentElement.style.fontSize='16.95px';
+    if(btn){
+      btn.title='Mudar para modo Mobile';
+      btn.innerHTML='<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 15h6M8 11v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+      btn.classList.remove('on');
+    }
+  }
   setTimeout(function(){
     if(cE)cE.resize();if(cB)cB.resize();if(cP)cP.resize();
-  },100);
+  },120);
 }
 
 /* ── INIT ─────────────────────────────────── */
