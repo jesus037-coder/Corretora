@@ -1228,9 +1228,15 @@ function viewTodos(c){
   h+='<div class="sec-head"><h3>Proventos por Ano</h3><span class="tag">comparativo histórico</span></div>';
   h+='<div class="tbl-wrap"><div class="tbl-scroll"><table>';
   h+='<thead><tr><th style="text-align:left">Ativo / Segmento</th>';
-  anos.forEach(function(a){h+='<th>'+a+'</th>';});
+  // TODOS os anos aparecem como coluna — mesmo sem dados do cliente
+  anos.forEach(function(a){
+    var temDado=provAnual[anos.indexOf(a)]>0;
+    h+='<th style="'+(temDado?'':'color:var(--muted);opacity:.5')+'">'
+      +a+(temDado?'':'*')+'</th>';
+  });
   h+='<th>Total</th></tr></thead><tbody>';
 
+  // Coletar todos segmentos e tickers que existem em QUALQUER ano
   var allSegs={};
   anos.forEach(function(ano){
     var pv=(DADOS[ano].prov||{})[c];if(!pv)return;
@@ -1240,35 +1246,63 @@ function viewTodos(c){
     });
   });
 
+  if(Object.keys(allSegs).length===0){
+    h+='<tr><td colspan="'+(anos.length+2)+'" style="text-align:center;color:var(--muted);padding:24px">Sem proventos registrados neste período</td></tr>';
+  }
+
   Object.keys(allSegs).forEach(function(sg){
+    // Totais por ano do segmento — inclui zeros sem filtrar
     var totSgAno=anos.map(function(ano){
       var pv=(DADOS[ano].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
       return pv.segs[sg].reduce(function(s,at){return s+at.m.reduce(function(x,m){return x+m.s;},0);},0);
     });
     var totSg=totSgAno.reduce(function(a,b){return a+b;},0);
+    // Só oculta o segmento se NUNCA teve provento em nenhum ano
     if(totSg<=0)return;
+
     var sid='pvt-'+sg.replace(/\W+/g,'-');
     h+='<tr class="seg-hdr" onclick="tog(\''+sid+'\')"><td colspan="'+(anos.length+2)+'">▾ '+sg+'</td></tr>';
+
     Object.keys(allSegs[sg]).forEach(function(tk){
       var vAno=anos.map(function(ano){
         var pv=(DADOS[ano].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
         var at=pv.segs[sg].find(function(x){return x.tk===tk;});
         return at?at.m.reduce(function(s,m){return s+m.s;},0):0;
       });
-      var totTk=vAno.reduce(function(a,b){return a+b;},0);if(totTk<=0)return;
+      var totTk=vAno.reduce(function(a,b){return a+b;},0);
+      // Só oculta o ticker se NUNCA teve provento
+      if(totTk<=0)return;
       h+='<tr class="'+sid+'"><td class="td-l" style="padding-left:28px">'+tk+'</td>';
-      vAno.forEach(function(v){h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';});
+      // Todas as colunas de ano aparecem — zero vira —
+      vAno.forEach(function(v){
+        h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)');
+        h+=v>0?'">'+M(v)+'</td>':'">—</td>';
+      });
       h+='<td style="color:var(--accent);font-weight:600">'+M(totTk)+'</td></tr>';
     });
+
+    // Linha de subtotal do segmento — todas as colunas
     h+='<tr class="'+sid+'" style="background:var(--panel)"><td class="td-l" style="padding-left:28px;color:var(--muted);font-size:.72rem">TOTAL '+sg+'</td>';
-    totSgAno.forEach(function(v){h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'"><strong>'+(v>0?M(v):'—')+'</strong></td>';});
+    totSgAno.forEach(function(v){
+      h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">';
+      h+='<strong>'+(v>0?M(v):'—')+'</strong></td>';
+    });
     h+='<td style="color:var(--accent)"><strong>'+M(totSg)+'</strong></td></tr>';
   });
 
-  var totAnual=anos.map(function(a,i){return provAnual[i];});
+  // Rodapé: totais anuais — todas as colunas, zeros como —
   h+='</tbody><tfoot><tr><td class="td-l">TOTAL ANUAL</td>';
-  totAnual.forEach(function(v){h+='<td>'+M(v)+'</td>';});
+  anos.forEach(function(a,i){
+    var v=provAnual[i];
+    h+='<td style="'+(v>0?'':'color:var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';
+  });
   h+='<td>'+M(totProv)+'</td></tr></tfoot></table></div></div>';
+
+  // Nota de rodapé se houver anos sem dados
+  var anosVazios=anos.filter(function(a,i){return provAnual[i]===0;});
+  if(anosVazios.length){
+    h+='<p style="font-family:\'DM Mono\',monospace;font-size:.65rem;color:var(--muted);margin-top:8px;padding:0 4px">* Anos sem proventos registrados para este cliente</p>';
+  }
 
   // Carteira atual
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
