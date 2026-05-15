@@ -1150,6 +1150,30 @@ function viewAno(c,ano){
   var rent=totApl>0?(lpT/totApl)*100:0;
   var ideal=nAt>0?100/nAt:0;
 
+  // Calcular evolução mensal por segmento (custo aplicado acumulado mês a mês)
+  var SEG_EVOL={};
+  var hoje2=new Date();
+  var ml2=(ano<hoje2.getFullYear())?11:hoje2.getMonth();
+  Object.keys(seg).forEach(function(s){
+    var arr=Array(12).fill(0);
+    // Para cada ticker do segmento, soma as movimentações mês a mês
+    var tksDoSeg=Object.keys(seg[s]);
+    movs.filter(function(mv){return tksDoSeg.indexOf(mv.a)>=0;}).forEach(function(mv){
+      var d=dt(mv.dt||mv.dataLanc);if(!d)return;
+      var anoMov=d.getFullYear();if(anoMov>ano)return;
+      var mesMov=d.getMonth();
+      var isC=isCompra(mv.cv);
+      var val=isC?mv.tot:-mv.tot;
+      var mStart=anoMov<ano?0:mesMov;
+      for(var m=mStart;m<12;m++)arr[m]+=val;
+    });
+    // Zera meses negativos (proteção)
+    for(var m=0;m<12;m++)if(arr[m]<0)arr[m]=0;
+    SEG_EVOL[s]=arr;
+  });
+  // Total = soma de todos os segmentos (já calculado em d.evol)
+  SEG_EVOL['__TOTAL__']=d.evol[c]||Array(12).fill(0);
+
   var h='';
   // KPIs
   h+='<div class="kpi-row">';
@@ -1160,9 +1184,9 @@ function viewAno(c,ano){
   h+=kpi('Rentabilidade',M(lpT),(rent>=0?'▲':'▼')+' '+Math.abs(rent).toFixed(2)+'%',lpT<0?'bad':'',gc(lpT));
   h+='</div>';
 
-  // Gráfico evolução
+  // Gráfico evolução — calcula por segmento E total
   h+='<div class="sec-head"><h3>Evolução do Patrimônio</h3><span class="tag">mensal '+ano+'</span></div>';
-  h+='<div class="chart-box"><div class="chart-ttl">Patrimônio Investido — '+ano+'</div><div style="height:220px"><canvas id="cvE"></canvas></div></div>';
+  h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl">Patrimônio Total Investido — '+ano+'</div><div style="height:220px"><canvas id="cvE"></canvas></div></div>';
 
   // Cards de carteira
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
@@ -1181,7 +1205,7 @@ function viewAno(c,ano){
 
   document.getElementById('content').innerHTML=h;
   requestAnimationFrame(function(){
-    drawEvol(d.evol[c]||Array(12).fill(0),ano);
+    drawEvol(SEG_EVOL['__TOTAL__'],ano,SEG_EVOL);
     drawBarPie(pv);
   });
 }
@@ -1417,14 +1441,20 @@ function buildProvTable(pv,c){
 }
 
 /* ── CHARTS ───────────────────────────────── */
-function drawEvol(arr,ano){
+var _segEvol={};
+var _anoEvol=2026;
+var _mlEvol=11;
+
+function drawEvol(arr,ano,segEvol){
   var cc=chartColors();var GC=cc.gc,TC=cc.tc;
   if(cE)cE.destroy();
   var ctx=document.getElementById('cvE');if(!ctx)return;
   var hoje=new Date();
-  var ml=(ano<hoje.getFullYear())?11:hoje.getMonth();
-  cE=new Chart(ctx,{type:'line',data:{labels:MES.slice(0,ml+1),datasets:[{
-    label:'Patrimônio',data:arr.slice(0,ml+1),
+  _anoEvol=ano;
+  _mlEvol=(ano<hoje.getFullYear())?11:hoje.getMonth();
+  _segEvol=segEvol||{};
+  cE=new Chart(ctx,{type:'line',data:{labels:MES.slice(0,_mlEvol+1),datasets:[{
+    label:'Patrimônio Total',data:arr.slice(0,_mlEvol+1),
     borderColor:'#3ddc84',backgroundColor:'rgba(61,220,132,.07)',
     fill:true,tension:.35,pointRadius:4,
     pointBackgroundColor:'#3ddc84',pointBorderColor:'transparent',borderWidth:2
@@ -1432,6 +1462,26 @@ function drawEvol(arr,ano){
     plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return M(c.parsed.y);}}}},
     scales:{x:{grid:{color:GC},ticks:{color:TC}},y:{grid:{color:GC},ticks:{color:TC,callback:function(v){return M(v);}},beginAtZero:false}}
   }});
+}
+
+function switchEvolChart(sg,color){
+  if(!cE)return;
+  var arr,bc,bg;
+  var ttl=document.getElementById('evol-ttl');
+  if(!sg||sg==='__TOTAL__'){
+    arr=(_segEvol['__TOTAL__']||Array(12).fill(0)).slice(0,_mlEvol+1);
+    bc='#3ddc84';bg='rgba(61,220,132,.07)';
+    if(ttl)ttl.textContent='Patrimônio Total Investido — '+_anoEvol;
+  }else{
+    arr=(_segEvol[sg]||Array(12).fill(0)).slice(0,_mlEvol+1);
+    bc=color||'#4da6ff';bg=bc+'12';
+    if(ttl)ttl.textContent='Evolução '+sg+' — '+_anoEvol;
+  }
+  cE.data.datasets[0].data=arr;
+  cE.data.datasets[0].borderColor=bc;
+  cE.data.datasets[0].backgroundColor=bg;
+  cE.data.datasets[0].pointBackgroundColor=bc;
+  cE.update('active');
 }
 
 function drawBarPie(pv){
