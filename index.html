@@ -810,13 +810,24 @@ function startRefresh(){
       fetch(URLS.PA+bust).then(function(r){return r.text();}),
       fetch(URLS.DI+bust).then(function(r){return r.text();})
     ]).then(function(txts){
-      RAW.at=parseCSV(txts[0]);RAW.pa=parseCSV(txts[1]);RAW.di=parseCSV(txts[2]);
+      var atOk=txts[0]&&txts[0].indexOf('<html')<0&&txts[0].trim().length>0;
+      var paOk=txts[1]&&txts[1].indexOf('<html')<0&&txts[1].trim().length>0;
+      var diOk=txts[2]&&txts[2].indexOf('<html')<0&&txts[2].trim().length>0;
+      if(atOk)RAW.at=parseCSV(txts[0]);
+      if(paOk)RAW.pa=parseCSV(txts[1]);
+      if(diOk)RAW.di=parseCSV(txts[2]);
       processarEAtualizar();
       var now=new Date();
       var hm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-      document.getElementById('tb-meta').textContent='Atualizado '+hm;
+      var meta=document.getElementById('tb-meta');
+      if(meta)meta.textContent='Atualizado '+hm;
       if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
-    }).catch(function(){if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}});
+    }).catch(function(){
+      if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
+      setTimeout(function(){
+        if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
+      },3000);
+    });
   },1*60*1000);
 }
 function stopRefresh(){
@@ -1635,14 +1646,26 @@ function rebuscarTudo(){
     fetch(URLS.PA+bust).then(function(r){return r.text();}),
     fetch(URLS.DI+bust).then(function(r){return r.text();})
   ]).then(function(txts){
-    RAW.at=parseCSV(txts[0]);RAW.pa=parseCSV(txts[1]);RAW.di=parseCSV(txts[2]);
+    // Valida que recebemos CSV real (não uma página HTML de erro)
+    var atOk=txts[0]&&txts[0].indexOf('<html')<0&&txts[0].trim().length>0;
+    var paOk=txts[1]&&txts[1].indexOf('<html')<0&&txts[1].trim().length>0;
+    var diOk=txts[2]&&txts[2].indexOf('<html')<0&&txts[2].trim().length>0;
+    if(atOk)RAW.at=parseCSV(txts[0]);
+    if(paOk)RAW.pa=parseCSV(txts[1]);
+    if(diOk)RAW.di=parseCSV(txts[2]);
     processarEAtualizar();
+    // Sempre verde ao terminar — mesmo que alguns CSVs não mudaram
     if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
     var now=new Date();
     var hm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-    document.getElementById('tb-meta').textContent='Atualizado '+hm;
+    var meta=document.getElementById('tb-meta');
+    if(meta)meta.textContent='Atualizado '+hm;
   }).catch(function(){
+    // Só fica vermelho se falhar completamente (sem conexão)
     if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
+    setTimeout(function(){
+      if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
+    },3000);
   });
 }
 
