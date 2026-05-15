@@ -802,31 +802,29 @@ function doLogout(){
 function startRefresh(){
   stopRefresh();
   _refreshTimer=setInterval(function(){
-    var bust='&_cb='+Date.now();
     var dot=document.getElementById('refresh-dot');
+    var meta=document.getElementById('tb-meta');
     if(dot){dot.style.opacity='1';dot.style.background='var(--orange)';}
+    var opts={cache:'no-store'};
+    var t='&t='+Date.now();
     Promise.all([
-      fetch(URLS.AT+bust).then(function(r){return r.text();}),
-      fetch(URLS.PA+bust).then(function(r){return r.text();}),
-      fetch(URLS.DI+bust).then(function(r){return r.text();})
+      fetch(URLS.AT+t,opts).then(function(r){return r.text();}),
+      fetch(URLS.PA+t,opts).then(function(r){return r.text();}),
+      fetch(URLS.DI+t,opts).then(function(r){return r.text();})
     ]).then(function(txts){
-      var atOk=txts[0]&&txts[0].indexOf('<html')<0&&txts[0].trim().length>0;
-      var paOk=txts[1]&&txts[1].indexOf('<html')<0&&txts[1].trim().length>0;
-      var diOk=txts[2]&&txts[2].indexOf('<html')<0&&txts[2].trim().length>0;
-      if(atOk)RAW.at=parseCSV(txts[0]);
-      if(paOk)RAW.pa=parseCSV(txts[1]);
-      if(diOk)RAW.di=parseCSV(txts[2]);
+      if(txts[0]&&txts[0].indexOf('<html')<0)RAW.at=parseCSV(txts[0]);
+      if(txts[1]&&txts[1].indexOf('<html')<0)RAW.pa=parseCSV(txts[1]);
+      if(txts[2]&&txts[2].indexOf('<html')<0)RAW.di=parseCSV(txts[2]);
       processarEAtualizar();
+      if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
       var now=new Date();
       var hm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-      var meta=document.getElementById('tb-meta');
       if(meta)meta.textContent='Atualizado '+hm;
-      if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
     }).catch(function(){
       if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
       setTimeout(function(){
         if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
-      },3000);
+      },4000);
     });
   },1*60*1000);
 }
@@ -1648,33 +1646,47 @@ function indicadorOk(){
 /* Rebusca tudo do zero (fallback ou refresh automático) */
 function rebuscarTudo(){
   var dot=document.getElementById('refresh-dot');
+  var meta=document.getElementById('tb-meta');
   if(dot){dot.style.opacity='1';dot.style.background='var(--orange)';}
-  var bust='&_cb='+Date.now();
+  if(meta)meta.textContent='Sincronizando…';
+
+  // Google Sheets ignora query params extras no pub CSV, mas precisamos
+  // forçar fetch sem cache do browser — usamos cache:'no-store'
+  var opts={cache:'no-store'};
+  var t='&t='+Date.now();
+
   Promise.all([
-    fetch(URLS.AT+bust).then(function(r){return r.text();}),
-    fetch(URLS.PA+bust).then(function(r){return r.text();}),
-    fetch(URLS.DI+bust).then(function(r){return r.text();})
+    fetch(URLS.AT+t,opts).then(function(r){return r.text();}),
+    fetch(URLS.PA+t,opts).then(function(r){return r.text();}),
+    fetch(URLS.DI+t,opts).then(function(r){return r.text();})
   ]).then(function(txts){
-    // Valida que recebemos CSV real (não uma página HTML de erro)
-    var atOk=txts[0]&&txts[0].indexOf('<html')<0&&txts[0].trim().length>0;
-    var paOk=txts[1]&&txts[1].indexOf('<html')<0&&txts[1].trim().length>0;
-    var diOk=txts[2]&&txts[2].indexOf('<html')<0&&txts[2].trim().length>0;
-    if(atOk)RAW.at=parseCSV(txts[0]);
-    if(paOk)RAW.pa=parseCSV(txts[1]);
-    if(diOk)RAW.di=parseCSV(txts[2]);
+    var mudou=false;
+    // Valida CSV real
+    if(txts[0]&&txts[0].indexOf('<html')<0&&txts[0].trim().length>0){
+      var novoAt=parseCSV(txts[0]);
+      if(JSON.stringify(novoAt)!==JSON.stringify(RAW.at)){RAW.at=novoAt;mudou=true;}
+    }
+    if(txts[1]&&txts[1].indexOf('<html')<0&&txts[1].trim().length>0){
+      var novoPa=parseCSV(txts[1]);
+      if(JSON.stringify(novoPa)!==JSON.stringify(RAW.pa)){RAW.pa=novoPa;mudou=true;}
+    }
+    if(txts[2]&&txts[2].indexOf('<html')<0&&txts[2].trim().length>0){
+      var novoDi=parseCSV(txts[2]);
+      if(JSON.stringify(novoDi)!==JSON.stringify(RAW.di)){RAW.di=novoDi;mudou=true;}
+    }
+    // Sempre reprocessa para refletir preços atuais mesmo sem mudança de movs
     processarEAtualizar();
-    // Sempre verde ao terminar — mesmo que alguns CSVs não mudaram
     if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
     var now=new Date();
     var hm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-    var meta=document.getElementById('tb-meta');
-    if(meta)meta.textContent='Atualizado '+hm;
+    if(meta)meta.textContent=mudou?'Atualizado '+hm:'Sem mudanças '+hm;
   }).catch(function(){
-    // Só fica vermelho se falhar completamente (sem conexão)
     if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
+    if(meta)meta.textContent='Erro de conexão';
     setTimeout(function(){
       if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
-    },3000);
+      if(meta)meta.textContent='';
+    },4000);
   });
 }
 
