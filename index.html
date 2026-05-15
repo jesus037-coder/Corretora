@@ -1186,7 +1186,7 @@ function viewAno(c,ano){
 
   // Gráfico evolução — calcula por segmento E total
   h+='<div class="sec-head"><h3>Evolução do Patrimônio</h3><span class="tag">mensal '+ano+'</span></div>';
-  h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl">Patrimônio Total Investido — '+ano+'</div><div style="height:220px"><canvas id="cvE"></canvas></div></div>';
+  h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl" style="display:flex;align-items:center;gap:8px;transition:color .2s"><span id="evol-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="evol-lbl">Patrimônio Total Investido — '+ano+'</span></div><div style="height:220px"><canvas id="cvE"></canvas></div></div>';
 
   // Cards de carteira
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
@@ -1354,7 +1354,7 @@ function buildCard(sg,tks,totMkt,ideal,idx){
 
   var h='<div class="sc" id="'+id+'">';
   h+='<div class="sc-stripe" style="background:'+col+'"></div>';
-  h+='<div class="sc-head" onclick="flipCard(\''+id+'\')">';
+  h+='<div class="sc-head" onclick="flipCard(\''+id+'\',\''+sg.replace(/'/g,"\\'")+'\',' +'\''+col+'\')">';
   // icon
   h+='<div class="sc-icon" style="background:'+bg+';color:'+col+';border-right:1px solid '+bd+'">'+sg.slice(0,5)+'</div>';
   // kpis
@@ -1467,15 +1467,18 @@ function drawEvol(arr,ano,segEvol){
 function switchEvolChart(sg,color){
   if(!cE)return;
   var arr,bc,bg;
-  var ttl=document.getElementById('evol-ttl');
+  var dot=document.getElementById('evol-dot');
+  var lbl=document.getElementById('evol-lbl');
   if(!sg||sg==='__TOTAL__'){
     arr=(_segEvol['__TOTAL__']||Array(12).fill(0)).slice(0,_mlEvol+1);
     bc='#3ddc84';bg='rgba(61,220,132,.07)';
-    if(ttl)ttl.textContent='Patrimônio Total Investido — '+_anoEvol;
+    if(dot)dot.style.background=bc;
+    if(lbl)lbl.textContent='Patrimônio Total Investido — '+_anoEvol;
   }else{
     arr=(_segEvol[sg]||Array(12).fill(0)).slice(0,_mlEvol+1);
-    bc=color||'#4da6ff';bg=bc+'12';
-    if(ttl)ttl.textContent='Evolução '+sg+' — '+_anoEvol;
+    bc=color||'#4da6ff';bg=bc+'18';
+    if(dot)dot.style.background=bc;
+    if(lbl)lbl.textContent='Evolução: '+sg+' — '+_anoEvol;
   }
   cE.data.datasets[0].data=arr;
   cE.data.datasets[0].borderColor=bc;
@@ -1585,7 +1588,21 @@ function toggleTheme(){
     :'<path d="M12 8.5A5 5 0 0 1 5.5 2a6 6 0 1 0 6.5 6.5z" fill="currentColor"/>';
   if(clienteAtivo)pick(clienteAtivo);
 }
-function flipCard(id){var c=document.getElementById(id);if(c)c.classList.toggle('open');}
+function flipCard(id,sg,color){
+  var card=document.getElementById(id);
+  if(!card)return;
+  var wasOpen=card.classList.contains('open');
+  // Fechar todos os cards primeiro
+  document.querySelectorAll('.sc').forEach(function(c){c.classList.remove('open');});
+  if(!wasOpen){
+    // Abrir este card e mostrar evolução do segmento
+    card.classList.add('open');
+    switchEvolChart(sg,color);
+  }else{
+    // Estava aberto → fechar todos → mostrar total
+    switchEvolChart('__TOTAL__',null);
+  }
+}
 function tog(cls){document.querySelectorAll('tr.'+cls).forEach(function(r){r.classList.toggle('hide');});}
 function togProv(cls,sg,c){
   var rows=document.querySelectorAll('tr.'+cls);
