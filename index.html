@@ -1266,18 +1266,91 @@ function viewTodos(c){
   h+='<span id="hist-lbl">Patrimônio × Proventos — Todos os Anos</span></div>';
   h+='<div style="height:280px"><canvas id="cvE"></canvas></div></div>';
 
-  // Consolidação de Carteira — cards relacionados ao gráfico histórico
+  // Cards de carteira relacionados ao gráfico histórico
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
   h+='<div class="sec-head"><h3>Consolidação de Carteira</h3><span class="tag">posição atual · '+nAt+' ativos · clique para filtrar</span></div>';
   h+='<div class="seg-stack">';
   segsOk.forEach(function(s,i){
-    // buildCard com callback para histórico
     h+=buildCardHist(s,seg[s],totMkt,ideal,i,provSegAnual[s]||[],anos,provAnual);
   });
   h+='</div>';
 
+  // ── PROVENTOS HISTÓRICOS ──────────────────
+  // Calcular totais por segmento (soma de todos os anos)
+  var allSegsHist={};
+  anos.forEach(function(a){
+    var pv=(DADOS[a].prov||{})[c];if(!pv)return;
+    Object.keys(pv.segs).forEach(function(sg){
+      if(!allSegsHist[sg])allSegsHist[sg]={};
+      pv.segs[sg].forEach(function(at){allSegsHist[sg][at.tk]=1;});
+    });
+  });
+  var totProvSegs=Object.keys(allSegsHist).map(function(sg){
+    return provSegAnual[sg]?provSegAnual[sg].reduce(function(a,b){return a+b;},0):0;
+  });
+
+  h+='<div class="sec-head" style="margin-top:8px"><h3>Proventos Históricos</h3><span class="tag">todos os anos · clique no ano para filtrar rosca</span></div>';
+  h+='<div class="chart-duo">';
+  // Barras: proventos por ano (igual ao viewAno mas com anos no eixo X)
+  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Distribuição Anual (R$)</div><div style="height:190px"><canvas id="cvB"></canvas></div></div>';
+  // Rosca: por segmento (total ou ano filtrado)
+  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="prov-rosca-ttl">Por Segmento — Total</div><div style="height:190px"><canvas id="cvP"></canvas></div></div>';
+  h+='</div>';
+
+  // Tabela histórica: segmento/ticker × ano (mesmo visual do buildProvTable)
+  h+='<div class="tbl-wrap"><div class="tbl-scroll"><table>';
+  h+='<thead><tr>';
+  h+='<th style="text-align:left"><button class="btn-rst" onclick="resetRoscaHist()">↺</button></th>';
+  anos.forEach(function(a){
+    h+='<th style="cursor:pointer" onclick="filtrarRoscaAno('+a+',\''+c+'\')">'+a+'</th>';
+  });
+  h+='<th>Total</th>';
+  h+='</tr></thead><tbody>';
+
+  Object.keys(allSegsHist).forEach(function(sg){
+    var totSgAno=anos.map(function(a){
+      var pv=(DADOS[a].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
+      return pv.segs[sg].reduce(function(s,at){return s+at.m.reduce(function(x,m){return x+m.s;},0);},0);
+    });
+    var totSg=totSgAno.reduce(function(a,b){return a+b;},0);
+    if(totSg<=0)return;
+    var sid='pvh-'+sg.replace(/\W+/g,'-');
+    h+='<tr class="seg-hdr" onclick="tog(\''+sid+'\')"><td colspan="'+(anos.length+2)+'">▾ '+sg+'</td></tr>';
+    Object.keys(allSegsHist[sg]).forEach(function(tk){
+      var vAno=anos.map(function(a){
+        var pv=(DADOS[a].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
+        var at=pv.segs[sg].find(function(x){return x.tk===tk;});
+        return at?at.m.reduce(function(s,m){return s+m.s;},0):0;
+      });
+      var totTk=vAno.reduce(function(a,b){return a+b;},0);
+      if(totTk<=0)return;
+      h+='<tr class="'+sid+'"><td class="td-l" style="padding-left:28px">'+tk+'</td>';
+      vAno.forEach(function(v){
+        h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';
+      });
+      h+='<td style="color:var(--accent);font-weight:600">'+M(totTk)+'</td></tr>';
+    });
+    // Subtotal segmento
+    h+='<tr class="'+sid+'" style="background:var(--panel)"><td class="td-l" style="padding-left:28px;color:var(--muted);font-size:.72rem">TOTAL '+sg+'</td>';
+    totSgAno.forEach(function(v){
+      h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'"><strong>'+(v>0?M(v):'—')+'</strong></td>';
+    });
+    h+='<td style="color:var(--accent)"><strong>'+M(totSg)+'</strong></td></tr>';
+  });
+
+  // Rodapé totais anuais
+  h+='</tbody><tfoot><tr><td class="td-l">TOTAL ANUAL</td>';
+  anos.forEach(function(a,i){
+    var v=provAnual[i];
+    h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';
+  });
+  h+='<td>'+M(totProv)+'</td></tr></tfoot></table></div></div>';
+
   document.getElementById('content').innerHTML=h;
-  requestAnimationFrame(function(){drawHistorico(anos,saldos,provAnual);});
+  requestAnimationFrame(function(){
+    drawHistorico(anos,saldos,provAnual);
+    drawRoscaHist(c,null); // null = total
+  });
 }
 
 /* ── CARD HISTÓRICO — para viewTodos ─────── */
@@ -1569,6 +1642,37 @@ function drawHistorico(anos,saldos,provs){
     }});
   }
 }
+
+
+/* Rosca de proventos por segmento — total ou filtrado por ano */
+function drawRoscaHist(c,anoFiltro){
+  var cc=chartColors();var TC=cc.tc;
+  if(cP)cP.destroy();
+  var ctx=document.getElementById('cvP');if(!ctx)return;
+  var segs=Object.keys(_histProvSegAnual);
+  var vals,ttl;
+  if(anoFiltro===null){
+    vals=segs.map(function(s){return (_histProvSegAnual[s]||[]).reduce(function(a,b){return a+b;},0);});
+    ttl='Por Segmento — Total';
+  }else{
+    var anoIdx=_histAnos.indexOf(anoFiltro);
+    vals=segs.map(function(s){return anoIdx>=0&&_histProvSegAnual[s]?(_histProvSegAnual[s][anoIdx]||0):0;});
+    ttl='Por Segmento — '+anoFiltro;
+  }
+  var lbl=document.getElementById('prov-rosca-ttl');
+  if(lbl)lbl.textContent=ttl;
+  var colors=segs.map(function(_,i){return PAL[i%PAL.length];});
+  cP=new Chart(ctx,{type:'doughnut',data:{labels:segs,datasets:[{
+    data:vals,backgroundColor:colors,borderColor:'transparent',hoverOffset:6
+  }]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+    plugins:{
+      legend:{position:'right',labels:{color:TC,font:{size:11},boxWidth:10,padding:8}},
+      tooltip:{callbacks:{label:function(c){return c.label+': '+M(c.parsed);}}}
+    }
+  }});
+}
+function filtrarRoscaAno(ano,c){drawRoscaHist(c,ano);}
+function resetRoscaHist(){drawRoscaHist(_histC,null);}
 
 function updChart(c,filtro){
   if(anoSel==='TODOS')return;
