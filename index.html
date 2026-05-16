@@ -1227,117 +1227,149 @@ function viewTodos(c){
   });
   var ideal=nAt>0?100/nAt:0;
 
+  // Evolução patrimonial por ano (saldo dez de cada ano)
   var saldos=anos.map(function(a){var ev=(DADOS[a].evol||{})[c];return ev?ev[11]:0;});
+  // Proventos por ano
   var provAnual=anos.map(function(a){var pv=(DADOS[a].prov||{})[c];return pv?pv.tot.reduce(function(s,v){return s+v;},0):0;});
   var totProv=provAnual.reduce(function(a,b){return a+b;},0);
   var lpT=(totMkt-totApl)+totProv;
   var rent=totApl>0?(lpT/totApl)*100:0;
 
+  // Proventos por ano por SEGMENTO (para relacionamento com cards)
+  var provSegAnual={};
+  Object.keys(seg).forEach(function(s){
+    provSegAnual[s]=anos.map(function(a){
+      var pv=(DADOS[a].prov||{})[c];
+      if(!pv||!pv.segs[s])return 0;
+      return pv.segs[s].reduce(function(sum,at){return sum+at.m.reduce(function(x,m){return x+m.s;},0);},0);
+    });
+  });
+  // Guardar globalmente para uso no switchHistChart
+  _histAnos=anos; _histSaldos=saldos; _histProvAnual=provAnual;
+  _histProvSegAnual=provSegAnual; _histC=c;
+
   var h='';
+  // KPIs
   h+='<div class="kpi-row">';
   h+=kpi('Patrimônio Atual',M(totMkt),'valor de mercado','','g');
   h+=kpi('Total Aplicado',M(totApl),'','','');
-  h+=kpi('L / P Total',M(totMkt-totApl),'patrimônio s/ proventos','',gc(totMkt-totApl));
+  h+=kpi('L / P Total',M(totMkt-totApl),'s/ proventos','',gc(totMkt-totApl));
   h+=kpi('Proventos Históricos',M(totProv),anos.length+' anos','','g');
   h+=kpi('Rentabilidade Total',M(lpT),(rent>=0?'▲':'▼')+' '+Math.abs(rent).toFixed(2)+'%',lpT<0?'bad':'',gc(lpT));
   h+='</div>';
 
+  // Gráfico único — Patrimônio × Proventos por Ano
+  // Ao clicar num card de segmento, o gráfico filtra para aquele segmento
   h+='<div class="sec-head"><h3>Evolução Histórica</h3><span class="tag">'+anos[0]+' → '+anos[anos.length-1]+'</span></div>';
-  h+='<div class="chart-duo">';
-  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Patrimônio × Proventos por Ano</div><div style="height:240px"><canvas id="cvE"></canvas></div></div>';
-  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Proventos por Ano (R$)</div><div style="height:240px"><canvas id="cvB"></canvas></div></div>';
-  h+='</div>';
+  h+='<div class="chart-box"><div class="chart-ttl" id="hist-ttl" style="display:flex;align-items:center;gap:8px">';
+  h+='<span id="hist-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span>';
+  h+='<span id="hist-lbl">Patrimônio × Proventos — Todos os Anos</span></div>';
+  h+='<div style="height:280px"><canvas id="cvE"></canvas></div></div>';
 
-  // Tabela histórica de proventos
-  h+='<div class="sec-head"><h3>Proventos por Ano</h3><span class="tag">comparativo histórico</span></div>';
-  h+='<div class="tbl-wrap"><div class="tbl-scroll"><table>';
-  h+='<thead><tr><th style="text-align:left">Ativo / Segmento</th>';
-  // TODOS os anos aparecem como coluna — mesmo sem dados do cliente
-  anos.forEach(function(a){
-    var temDado=provAnual[anos.indexOf(a)]>0;
-    h+='<th style="'+(temDado?'':'color:var(--muted);opacity:.5')+'">'
-      +a+(temDado?'':'*')+'</th>';
-  });
-  h+='<th>Total</th></tr></thead><tbody>';
-
-  // Coletar todos segmentos e tickers que existem em QUALQUER ano
-  var allSegs={};
-  anos.forEach(function(ano){
-    var pv=(DADOS[ano].prov||{})[c];if(!pv)return;
-    Object.keys(pv.segs).forEach(function(sg){
-      if(!allSegs[sg])allSegs[sg]={};
-      pv.segs[sg].forEach(function(at){allSegs[sg][at.tk]=1;});
-    });
-  });
-
-  if(Object.keys(allSegs).length===0){
-    h+='<tr><td colspan="'+(anos.length+2)+'" style="text-align:center;color:var(--muted);padding:24px">Sem proventos registrados neste período</td></tr>';
-  }
-
-  Object.keys(allSegs).forEach(function(sg){
-    // Totais por ano do segmento — inclui zeros sem filtrar
-    var totSgAno=anos.map(function(ano){
-      var pv=(DADOS[ano].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
-      return pv.segs[sg].reduce(function(s,at){return s+at.m.reduce(function(x,m){return x+m.s;},0);},0);
-    });
-    var totSg=totSgAno.reduce(function(a,b){return a+b;},0);
-    // Só oculta o segmento se NUNCA teve provento em nenhum ano
-    if(totSg<=0)return;
-
-    var sid='pvt-'+sg.replace(/\W+/g,'-');
-    h+='<tr class="seg-hdr" onclick="tog(\''+sid+'\')"><td colspan="'+(anos.length+2)+'">▾ '+sg+'</td></tr>';
-
-    Object.keys(allSegs[sg]).forEach(function(tk){
-      var vAno=anos.map(function(ano){
-        var pv=(DADOS[ano].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
-        var at=pv.segs[sg].find(function(x){return x.tk===tk;});
-        return at?at.m.reduce(function(s,m){return s+m.s;},0):0;
-      });
-      var totTk=vAno.reduce(function(a,b){return a+b;},0);
-      // Só oculta o ticker se NUNCA teve provento
-      if(totTk<=0)return;
-      h+='<tr class="'+sid+'"><td class="td-l" style="padding-left:28px">'+tk+'</td>';
-      // Todas as colunas de ano aparecem — zero vira —
-      vAno.forEach(function(v){
-        h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)');
-        h+=v>0?'">'+M(v)+'</td>':'">—</td>';
-      });
-      h+='<td style="color:var(--accent);font-weight:600">'+M(totTk)+'</td></tr>';
-    });
-
-    // Linha de subtotal do segmento — todas as colunas
-    h+='<tr class="'+sid+'" style="background:var(--panel)"><td class="td-l" style="padding-left:28px;color:var(--muted);font-size:.72rem">TOTAL '+sg+'</td>';
-    totSgAno.forEach(function(v){
-      h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">';
-      h+='<strong>'+(v>0?M(v):'—')+'</strong></td>';
-    });
-    h+='<td style="color:var(--accent)"><strong>'+M(totSg)+'</strong></td></tr>';
-  });
-
-  // Rodapé: totais anuais — todas as colunas, zeros como —
-  h+='</tbody><tfoot><tr><td class="td-l">TOTAL ANUAL</td>';
-  anos.forEach(function(a,i){
-    var v=provAnual[i];
-    h+='<td style="'+(v>0?'':'color:var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';
-  });
-  h+='<td>'+M(totProv)+'</td></tr></tfoot></table></div></div>';
-
-  // Nota de rodapé se houver anos sem dados
-  var anosVazios=anos.filter(function(a,i){return provAnual[i]===0;});
-  if(anosVazios.length){
-    h+='<p style="font-family:\'DM Mono\',monospace;font-size:.65rem;color:var(--muted);margin-top:8px;padding:0 4px">* Anos sem proventos registrados para este cliente</p>';
-  }
-
-  // Carteira atual
+  // Consolidação de Carteira — cards relacionados ao gráfico histórico
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
-  h+='<div class="sec-head" style="margin-top:8px"><h3>Consolidação de Carteira</h3><span class="tag">posição atual · '+nAt+' ativos</span></div>';
+  h+='<div class="sec-head"><h3>Consolidação de Carteira</h3><span class="tag">posição atual · '+nAt+' ativos · clique para filtrar</span></div>';
   h+='<div class="seg-stack">';
-  segsOk.forEach(function(s,i){h+=buildCard(s,seg[s],totMkt,ideal,i);});
+  segsOk.forEach(function(s,i){
+    // buildCard com callback para histórico
+    h+=buildCardHist(s,seg[s],totMkt,ideal,i,provSegAnual[s]||[],anos,provAnual);
+  });
   h+='</div>';
 
   document.getElementById('content').innerHTML=h;
   requestAnimationFrame(function(){drawHistorico(anos,saldos,provAnual);});
 }
+
+/* ── CARD HISTÓRICO — para viewTodos ─────── */
+function buildCardHist(sg,tks,totMkt,ideal,idx,provSeg,anos,provTotal){
+  var col=PAL[idx%PAL.length];
+  var bg=col+'1a',bd=col+'44';
+  var id='sch-'+sg.replace(/\W+/g,'-')+'-'+idx;
+  var valid=Object.keys(tks).filter(function(t){return tks[t].q>0.0001;});
+  var sApl=0,sMkt=0;
+  valid.forEach(function(t){sApl+=tks[t].apl;sMkt+=tks[t].q*(PRECOS[t]||0);});
+  var sLP=sMkt-sApl;
+  var sVar=sApl>0?((sMkt/sApl)-1)*100:0;
+  var sPct=totMkt>0?(sMkt/totMkt)*100:0;
+  var sId=ideal*valid.length;
+  var totProvSeg=(provSeg||[]).reduce(function(a,b){return a+b;},0);
+
+  var h='<div class="sc" id="'+id+'">';
+  h+='<div class="sc-stripe" style="background:'+col+'"></div>';
+  h+='<div class="sc-head" onclick="flipCardHist(\''+id+'\',\''+sg.replace(/'/g,"\\'")+'\',\''+col+'\')">';
+  h+='<div class="sc-icon" style="background:'+bg+';color:'+col+';border-right:1px solid '+bd+'">'+sg.slice(0,5)+'</div>';
+  h+='<div class="sc-kpis">';
+  h+=ck('Total',M(sMkt),'');
+  h+=ck('L / P',M(sLP),gc(sLP));
+  h+=ck('Var %',sVar.toFixed(2)+'%',gc(sVar));
+  h+=ck('% Cart',sPct.toFixed(2)+'%','');
+  h+=ck('Prov.Hist.',M(totProvSeg),totProvSeg>0?'g':'');
+  h+='</div>';
+  h+='<div class="sc-arr">▶</div>';
+  h+='</div>';
+
+  // Corpo expandido: tabela de provento do segmento por ano
+  h+='<div class="sc-body"><table class="sc-tbl">';
+  h+='<thead><tr><th>Ativo</th>';
+  anos.forEach(function(a){h+='<th>'+a+'</th>';});
+  h+='<th>Total</th></tr></thead><tbody>';
+
+  // Tickers do segmento × anos
+  valid.forEach(function(tk){
+    var vAno=anos.map(function(a){
+      var pv=(DADOS[a].prov||{})[_histC];
+      if(!pv||!pv.segs[sg])return 0;
+      var at=pv.segs[sg].find(function(x){return x.tk===tk;});
+      return at?at.m.reduce(function(s,m){return s+m.s;},0):0;
+    });
+    var totTk=vAno.reduce(function(a,b){return a+b;},0);
+    h+='<tr><td>'+tk+'</td>';
+    vAno.forEach(function(v){h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';});
+    h+='<td style="color:var(--accent);font-weight:600">'+M(totTk)+'</td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+  return h;
+}
+
+function flipCardHist(id,sg,color){
+  var card=document.getElementById(id);if(!card)return;
+  var wasOpen=card.classList.contains('open');
+  document.querySelectorAll('.sc').forEach(function(c){c.classList.remove('open');});
+  if(!wasOpen){
+    card.classList.add('open');
+    switchHistChart(sg,color);
+  }else{
+    drawHistorico(_histAnos,_histSaldos,_histProvAnual);
+    var dot=document.getElementById('hist-dot');var lbl=document.getElementById('hist-lbl');
+    if(dot)dot.style.background='#3ddc84';
+    if(lbl)lbl.textContent='Patrimônio × Proventos — Todos os Anos';
+  }
+}
+
+function switchHistChart(sg,color){
+  if(!cE)return;
+  var dot=document.getElementById('hist-dot');var lbl=document.getElementById('hist-lbl');
+  var provSeg=_histProvSegAnual[sg]||_histAnos.map(function(){return 0;});
+  var saldosSeg=_histAnos.map(function(a){
+    var d=DADOS[a];if(!d)return 0;
+    var movs=(d.pat||{})[_histC]||[];
+    var segData=consolidar(movs);
+    var mkt=0;
+    if(segData[sg])Object.keys(segData[sg]).forEach(function(tk){var it=segData[sg][tk];if(it.q>0.0001)mkt+=it.q*(PRECOS[tk]||0);});
+    return mkt;
+  });
+  if(dot)dot.style.background=color;
+  if(lbl)lbl.textContent='Evolução: '+sg+' — Todos os Anos';
+  cE.data.datasets[0].data=saldosSeg;
+  cE.data.datasets[0].backgroundColor=(color+'55');
+  cE.data.datasets[0].borderColor=color;
+  cE.data.datasets[1].data=provSeg;
+  cE.data.datasets[1].backgroundColor=(color+'33');
+  cE.update('active');
+}
+
+// Variáveis globais do modo histórico
+var _histAnos=[],_histSaldos=[],_histProvAnual=[],_histProvSegAnual={},_histC='';
 
 /* ── BUILD SEGMENT CARD ───────────────────── */
 function buildCard(sg,tks,totMkt,ideal,idx){
