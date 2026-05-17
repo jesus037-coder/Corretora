@@ -1270,7 +1270,6 @@ function viewTodos(c){
   h+='</div>';
 
   // ── PROVENTOS HISTÓRICOS ──────────────────
-  // Calcular totais por segmento (soma de todos os anos)
   var allSegsHist={};
   anos.forEach(function(a){
     var pv=(DADOS[a].prov||{})[c];if(!pv)return;
@@ -1279,29 +1278,23 @@ function viewTodos(c){
       pv.segs[sg].forEach(function(at){allSegsHist[sg][at.tk]=1;});
     });
   });
-  var totProvSegs=Object.keys(allSegsHist).map(function(sg){
-    return provSegAnual[sg]?provSegAnual[sg].reduce(function(a,b){return a+b;},0):0;
-  });
 
-  h+='<div class="sec-head" style="margin-top:8px"><h3>Proventos Históricos</h3><span class="tag">todos os anos · clique no ano para filtrar rosca</span></div>';
+  h+='<div class="sec-head" style="margin-top:8px"><h3>Proventos Históricos</h3><span class="tag">todos os anos · clique no segmento para filtrar</span></div>';
   h+='<div class="chart-duo">';
-  // Barras: proventos por ano (igual ao viewAno mas com anos no eixo X)
-  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Distribuição Anual (R$)</div><div style="height:190px"><canvas id="cvB"></canvas></div></div>';
-  // Rosca: por segmento (total ou ano filtrado)
+  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="hist-prov-ttl" style="display:flex;align-items:center;gap:8px"><span id="hist-prov-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="hist-prov-lbl">Proventos por Ano — Total</span></div><div style="height:190px"><canvas id="cvB"></canvas></div></div>';
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="prov-rosca-ttl">Por Segmento — Total</div><div style="height:190px"><canvas id="cvP"></canvas></div></div>';
   h+='</div>';
 
-  // Tabela histórica: segmento/ticker × ano (mesmo visual do buildProvTable)
   h+='<div class="tbl-wrap"><div class="tbl-scroll"><table>';
   h+='<thead><tr>';
-  h+='<th style="text-align:left"><button class="btn-rst" onclick="resetRoscaHist()">↺</button></th>';
-  anos.forEach(function(a){
-    h+='<th style="cursor:pointer" onclick="filtrarRoscaAno('+a+',\''+c+'\')">'+a+'</th>';
+  h+='<th style="text-align:left"><button class="btn-rst" onclick="updChartHist(\''+c+'\',\'TOT\')">↺</button></th>';
+  anos.forEach(function(a,i){
+    h+='<th style="cursor:pointer" title="Clique para detalhar coluna" onclick="togColHist('+i+')">'+a+'</th>';
   });
   h+='<th>Total</th>';
   h+='</tr></thead><tbody>';
 
-  Object.keys(allSegsHist).forEach(function(sg){
+  Object.keys(allSegsHist).forEach(function(sg,si){
     var totSgAno=anos.map(function(a){
       var pv=(DADOS[a].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
       return pv.segs[sg].reduce(function(s,at){return s+at.m.reduce(function(x,m){return x+m.s;},0);},0);
@@ -1309,7 +1302,10 @@ function viewTodos(c){
     var totSg=totSgAno.reduce(function(a,b){return a+b;},0);
     if(totSg<=0)return;
     var sid='pvh-'+sg.replace(/\W+/g,'-');
-    h+='<tr class="seg-hdr" onclick="tog(\''+sid+'\')"><td colspan="'+(anos.length+2)+'">▾ '+sg+'</td></tr>';
+    var col=PAL[si%PAL.length];
+    h+='<tr class="seg-hdr" onclick="togProvHist(\''+sid+'\',\''+sg+'\',\''+c+'\',\''+col+'\')" style="cursor:pointer">';
+    h+='<td colspan="'+(anos.length+2)+'" style="color:'+col+'">▾ '+sg+'</td></tr>';
+
     Object.keys(allSegsHist[sg]).forEach(function(tk){
       var vAno=anos.map(function(a){
         var pv=(DADOS[a].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
@@ -1319,31 +1315,30 @@ function viewTodos(c){
       var totTk=vAno.reduce(function(a,b){return a+b;},0);
       if(totTk<=0)return;
       h+='<tr class="'+sid+'"><td class="td-l" style="padding-left:28px">'+tk+'</td>';
-      vAno.forEach(function(v){
-        h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';
+      vAno.forEach(function(v,i){
+        h+='<td class="cih'+i+'" style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+(v>0?M(v):'—')+'</td>';
       });
       h+='<td style="color:var(--accent);font-weight:600">'+M(totTk)+'</td></tr>';
     });
-    // Subtotal segmento
+
     h+='<tr class="'+sid+'" style="background:var(--panel)"><td class="td-l" style="padding-left:28px;color:var(--muted);font-size:.72rem">TOTAL '+sg+'</td>';
-    totSgAno.forEach(function(v){
-      h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'"><strong>'+(v>0?M(v):'—')+'</strong></td>';
+    totSgAno.forEach(function(v,i){
+      h+='<td class="cih'+i+'" style="color:'+(v>0?'var(--accent)':'var(--muted)')+'"><strong>'+(v>0?M(v):'—')+'</strong></td>';
     });
     h+='<td style="color:var(--accent)"><strong>'+M(totSg)+'</strong></td></tr>';
   });
 
-  // Rodapé totais anuais
   h+='</tbody><tfoot><tr><td class="td-l">TOTAL ANUAL</td>';
   anos.forEach(function(a,i){
     var v=provAnual[i];
-    h+='<td style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';
+    h+='<td class="cih'+i+'" style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+(v>0?M(v):'—')+'</td>';
   });
   h+='<td>'+M(totProv)+'</td></tr></tfoot></table></div></div>';
 
   document.getElementById('content').innerHTML=h;
   requestAnimationFrame(function(){
     drawHistorico(anos,saldos,provAnual);
-    drawRoscaHist(c,null); // null = total
+    drawRoscaHist(c,null);
   });
 }
 
@@ -1700,6 +1695,90 @@ function drawRoscaHist(c,anoFiltro){
 }
 function filtrarRoscaAno(ano,c){drawRoscaHist(c,ano);}
 function resetRoscaHist(){drawRoscaHist(_histC,null);}
+
+/* ── HELPERS PROVENTOS HISTÓRICOS (modo TODOS) ── */
+// Atualiza barras + rosca do painel histórico por segmento ou total
+function updChartHist(c,filtro){
+  var cc=chartColors();var TC=cc.tc,GC=cc.gc;
+  var dot=document.getElementById('hist-prov-dot');
+  var lbl=document.getElementById('hist-prov-lbl');
+  if(filtro==='TOT'){
+    // Barras: proventos anuais totais
+    if(cB){
+      cB.data.datasets[0].data=_histProvAnual;
+      cB.data.datasets[0].label='Proventos';
+      cB.data.datasets[0].backgroundColor=_histAnos.map(function(_,i){return PAL[i%PAL.length];});
+      cB.update();
+    }
+    // Rosca: por segmento total
+    drawRoscaHist(c,null);
+    if(dot)dot.style.background='#3ddc84';
+    if(lbl)lbl.textContent='Proventos por Ano — Total';
+  }else{
+    // Filtrado por segmento
+    var provSeg=_histProvSegAnual[filtro]||_histAnos.map(function(){return 0;});
+    var col=PAL[Object.keys(_histProvSegAnual).indexOf(filtro)%PAL.length]||'#4da6ff';
+    if(cB){
+      cB.data.datasets[0].data=provSeg;
+      cB.data.datasets[0].label=filtro;
+      cB.data.datasets[0].backgroundColor=col+'aa';
+      cB.update();
+    }
+    // Rosca: tickers do segmento
+    if(cP){
+      var pv=null;
+      // Pegar proventos do último ano que tem dados deste segmento
+      for(var ai=_histAnos.length-1;ai>=0;ai--){
+        var pvA=(DADOS[_histAnos[ai]].prov||{})[c];
+        if(pvA&&pvA.segs[filtro]){pv=pvA;break;}
+      }
+      var lPie=[],dPie=[],dCol=[];
+      if(pv&&pv.segs[filtro]){
+        // Soma por ticker em todos os anos
+        pv.segs[filtro].forEach(function(at,i){
+          var tot=_histAnos.reduce(function(s,a){
+            var pvx=(DADOS[a].prov||{})[c];
+            if(!pvx||!pvx.segs[filtro])return s;
+            var atx=pvx.segs[filtro].find(function(x){return x.tk===at.tk;});
+            return s+(atx?atx.m.reduce(function(q,m){return q+m.s;},0):0);
+          },0);
+          lPie.push(at.tk);dPie.push(tot);dCol.push(PAL[i%PAL.length]);
+        });
+      }
+      cP.data.labels=lPie;
+      cP.data.datasets[0].data=dPie;
+      cP.data.datasets[0].backgroundColor=dCol;
+      cP.update();
+      var rttl=document.getElementById('prov-rosca-ttl');
+      if(rttl)rttl.textContent='Tickers: '+filtro;
+    }
+    if(dot)dot.style.background=col;
+    if(lbl)lbl.textContent='Proventos por Ano — '+filtro;
+  }
+}
+
+// Abre/fecha linhas do segmento E atualiza gráficos (igual ao togProv do viewAno)
+function togProvHist(cls,sg,c,col){
+  var rows=document.querySelectorAll('tr.'+cls);
+  var wasHidden=rows.length>0&&rows[0].classList.contains('hide');
+  // Recolhe todos os grupos pvh-
+  document.querySelectorAll('tbody tr[class^="pvh-"],tbody tr[class*=" pvh-"]').forEach(function(r){
+    r.classList.add('hide');
+  });
+  if(wasHidden){
+    rows.forEach(function(r){r.classList.remove('hide');});
+    updChartHist(c,sg);
+  }else{
+    updChartHist(c,'TOT');
+  }
+}
+
+// Destaca coluna de ano ao clicar (mesmo visual do togCol por meses)
+function togColHist(i){
+  document.querySelectorAll('.cih'+i).forEach(function(el){
+    el.classList.toggle('col-on');
+  });
+}
 
 function updChart(c,filtro){
   if(anoSel==='TODOS')return;
