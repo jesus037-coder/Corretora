@@ -1995,27 +1995,16 @@ function enviarLancamento(){
   })
   .then(function(resp){return resp.text();})
   .then(function(txt){
-    var parts=txt.split('\n|||CSVSTART|||\n');
-    if(parts.length===2&&parts[1].trim().length>0){
-      var novoPa=parseCSV(parts[1]);
-      // Só aceita se o CSV retornado tem pelo menos tantas linhas quanto o atual
-      // (garante que o Apps Script flushou e retornou dados completos)
-      if(novoPa.length>=RAW.pa.length){
-        RAW.pa=novoPa;
-        processarEAtualizar();
-        showMsg('✓ Lançado e atualizado!','ok');
-        setTimeout(function(){fecharModal();},700);
-        indicadorOk();
-        return;
-      }
+    // Apps Script confirmou gravação (qualquer resposta não-vazia = sucesso)
+    if(!txt||txt.toLowerCase().indexOf('erro')===0){
+      showMsg('Erro do servidor: '+txt,'err');
+      btn.disabled=false;btn.textContent='Confirmar Lançamento';
+      return;
     }
-    // Fallback: rebusca do Google Sheets após delay para cache ser invalidado
-    showMsg('✓ Lançado! Atualizando…','ok');
-    setTimeout(function(){
-      fecharModal();
-      // Aguarda 3s para o Google Sheets propagar antes de rebuscar
-      setTimeout(function(){rebuscarTudo();},3000);
-    },700);
+    showMsg('✓ Gravado! Atualizando dados…','ok');
+    fecharModal();
+    // Rebusca com retry até confirmar que a nova linha está no CSV
+    rebuscarAposLancamento(RAW.pa.length,4);
   })
   .catch(function(e){
     showMsg('Erro: '+e.message,'err');
@@ -2074,6 +2063,49 @@ function rebuscarTudo(){
       if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
       if(meta)meta.textContent='';
     },4000);
+  });
+}
+
+/* Rebusca após lançamento: tenta até a nova linha aparecer no CSV */
+function rebuscarAposLancamento(linhasAntes,tentativas){
+  var dot=document.getElementById('refresh-dot');
+  var meta=document.getElementById('tb-meta');
+  if(dot){dot.style.opacity='1';dot.style.background='var(--orange)';}
+  var opts={cache:'no-store'};
+  var t='&t='+Date.now();
+  Promise.all([
+    fetch(URLS.AT+t,opts).then(function(r){return r.text();}),
+    fetch(URLS.PA+t,opts).then(function(r){return r.text();}),
+    fetch(URLS.DI+t,opts).then(function(r){return r.text();})
+  ]).then(function(txts){
+    var atOk=txts[0]&&txts[0].indexOf('<html')<0&&txts[0].trim().length>0;
+    var paOk=txts[1]&&txts[1].indexOf('<html')<0&&txts[1].trim().length>0;
+    var diOk=txts[2]&&txts[2].indexOf('<html')<0&&txts[2].trim().length>0;
+    var novoPa=paOk?parseCSV(txts[1]):null;
+    // Verifica se a nova linha já está presente
+    if(novoPa&&novoPa.length>linhasAntes){
+      // Dado confirmado — atualiza tudo junto
+      if(atOk)RAW.at=parseCSV(txts[0]);
+      RAW.pa=novoPa;
+      if(diOk)RAW.di=parseCSV(txts[2]);
+      processarEAtualizar();
+      if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
+      if(meta)meta.textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    }else if(tentativas>1){
+      // Dado ainda não propagou — tenta de novo em 2s
+      if(dot){dot.style.background='var(--orange)';dot.style.opacity='.8';}
+      setTimeout(function(){rebuscarAposLancamento(linhasAntes,tentativas-1);},2000);
+    }else{
+      // Esgotou tentativas — usa o que tiver
+      if(atOk)RAW.at=parseCSV(txts[0]);
+      if(paOk)RAW.pa=novoPa;
+      if(diOk)RAW.di=parseCSV(txts[2]);
+      processarEAtualizar();
+      if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
+    }
+  }).catch(function(){
+    if(tentativas>1)setTimeout(function(){rebuscarAposLancamento(linhasAntes,tentativas-1);},2000);
+    else if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
   });
 }
 
