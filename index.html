@@ -950,38 +950,36 @@ function buildAno(ano){
     var cli=(row[0]||'').trim();
     if(!cli||cli.toUpperCase()==='CLIENTE'||cli.length<3)continue;
     if(/[A-Z]{4}[0-9]/.test(cli))continue;
-    // Admin vê todos; cliente normal só vê o próprio
     if(!SES.admin&&cli.toUpperCase()!==SES.nome.toUpperCase())continue;
     var d=dt(row[7]);if(!d)continue;
     var yr=d.getFullYear();if(yr>ano)continue;
     if(cl.indexOf(cli)<0)cl.push(cli);
     if(!pat[cli])pat[cli]=[];
-    var cvRaw=(row[3]||'').trim();
-    var cv=normCV(cvRaw);
+    var cv=normCV((row[3]||'').trim());
     var tot=n(row[6]);
     pat[cli].push({a:(row[1]||'').trim().toUpperCase(),t:(row[2]||'').trim().toUpperCase(),cv:cv,q:n(row[4]),tot:tot,dt:row[7],_d:d});
   }
-  // Ordenar movimentações de cada cliente por data ASC — crítico para PM correto
+
+  // Ordenar por data ASC — crítico para PM correto
   Object.keys(pat).forEach(function(c){
     pat[c].sort(function(a,b){return a._d-b._d;});
   });
-  // Calcular evolução mensal acumulada (todas as movs até cada mês do ano)
+
+  // Calcular evolução mensal reaproveitando pat já ordenado (sem reler RAW.pa)
   cl.forEach(function(c){
     var arr=Array(12).fill(0);
-    for(var r2=1;r2<RAW.pa.length;r2++){
-      var row2=RAW.pa[r2];
-      if((row2[0]||'').trim()!==c)continue;
-      var d2=dt(row2[7]);if(!d2||d2.getFullYear()>ano)continue;
-      var cv2=normCV(row2[3]||'');
-      var op2=n(row2[6]);
-      var aj2=isCompra(cv2)?op2:-op2;
+    pat[c].forEach(function(mv){
+      var d2=mv._d;
+      if(!d2||d2.getFullYear()>ano)return;
+      var aj2=isCompra(mv.cv)?mv.tot:-mv.tot;
       var yr2=d2.getFullYear();
       var ms2=d2.getMonth();
       var mStart=yr2<ano?0:ms2;
       for(var m=mStart;m<12;m++)arr[m]+=aj2;
-    }
+    });
     evol[c]=arr;
   });
+
   cl.sort();
   return {pat:pat,evol:evol,prov:buildProv(pat,ano),cl:cl};
 }
@@ -1997,21 +1995,27 @@ function enviarLancamento(){
   })
   .then(function(resp){return resp.text();})
   .then(function(txt){
-    // Apps Script retorna o CSV atualizado da BASE_PATRIMONIO após gravar
-    // Formato esperado: "ok|<csv_patrimonio>"
     var parts=txt.split('\n|||CSVSTART|||\n');
-    if(parts.length===2){
-      // Atualiza RAW.pa imediatamente com os dados que o Apps Script retornou
-      RAW.pa=parseCSV(parts[1]);
-      processarEAtualizar();
-      showMsg('✓ Lançado e atualizado!','ok');
-      setTimeout(function(){fecharModal();},700);
-      indicadorOk();
-    } else {
-      // Apps Script antigo sem CSV — fecha e rebusca
-      showMsg('✓ Lançado! Atualizando…','ok');
-      setTimeout(function(){fecharModal();rebuscarTudo();},700);
+    if(parts.length===2&&parts[1].trim().length>0){
+      var novoPa=parseCSV(parts[1]);
+      // Só aceita se o CSV retornado tem pelo menos tantas linhas quanto o atual
+      // (garante que o Apps Script flushou e retornou dados completos)
+      if(novoPa.length>=RAW.pa.length){
+        RAW.pa=novoPa;
+        processarEAtualizar();
+        showMsg('✓ Lançado e atualizado!','ok');
+        setTimeout(function(){fecharModal();},700);
+        indicadorOk();
+        return;
+      }
     }
+    // Fallback: rebusca do Google Sheets após delay para cache ser invalidado
+    showMsg('✓ Lançado! Atualizando…','ok');
+    setTimeout(function(){
+      fecharModal();
+      // Aguarda 3s para o Google Sheets propagar antes de rebuscar
+      setTimeout(function(){rebuscarTudo();},3000);
+    },700);
   })
   .catch(function(e){
     showMsg('Erro: '+e.message,'err');
