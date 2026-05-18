@@ -737,21 +737,22 @@ function dt(s){
   if(s.indexOf('/')>=0){var p=s.split('/');if(p.length===3)return new Date(+p[2],+p[1]-1,+p[0]);}
   var d=new Date(s);return isNaN(d.getTime())?null:d;
 }
-function csv(url){
-  return fetch(url).then(function(r){return r.text();}).then(function(t){
-    var rows=[],lines=t.split('\n');
-    for(var i=0;i<lines.length;i++){
-      if(!lines[i].trim())continue;
-      var cols=[],cur='',q=false;
-      for(var j=0;j<lines[i].length;j++){
-        var c=lines[i][j];
-        if(c==='"'){q=!q;continue;}
-        if(c===','&&!q){cols.push(cur.trim());cur='';}else cur+=c;
-      }
-      cols.push(cur.trim());rows.push(cols);
+function parseCSV(t){
+  var rows=[],lines=t.split('\n');
+  for(var i=0;i<lines.length;i++){
+    if(!lines[i].trim())continue;
+    var cols=[],cur='',q=false;
+    for(var j=0;j<lines[i].length;j++){
+      var c=lines[i][j];
+      if(c==='"'){q=!q;continue;}
+      if(c===','&&!q){cols.push(cur.trim());cur='';}else cur+=c;
     }
-    return rows;
-  });
+    cols.push(cur.trim());rows.push(cols);
+  }
+  return rows;
+}
+function csv(url){
+  return fetch(url).then(function(r){return r.text();}).then(parseCSV);
 }
 function R(x){return Math.round(x*100)/100;}
 function M(v){return(+(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2});}
