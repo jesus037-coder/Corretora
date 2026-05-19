@@ -229,21 +229,48 @@ body.is-mobile .kpi-hint{font-size:.65rem;}
 body.is-mobile .chart-duo{grid-template-columns:1fr;gap:10px;}
 body.is-mobile .chart-box{padding:14px 12px;margin-bottom:12px;}
 body.is-mobile .chart-box canvas{max-width:100%!important;}
-/* Reduz alturas dos gráficos no mobile */
 body.is-mobile .chart-h-evol{height:160px!important;}
 body.is-mobile .chart-h-bar{height:150px!important;}
 body.is-mobile .chart-h-hist{height:180px!important;}
-body.is-mobile .sc-body{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-body.is-mobile .sc-tbl{min-width:520px;}
-body.is-mobile .sc-kpi-lbl{font-size:.48rem;letter-spacing:.5px;}
-body.is-mobile .sc-kpi-val{font-size:.72rem;}
-body.is-mobile .sc-icon{width:52px;font-size:.52rem;}
 body.is-mobile .seg-stack{gap:8px;}
 body.is-mobile .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 body.is-mobile table{min-width:480px;}
 body.is-mobile .topbar-meta{display:none;}
 body.is-mobile .sec-head{margin:20px 0 10px;}
 body.is-mobile .sec-head h3{font-size:1rem;}
+
+/* ── CARD MOBILE: header vira 2 linhas, KPIs em grid 3x2 ── */
+body.is-mobile .sc-head{
+  flex-direction:column;min-height:auto;align-items:stretch;position:relative;
+}
+body.is-mobile .sc-icon{
+  width:100%;height:38px;border-right:none;
+  border-bottom:1px solid var(--border);
+  flex-direction:row;gap:8px;justify-content:flex-start;
+  padding:0 12px;font-size:.68rem;letter-spacing:1px;text-transform:uppercase;
+}
+body.is-mobile .sc-icon-name{display:inline;}
+body.is-mobile .sc-arr{
+  position:absolute;right:12px;top:9px;
+  border-left:none;width:auto;height:auto;
+}
+body.is-mobile .sc-kpis{
+  display:grid;grid-template-columns:repeat(3,1fr);border-top:none;
+}
+body.is-mobile .sc-kpi{
+  padding:10px 4px;
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+}
+body.is-mobile .sc-kpi:nth-child(3n){border-right:none;}
+body.is-mobile .sc-kpi:nth-child(n+4){border-bottom:none;}
+body.is-mobile .sc-kpi-lbl{font-size:.52rem;letter-spacing:.3px;}
+body.is-mobile .sc-kpi-val{font-size:.8rem;}
+/* Tabela interna scroll suave */
+body.is-mobile .sc-body{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+body.is-mobile .sc-tbl{min-width:520px;}
+body.is-mobile .sc-tbl thead th{padding:8px 8px;font-size:.52rem;}
+body.is-mobile .sc-tbl tbody td{padding:0 8px;height:36px;font-size:.7rem;}
 
 /* ── LOADER ─────────────────────────────────── */
 #loader{
@@ -370,6 +397,8 @@ body.is-mobile .sec-head h3{font-size:1rem;}
 .sc-kpi-val.g{color:var(--accent)}
 .sc-kpi-val.r{color:var(--red)}
 .sc-kpi-val.m{color:var(--muted)}
+/* icon name hidden on desktop, visible on mobile */
+.sc-icon-name{display:none;font-weight:700;font-size:.72rem;letter-spacing:1px;text-transform:uppercase;}
 
 /* arrow */
 .sc-arr{
@@ -1417,7 +1446,7 @@ function buildCardHist(sg,tks,totMkt,ideal,idx,provSeg,anos,provTotal){
   var h='<div class="sc" id="'+id+'">';
   h+='<div class="sc-stripe" style="background:'+col+'"></div>';
   h+='<div class="sc-head" onclick="flipCardHist(\''+id+'\',\''+sg.replace(/'/g,"\\'")+'\',\''+col+'\')">';
-  h+='<div class="sc-icon" style="background:'+bg+';color:'+col+';border-right:1px solid '+bd+'">'+sg.slice(0,5)+'</div>';
+  h+='<div class="sc-icon" style="background:'+bg+';color:'+col+';border-right:1px solid '+bd+'"><span style="font-size:.9em;opacity:.7">'+sg.slice(0,5)+'</span><span class="sc-icon-name" style="margin-left:4px">'+sg+'</span></div>';
   h+='<div class="sc-kpis">';
   h+=ck('Total Atual',M(sMkt),'');
   h+=ck('L / P',M(sLP),gc(sLP));
@@ -1536,7 +1565,7 @@ function buildCard(sg,tks,totMkt,ideal,idx){
   h+='<div class="sc-stripe" style="background:'+col+'"></div>';
   h+='<div class="sc-head" onclick="flipCard(\''+id+'\',\''+sg.replace(/'/g,"\\'")+'\',' +'\''+col+'\')">';
   // icon
-  h+='<div class="sc-icon" style="background:'+bg+';color:'+col+';border-right:1px solid '+bd+'">'+sg.slice(0,5)+'</div>';
+  h+='<div class="sc-icon" style="background:'+bg+';color:'+col+';border-right:1px solid '+bd+'"><span style="font-size:.9em;opacity:.7">'+sg.slice(0,5)+'</span><span class="sc-icon-name" style="margin-left:4px">'+sg+'</span></div>';
   // kpis
   h+='<div class="sc-kpis">';
   h+=ck('Total',M(sMkt),'');
