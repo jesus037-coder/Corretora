@@ -158,7 +158,7 @@ em{font-style:italic}
 .btn-out:hover{color:var(--red);border-color:var(--red)}
 
 /* ── MAIN ───────────────────────────────────── */
-.main-col{flex:1;overflow-y:auto;overflow-x:hidden}
+.main-col{flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;width:0;}
 .topbar{
   position:sticky;top:0;z-index:50;
   background:rgba(9,17,14,.88);backdrop-filter:blur(16px);
@@ -219,19 +219,31 @@ body.hide-vals .val{
 .content{padding:28px 32px;max-width:1400px;margin:0 auto}
 
 /* ── MOBILE MODE (body.is-mobile) ─────────── */
-body.is-mobile .content{padding:14px 12px;}
+body.is-mobile .content{padding:10px 10px;}
 body.is-mobile .topbar{padding:8px 10px;gap:6px;}
 body.is-mobile .topbar-title{font-size:.9rem;}
-body.is-mobile .kpi-row{grid-template-columns:repeat(2,1fr);gap:10px;}
-body.is-mobile .chart-duo{grid-template-columns:1fr;}
+body.is-mobile .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;}
+body.is-mobile .kpi{padding:14px 14px;}
+body.is-mobile .kpi-val{font-size:1.1rem;}
+body.is-mobile .kpi-hint{font-size:.65rem;}
+body.is-mobile .chart-duo{grid-template-columns:1fr;gap:10px;}
+body.is-mobile .chart-box{padding:14px 12px;margin-bottom:12px;}
+body.is-mobile .chart-box canvas{max-width:100%!important;}
+/* Reduz alturas dos gráficos no mobile */
+body.is-mobile .chart-h-evol{height:160px!important;}
+body.is-mobile .chart-h-bar{height:150px!important;}
+body.is-mobile .chart-h-hist{height:180px!important;}
 body.is-mobile .sc-body{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-body.is-mobile .sc-tbl{min-width:580px;}
+body.is-mobile .sc-tbl{min-width:520px;}
+body.is-mobile .sc-kpi-lbl{font-size:.48rem;letter-spacing:.5px;}
+body.is-mobile .sc-kpi-val{font-size:.72rem;}
+body.is-mobile .sc-icon{width:52px;font-size:.52rem;}
 body.is-mobile .seg-stack{gap:8px;}
-body.is-mobile .sc-kpi-lbl{font-size:.5rem;}
-body.is-mobile .sc-kpi-val{font-size:.78rem;}
 body.is-mobile .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-body.is-mobile table{min-width:500px;}
-body.is-mobile .topbar-meta{display:none;}/* esconde meta no mobile p/ dar espaço */
+body.is-mobile table{min-width:480px;}
+body.is-mobile .topbar-meta{display:none;}
+body.is-mobile .sec-head{margin:20px 0 10px;}
+body.is-mobile .sec-head h3{font-size:1rem;}
 
 /* ── LOADER ─────────────────────────────────── */
 #loader{
@@ -291,13 +303,14 @@ body.is-mobile .topbar-meta{display:none;}/* esconde meta no mobile p/ dar espa�
 /* ── CHARTS ─────────────────────────────────── */
 .chart-box{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:22px;margin-bottom:20px;
+  border-radius:var(--radius);padding:20px;margin-bottom:20px;
+  min-width:0;overflow:hidden;box-sizing:border-box;width:100%;
 }
 .chart-ttl{
   font-family:'DM Mono',monospace;font-size:.65rem;
   color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:14px;
 }
-.chart-duo{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px}
+.chart-duo{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px;min-width:0;}
 @media(max-width:860px){.chart-duo{grid-template-columns:1fr}}
 
 /* ── SEGMENT CARDS ──────────────────────────── */
@@ -882,7 +895,9 @@ function aplicarModo(mobile){
   }
   setTimeout(function(){
     if(cE)cE.resize();if(cB)cB.resize();if(cP)cP.resize();
-  },150);
+    // Re-render current client to pick up new chart heights
+    if(clienteAtivo)pick(clienteAtivo);
+  },200);
 }
 
 /* Auto-detectar mobile ao carregar */
@@ -1218,7 +1233,7 @@ function viewAno(c,ano){
 
   // Gráfico evolução — calcula por segmento E total
   h+='<div class="sec-head"><h3>Evolução do Patrimônio</h3><span class="tag">mensal '+ano+'</span></div>';
-  h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl" style="display:flex;align-items:center;gap:8px;transition:color .2s"><span id="evol-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="evol-lbl">Patrimônio Total Investido — '+ano+'</span></div><div style="height:220px"><canvas id="cvE"></canvas></div></div>';
+  h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl" style="display:flex;align-items:center;gap:8px;transition:color .2s"><span id="evol-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="evol-lbl">Patrimônio Total Investido — '+ano+'</span></div><div class="chart-h-evol" style="height:220px"><canvas id="cvE"></canvas></div></div>';
 
   // Cards de carteira
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
@@ -1230,8 +1245,8 @@ function viewAno(c,ano){
   // Proventos
   h+='<div class="sec-head" style="margin-top:8px"><h3>Proventos Recebidos</h3><span class="tag">ano '+ano+'</span></div>';
   h+='<div class="chart-duo">';
-  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Distribuição Mensal (R$)</div><div style="height:190px"><canvas id="cvB"></canvas></div></div>';
-  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Por Segmento</div><div style="height:190px"><canvas id="cvP"></canvas></div></div>';
+  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Distribuição Mensal (R$)</div><div class="chart-h-bar" style="height:190px"><canvas id="cvB"></canvas></div></div>';
+  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Por Segmento</div><div class="chart-h-bar" style="height:190px"><canvas id="cvP"></canvas></div></div>';
   h+='</div>';
   h+=buildProvTable(pv,c);
 
@@ -1296,7 +1311,7 @@ function viewTodos(c){
   h+='<div class="chart-box"><div class="chart-ttl" id="hist-ttl" style="display:flex;align-items:center;gap:8px">';
   h+='<span id="hist-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span>';
   h+='<span id="hist-lbl">Patrimônio × Proventos — Todos os Anos</span></div>';
-  h+='<div style="height:280px"><canvas id="cvE"></canvas></div></div>';
+  h+='<div class="chart-h-hist" style="height:280px"><canvas id="cvE"></canvas></div></div>';
 
   // Cards de carteira relacionados ao gráfico histórico
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
@@ -1319,8 +1334,8 @@ function viewTodos(c){
 
   h+='<div class="sec-head" style="margin-top:8px"><h3>Proventos Históricos</h3><span class="tag">todos os anos · clique no segmento para filtrar</span></div>';
   h+='<div class="chart-duo">';
-  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="hist-prov-ttl" style="display:flex;align-items:center;gap:8px"><span id="hist-prov-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="hist-prov-lbl">Proventos por Ano — Total</span></div><div style="height:190px"><canvas id="cvB"></canvas></div></div>';
-  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="prov-rosca-ttl">Por Segmento — Total</div><div style="height:190px"><canvas id="cvP"></canvas></div></div>';
+  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="hist-prov-ttl" style="display:flex;align-items:center;gap:8px"><span id="hist-prov-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="hist-prov-lbl">Proventos por Ano — Total</span></div><div class="chart-h-bar" style="height:190px"><canvas id="cvB"></canvas></div></div>';
+  h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="prov-rosca-ttl">Por Segmento — Total</div><div class="chart-h-bar" style="height:190px"><canvas id="cvP"></canvas></div></div>';
   h+='</div>';
 
   h+='<div class="tbl-wrap"><div class="tbl-scroll"><table>';
