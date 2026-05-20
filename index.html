@@ -240,36 +240,43 @@ body.is-mobile .sec-head{margin:20px 0 10px;}
 body.is-mobile .sec-head h3{font-size:1rem;}
 
 /* ── CARD MOBILE: header vira 2 linhas, KPIs em grid 3x2 ── */
+/* ── CARD MOBILE: linha 1 = ícone colorido, linha 2 = KPIs grid 3×2 centralizados ── */
 body.is-mobile .sc-head{
   flex-direction:column;min-height:auto;align-items:stretch;position:relative;
 }
 body.is-mobile .sc-icon{
-  width:100%;height:38px;border-right:none;
+  width:100%;height:40px;border-right:none;
   border-bottom:1px solid var(--border);
-  flex-direction:row;gap:8px;justify-content:flex-start;
-  padding:0 12px;font-size:.68rem;letter-spacing:1px;text-transform:uppercase;
+  flex-direction:row;gap:10px;justify-content:flex-start;
+  padding:0 14px;font-size:.7rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
 }
 body.is-mobile .sc-icon-name{display:inline;}
 body.is-mobile .sc-arr{
-  position:absolute;right:12px;top:9px;
+  position:absolute;right:14px;top:11px;
   border-left:none;width:auto;height:auto;
 }
 body.is-mobile .sc-kpis{
-  display:grid;grid-template-columns:repeat(3,1fr);border-top:none;
+  display:grid;grid-template-columns:repeat(3,1fr);
 }
 body.is-mobile .sc-kpi{
-  padding:10px 4px;
+  padding:11px 4px;
+  align-items:center;justify-content:center;
   border-right:1px solid var(--border);
   border-bottom:1px solid var(--border);
 }
-body.is-mobile .sc-kpi:nth-child(3n){border-right:none;}
-body.is-mobile .sc-kpi:nth-child(n+4){border-bottom:none;}
-body.is-mobile .sc-kpi-lbl{font-size:.52rem;letter-spacing:.3px;}
-body.is-mobile .sc-kpi-val{font-size:.8rem;}
-/* Tabela interna scroll suave */
+body.is-mobile .sc-kpi:nth-child(3){border-right:none;}
+body.is-mobile .sc-kpi:nth-child(4){border-right:1px solid var(--border);}
+body.is-mobile .sc-kpi:nth-child(5){border-right:1px solid var(--border);}
+body.is-mobile .sc-kpi:nth-child(6){border-right:none;}
+body.is-mobile .sc-kpi:nth-child(4),
+body.is-mobile .sc-kpi:nth-child(5),
+body.is-mobile .sc-kpi:nth-child(6){border-bottom:none;}
+body.is-mobile .sc-kpi-lbl{font-size:.53rem;letter-spacing:.3px;text-align:center;}
+body.is-mobile .sc-kpi-val{font-size:.82rem;text-align:center;}
 body.is-mobile .sc-body{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 body.is-mobile .sc-tbl{min-width:520px;}
-body.is-mobile .sc-tbl thead th{padding:8px 8px;font-size:.52rem;}
+body.is-mobile .sc-tbl thead th{padding:8px 8px;font-size:.53rem;}
 body.is-mobile .sc-tbl tbody td{padding:0 8px;height:36px;font-size:.7rem;}
 
 /* ── LOADER ─────────────────────────────────── */
@@ -400,13 +407,13 @@ body.is-mobile .sc-tbl tbody td{padding:0 8px;height:36px;font-size:.7rem;}
 /* icon name hidden on desktop, visible on mobile */
 .sc-icon-name{display:none;font-weight:700;font-size:.72rem;letter-spacing:1px;text-transform:uppercase;}
 
-/* arrow */
+/* arrow — SVG chevron moderno */
 .sc-arr{
   flex-shrink:0;width:40px;
   display:flex;align-items:center;justify-content:center;
   border-left:1px solid var(--border);
-  font-size:.75rem;color:var(--muted);
-  transition:transform .22s ease;
+  color:var(--muted);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
 }
 .sc.open .sc-arr{transform:rotate(90deg)}
 
@@ -1454,7 +1461,7 @@ function buildCardHist(sg,tks,totMkt,ideal,idx,provSeg,anos,provTotal){
   h+=ck('% Cart',sPct.toFixed(2)+'%','');
   h+=ck('% Ideal',sId.toFixed(2)+'%','m');
   h+='</div>';
-  h+='<div class="sc-arr">▶</div>';
+  h+='<div class="sc-arr"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
   h+='</div>';
 
   /* Corpo expandido — mesmas colunas do buildCard + rodapé com totais */
@@ -1575,7 +1582,7 @@ function buildCard(sg,tks,totMkt,ideal,idx){
   h+=ck('% Ideal',sId.toFixed(2)+'%','m');
   h+='</div>';
   // arrow
-  h+='<div class="sc-arr">▶</div>';
+  h+='<div class="sc-arr"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
   h+='</div>';
 
   // expandable table
@@ -2171,4 +2178,3 @@ function silentRefresh(){rebuscarTudo();}
 </script>
 </body>
 </html>
-
