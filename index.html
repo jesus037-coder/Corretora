@@ -773,6 +773,8 @@ var clienteAtivo=null;
 var cE=null,cB=null,cP=null;
 var _refreshTimer=null;
 var _fontSize=1;
+// Estado persistente de UI — sobrevive a re-renders
+var _UI={cardAberto:null, cardSg:null, cardCor:null, provAberto:null, colsAtivas:{}};
 
 /* ── UTILS ────────────────────────────────── */
 function n(v){
@@ -991,7 +993,10 @@ function init(){
     document.getElementById('content').innerHTML='<div class="empty"><div class="ico">⚠️</div><p>'+e.message+'</p></div>';
   }).finally(function(){load(false);});
 }
-function reload(){init();}
+function reload(){
+  _UI.cardAberto=null;_UI.cardSg=null;_UI.cardCor=null;_UI.provAberto=null;_UI.colsAtivas={};
+  init();
+}
 
 /* ── BUILD ANO ────────────────────────────── */
 function buildAno(ano){
@@ -1191,6 +1196,14 @@ function toggleSB(){
 
 /* ── PICK CLIENT ──────────────────────────── */
 function pick(c){
+  // Clear UI state only if switching to a different client
+  if(c!==clienteAtivo){
+    _UI.cardAberto=null;
+    _UI.cardSg=null;
+    _UI.cardCor=null;
+    _UI.provAberto=null;
+    _UI.colsAtivas={};
+  }
   clienteAtivo=c;setActive(c);
   var nome=c==='__ZE__'?'⭐ Corretora — Zé':c;
   document.getElementById('tb-title').textContent=nome;
@@ -1651,11 +1664,15 @@ function buildProvTable(pv,c){
   h+='</tr></thead><tbody>';
   Object.keys(pv.segs).forEach(function(sg){
     var sid='pv-'+sg.replace(/\W+/g,'-');
-    h+='<tr class="seg-hdr" onclick="togProv(\''+sid+'\',\''+sg+'\',\''+c+'\')"><td colspan="13">▾ '+sg+'</td></tr>';
+    var isAberto=_UI.provAberto===sid;
+    // ▸ fechado, ▾ aberto
+    h+='<tr class="seg-hdr" onclick="togProv(\''+sid+'\',\''+sg+'\',\''+c+'\')"><td colspan="13">'+(isAberto?'▾':'▸')+' '+sg+'</td></tr>';
     pv.segs[sg].forEach(function(at){
-      h+='<tr class="'+sid+'"><td class="td-l" style="padding-left:28px">'+at.tk+'</td>';
+      // Começa hidden — abre apenas se era o segmento ativo
+      h+='<tr class="'+sid+(isAberto?'':' hide')+'"><td class="td-l" style="padding-left:28px">'+at.tk+'</td>';
       at.m.forEach(function(m,i){
-        h+='<td class="ci'+i+'"><div class="pc">'
+        var colOn=(_UI.colsAtivas&&_UI.colsAtivas[i])?'col-on':'';
+        h+='<td class="ci'+i+(colOn?' '+colOn:'')+'"><div class="pc">'
           +'<div class="pu">'+(m.s>0?'R$&nbsp;'+m.u:'—')+'</div>'
           +'<div class="pe">'+(m.q>0?m.q+' cotas':'')+'</div>'
           +'<div class="pt">'+(m.s>0?M(m.s):'')+'</div>'
@@ -1934,17 +1951,19 @@ function toggleTheme(){
   if(clienteAtivo)pick(clienteAtivo);
 }
 function flipCard(id,sg,color){
-  var card=document.getElementById(id);
-  if(!card)return;
+  var card=document.getElementById(id);if(!card)return;
   var wasOpen=card.classList.contains('open');
-  // Fechar todos os cards primeiro
   document.querySelectorAll('.sc').forEach(function(c){c.classList.remove('open');});
   if(!wasOpen){
-    // Abrir este card e mostrar evolução do segmento
     card.classList.add('open');
+    _UI.cardAberto=id;
+    _UI.cardSg=sg;
+    _UI.cardCor=color;
     switchEvolChart(sg,color);
   }else{
-    // Estava aberto → fechar todos → mostrar total
+    _UI.cardAberto=null;
+    _UI.cardSg=null;
+    _UI.cardCor=null;
     switchEvolChart('__TOTAL__',null);
   }
 }
@@ -1952,15 +1971,26 @@ function tog(cls){document.querySelectorAll('tr.'+cls).forEach(function(r){r.cla
 function togProv(cls,sg,c){
   var rows=document.querySelectorAll('tr.'+cls);
   var wasHidden=rows.length>0&&rows[0].classList.contains('hide');
-  // collapse all prov groups
+  // Colapsar todos os grupos pv-
   document.querySelectorAll('tbody tr[class^="pv-"],tbody tr[class*=" pv-"]').forEach(function(r){
     if(!/pvt-/.test(r.className))r.classList.add('hide');
   });
-  if(wasHidden){rows.forEach(function(r){r.classList.remove('hide');});updChart(c,sg);}
-  else updChart(c,'TOT');
+  if(wasHidden){
+    rows.forEach(function(r){r.classList.remove('hide');});
+    _UI.provAberto=cls;
+    updChart(c,sg);
+  }else{
+    _UI.provAberto=null;
+    updChart(c,'TOT');
+  }
 }
 function togCol(i){
   document.querySelectorAll('.ci'+i).forEach(function(c){c.classList.toggle('col-on');});
+  // Persistir estado das colunas ativas
+  if(!_UI.colsAtivas)_UI.colsAtivas={};
+  var isOn=document.querySelector('.ci'+i+'[class*="col-on"]')!==null;
+  if(isOn)_UI.colsAtivas[i]=true;
+  else delete _UI.colsAtivas[i];
 }
 
 /* ── MODAL LANÇAMENTO ─────────────────────── */
@@ -2175,15 +2205,14 @@ function rebuscarAposLancamento(linhasAntes,tentativas){
 }
 
 function processarEAtualizar(){
-  // Salvar qual card estava aberto antes de re-renderizar
-  var cardAberto=null;
-  document.querySelectorAll('.sc.open').forEach(function(el){cardAberto=el.id;});
-  // Salvar qual segmento de proventos estava expandido
-  var provAberto=null;
-  document.querySelectorAll('tbody tr[class^="pv-"]:not(.hide),tbody tr[class*=" pv-"]:not(.hide)').forEach(function(r){
-    var cls=r.className.split(' ').find(function(x){return x.indexOf('pv-')===0;});
-    if(cls)provAberto=cls;
-  });
+  // Capturar estado UI ANTES de re-renderizar
+  var uiSnap={
+    cardAberto: _UI.cardAberto,
+    cardSg: _UI.cardSg,
+    cardCor: _UI.cardCor,
+    provAberto: _UI.provAberto,
+    colsAtivas: Object.assign({}, _UI.colsAtivas||{})
+  };
 
   PRECOS={};
   for(var i=1;i<RAW.at.length;i++){var tk=(RAW.at[i][2]||'').trim().toUpperCase();if(tk)PRECOS[tk]=n(RAW.at[i][3]);}
@@ -2197,18 +2226,33 @@ function processarEAtualizar(){
   buildNav();
   if(clienteAtivo)pick(clienteAtivo);
 
-  // Restaurar card aberto após re-render
-  if(cardAberto||provAberto){
-    setTimeout(function(){
-      if(cardAberto){
-        var el=document.getElementById(cardAberto);
-        if(el)el.classList.add('open');
+  // Restaurar estado UI após re-render (DOM já existe)
+  setTimeout(function(){
+    // 1. Card de carteira aberto
+    if(uiSnap.cardAberto){
+      var el=document.getElementById(uiSnap.cardAberto);
+      if(el){
+        el.classList.add('open');
+        _UI.cardAberto=uiSnap.cardAberto;
+        _UI.cardSg=uiSnap.cardSg;
+        _UI.cardCor=uiSnap.cardCor;
+        // Restaurar gráfico de evolução no segmento correto
+        if(uiSnap.cardSg)switchEvolChart(uiSnap.cardSg,uiSnap.cardCor);
       }
-      if(provAberto){
-        document.querySelectorAll('tr.'+provAberto).forEach(function(r){r.classList.remove('hide');});
-      }
-    },50);
-  }
+    }
+    // 2. Segmento de proventos aberto
+    if(uiSnap.provAberto){
+      _UI.provAberto=uiSnap.provAberto;
+      document.querySelectorAll('tr.'+uiSnap.provAberto).forEach(function(r){r.classList.remove('hide');});
+      // Restaurar gráfico de proventos filtrado
+      if(clienteAtivo)updChart(clienteAtivo,uiSnap.provAberto.replace('pv-','').replace(/-/g,' ').toUpperCase());
+    }
+    // 3. Colunas ativas na tabela de proventos
+    Object.keys(uiSnap.colsAtivas).forEach(function(i){
+      document.querySelectorAll('.ci'+i).forEach(function(el){el.classList.add('col-on');});
+      _UI.colsAtivas[i]=true;
+    });
+  },80);
 }
 
 function silentRefresh(){rebuscarTudo();}
