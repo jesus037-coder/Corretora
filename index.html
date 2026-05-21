@@ -1103,9 +1103,23 @@ function buildProv(pat,ano){
     var vu=n(row[5]);
     var dRef=dPag||dCom;
     if(!tk||!dRef||dRef.getFullYear()!==ano)continue;
-    var f=1;
-    if(tipo.indexOf('JCP')>=0||tipo.indexOf('JSCP')>=0||tipo.indexOf('REND')>=0||tipo.indexOf('ETF')>=0)f=0.85;
-    else if(tipo.indexOf('EXTERIOR')>=0||tipo.indexOf('BDR')>=0)f=0.70;
+    var f=1; // padrão: isento
+    // Regras por segmento + tipo de provento:
+    // Ações - Dividendo: isento (f=1)
+    // Ações - JCP/JSCP: 15% retido na fonte (f=0.85)
+    // FIIs/Fiagros - Rendimento: isento (f=1)
+    // ETFs - qualquer provento: 15% (f=0.85)
+    // BDRs / Exterior: 30% (f=0.70)
+    var segUp=seg.toUpperCase();
+    if(segUp.indexOf('ETF')>=0){
+      f=0.85;
+    }else if(segUp.indexOf('BDR')>=0||tipo.indexOf('EXTERIOR')>=0){
+      f=0.70;
+    }else if(tipo.indexOf('JCP')>=0||tipo.indexOf('JSCP')>=0){
+      // JCP sempre 15% independente do segmento
+      f=0.85;
+    }
+    // Dividendos de Ações e Rendimentos de FIIs = isento (f já é 1)
     var vl=R(vu*f);
     var mes=dRef.getMonth();
     if(!ann[tk])ann[tk]={};
@@ -2161,6 +2175,16 @@ function rebuscarAposLancamento(linhasAntes,tentativas){
 }
 
 function processarEAtualizar(){
+  // Salvar qual card estava aberto antes de re-renderizar
+  var cardAberto=null;
+  document.querySelectorAll('.sc.open').forEach(function(el){cardAberto=el.id;});
+  // Salvar qual segmento de proventos estava expandido
+  var provAberto=null;
+  document.querySelectorAll('tbody tr[class^="pv-"]:not(.hide),tbody tr[class*=" pv-"]:not(.hide)').forEach(function(r){
+    var cls=r.className.split(' ').find(function(x){return x.indexOf('pv-')===0;});
+    if(cls)provAberto=cls;
+  });
+
   PRECOS={};
   for(var i=1;i<RAW.at.length;i++){var tk=(RAW.at[i][2]||'').trim().toUpperCase();if(tk)PRECOS[tk]=n(RAW.at[i][3]);}
   var aSet={};
@@ -2172,6 +2196,19 @@ function processarEAtualizar(){
   CLIENTES=Object.keys(cSet).filter(function(c){return c!=='__ZE__';}).sort();
   buildNav();
   if(clienteAtivo)pick(clienteAtivo);
+
+  // Restaurar card aberto após re-render
+  if(cardAberto||provAberto){
+    setTimeout(function(){
+      if(cardAberto){
+        var el=document.getElementById(cardAberto);
+        if(el)el.classList.add('open');
+      }
+      if(provAberto){
+        document.querySelectorAll('tr.'+provAberto).forEach(function(r){r.classList.remove('hide');});
+      }
+    },50);
+  }
 }
 
 function silentRefresh(){rebuscarTudo();}
