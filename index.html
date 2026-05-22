@@ -488,7 +488,37 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 .col-on .pu{color:var(--muted);font-size:.65rem}
 .col-on .pe,.col-on .pt{display:block}
 
-/* ── MISC ───────────────────────────────────── */
+/* ── TABS ────────────────────────────────── */
+.tabs-bar{
+  display:flex;gap:4px;
+  padding:4px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  margin-bottom:24px;
+  width:fit-content;
+}
+.tab-btn{
+  display:flex;align-items:center;gap:7px;
+  padding:8px 18px;
+  border:none;border-radius:7px;
+  background:transparent;
+  color:var(--muted);
+  font-family:'Outfit',sans-serif;font-size:.85rem;font-weight:500;
+  cursor:pointer;transition:background .18s,color .18s;
+  white-space:nowrap;
+}
+.tab-btn svg{flex-shrink:0;}
+.tab-btn:hover{color:var(--text);background:rgba(255,255,255,.04);}
+.tab-btn.tab-on{
+  background:var(--surface);
+  color:var(--accent);
+  box-shadow:0 1px 4px rgba(0,0,0,.25);
+}
+.tab-pane{animation:fadeUp .25s ease both;}
+.tab-hidden{display:none;}
+[data-theme="light"] .tabs-bar{background:var(--panel);}
+[data-theme="light"] .tab-btn.tab-on{background:var(--bg);}
 .empty{padding:80px 40px;text-align:center}
 .empty .ico{font-size:3rem;margin-bottom:16px;opacity:.25}
 .empty p{color:var(--muted);font-size:.9rem}
@@ -771,7 +801,7 @@ var cE=null,cB=null,cP=null;
 var _refreshTimer=null;
 var _fontSize=1;
 // Estado persistente de UI — sobrevive a re-renders
-var _UI={cardAberto:null, cardSg:null, cardCor:null, provAberto:null, colsAtivas:{}};
+var _UI={cardAberto:null, cardSg:null, cardCor:null, provAberto:null, colsAtivas:{}, abaAtiva:'carteira'};
 
 /* ── UTILS ────────────────────────────────── */
 function n(v){
@@ -991,7 +1021,7 @@ function init(){
   }).finally(function(){load(false);});
 }
 function reload(){
-  _UI.cardAberto=null;_UI.cardSg=null;_UI.cardCor=null;_UI.provAberto=null;_UI.colsAtivas={};
+  _UI.cardAberto=null;_UI.cardSg=null;_UI.cardCor=null;_UI.provAberto=null;_UI.colsAtivas={};_UI.abaAtiva='carteira';
   init();
 }
 
@@ -1200,6 +1230,7 @@ function pick(c){
     _UI.cardCor=null;
     _UI.provAberto=null;
     _UI.colsAtivas={};
+    _UI.abaAtiva='carteira';
   }
   clienteAtivo=c;setActive(c);
   var nome=c==='__ZE__'?'⭐ Corretora — Zé':c;
@@ -1282,7 +1313,8 @@ function viewAno(c,ano){
   SEG_EVOL['__TOTAL__']=d.evol[c]||Array(12).fill(0);
 
   var h='';
-  // KPIs
+
+  // ── KPIs (sempre visíveis, acima das abas) ──
   h+='<div class="kpi-row">';
   h+=kpi('Valor Aplicado',M(totApl),'','','');
   h+=kpi('Valor de Mercado',M(totMkt),'','','g');
@@ -1291,24 +1323,37 @@ function viewAno(c,ano){
   h+=kpi('Rentabilidade',M(lpT),(rent>=0?'▲':'▼')+' '+Math.abs(rent).toFixed(2)+'%',lpT<0?'bad':'',gc(lpT));
   h+='</div>';
 
-  // Gráfico evolução — calcula por segmento E total
-  h+='<div class="sec-head"><h3>Evolução do Patrimônio</h3><span class="tag">mensal '+ano+'</span></div>';
-  h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl" style="display:flex;align-items:center;gap:8px;transition:color .2s"><span id="evol-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="evol-lbl">Patrimônio Total Investido — '+ano+'</span></div><div class="chart-h-evol" style="height:220px"><canvas id="cvE"></canvas></div></div>';
+  // ── ABAS ──
+  var abaAtiva=_UI.abaAtiva||'carteira';
+  h+='<div class="tabs-bar">';
+  h+='<button class="tab-btn'+(abaAtiva==='carteira'?' tab-on':'')+'" onclick="switchTab(\'carteira\')">';
+  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>';
+  h+=' Carteira</button>';
+  h+='<button class="tab-btn'+(abaAtiva==='proventos'?' tab-on':'')+'" onclick="switchTab(\'proventos\')">';
+  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10l3-3 2 2 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="2" cy="10" r="1" fill="currentColor"/></svg>';
+  h+=' Proventos</button>';
+  h+='</div>';
 
-  // Cards de carteira
+  // ── ABA CARTEIRA ──
+  h+='<div id="tab-carteira" class="tab-pane'+(abaAtiva==='carteira'?'':' tab-hidden')+'">';
+  h+='<div class="sec-head"><h3>Evolução do Patrimônio</h3><span class="tag">mensal '+ano+'</span></div>';
+  h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl" style="display:flex;align-items:center;gap:8px"><span id="evol-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="evol-lbl">Patrimônio Total Investido — '+ano+'</span></div><div class="chart-h-evol" style="height:220px"><canvas id="cvE"></canvas></div></div>';
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
   h+='<div class="sec-head"><h3>Consolidação de Carteira</h3><span class="tag">'+nAt+' ativos · '+segsOk.length+' segmentos</span></div>';
   h+='<div class="seg-stack">';
   segsOk.forEach(function(s,i){h+=buildCard(s,seg[s],totMkt,ideal,i);});
   h+='</div>';
+  h+='</div>'; // fim tab-carteira
 
-  // Proventos
-  h+='<div class="sec-head" style="margin-top:8px"><h3>Proventos Recebidos</h3><span class="tag">ano '+ano+'</span></div>';
+  // ── ABA PROVENTOS ──
+  h+='<div id="tab-proventos" class="tab-pane'+(abaAtiva==='proventos'?'':' tab-hidden')+'">';
+  h+='<div class="sec-head"><h3>Proventos Recebidos</h3><span class="tag">ano '+ano+'</span></div>';
   h+='<div class="chart-duo">';
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Distribuição Mensal (R$)</div><div class="chart-h-bar" style="height:190px"><canvas id="cvB"></canvas></div></div>';
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Por Segmento</div><div class="chart-h-bar" style="height:190px"><canvas id="cvP"></canvas></div></div>';
   h+='</div>';
   h+=buildProvTable(pv,c);
+  h+='</div>'; // fim tab-proventos
 
   document.getElementById('content').innerHTML=h;
   requestAnimationFrame(function(){
@@ -1947,6 +1992,23 @@ function toggleTheme(){
     :'<path d="M12 8.5A5 5 0 0 1 5.5 2a6 6 0 1 0 6.5 6.5z" fill="currentColor"/>';
   if(clienteAtivo)pick(clienteAtivo);
 }
+function switchTab(aba){
+  _UI.abaAtiva=aba;
+  // Toggle panes
+  var pC=document.getElementById('tab-carteira');
+  var pP=document.getElementById('tab-proventos');
+  if(pC)pC.classList.toggle('tab-hidden',aba!=='carteira');
+  if(pP)pP.classList.toggle('tab-hidden',aba!=='proventos');
+  // Toggle buttons
+  document.querySelectorAll('.tab-btn').forEach(function(btn,i){
+    btn.classList.toggle('tab-on',i===(aba==='carteira'?0:1));
+  });
+  // Resize charts after pane becomes visible
+  setTimeout(function(){
+    if(cE)cE.resize();if(cB)cB.resize();if(cP)cP.resize();
+  },50);
+}
+
 function flipCard(id,sg,color){
   var card=document.getElementById(id);if(!card)return;
   var wasOpen=card.classList.contains('open');
