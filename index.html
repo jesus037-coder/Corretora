@@ -884,7 +884,6 @@ function doLogin(){
 function doLogout(){
   SES={nome:'',admin:false};RAW={at:[],pa:[],di:[]};
   DADOS={};PRECOS={};CLIENTES=[];clienteAtivo=null;
-  stopRefresh();
   document.getElementById('app').classList.remove('on');
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('btn-login').disabled=false;
@@ -894,38 +893,8 @@ function doLogout(){
 }
 
 /* ── AUTO REFRESH ─────────────────────────── */
-function startRefresh(){
-  stopRefresh();
-  _refreshTimer=setInterval(function(){
-    var dot=document.getElementById('refresh-dot');
-    var meta=document.getElementById('tb-meta');
-    if(dot){dot.style.opacity='1';dot.style.background='var(--orange)';}
-    var opts={cache:'no-store'};
-    var t='&t='+Date.now();
-    Promise.all([
-      fetch(URLS.AT+t,opts).then(function(r){return r.text();}),
-      fetch(URLS.PA+t,opts).then(function(r){return r.text();}),
-      fetch(URLS.DI+t,opts).then(function(r){return r.text();})
-    ]).then(function(txts){
-      if(txts[0]&&txts[0].indexOf('<html')<0)RAW.at=parseCSV(txts[0]);
-      if(txts[1]&&txts[1].indexOf('<html')<0)RAW.pa=parseCSV(txts[1]);
-      if(txts[2]&&txts[2].indexOf('<html')<0)RAW.di=parseCSV(txts[2]);
-      processarEAtualizar();
-      if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
-      var now=new Date();
-      var hm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-      if(meta)meta.textContent='Atualizado '+hm;
-    }).catch(function(){
-      if(dot){dot.style.background='var(--red)';dot.style.opacity='1';}
-      setTimeout(function(){
-        if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
-      },4000);
-    });
-  },1*60*1000);
-}
-function stopRefresh(){
-  if(_refreshTimer){clearInterval(_refreshTimer);_refreshTimer=null;}
-}
+function startRefresh(){} // desativado
+function stopRefresh(){}
 
 /* ── FONT SIZE CYCLE ──────────────────────── */
 /* Dois modos: desktop (padrão 113%) e mobile (compacto) */
@@ -1015,7 +984,6 @@ function init(){
       ?clienteAtivo:(SES.admin?'__ZE__':SES.nome);
     if(alvo)pick(alvo);
     else document.getElementById('content').innerHTML='<div class="empty"><div class="ico">🔍</div><p>Sem dados.</p></div>';
-    startRefresh();
   }).catch(function(e){
     document.getElementById('content').innerHTML='<div class="empty"><div class="ico">⚠️</div><p>'+e.message+'</p></div>';
   }).finally(function(){load(false);});
