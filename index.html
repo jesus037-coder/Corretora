@@ -426,8 +426,16 @@ body.is-mobile .sc-tbl tbody td{padding:0 8px;height:36px;font-size:.7rem;}
   font-weight:500;text-transform:uppercase;letter-spacing:1px;
   padding:10px 14px;border-bottom:1px solid var(--border);
   text-align:center;white-space:nowrap;
+  cursor:pointer;user-select:none;transition:color .15s;
 }
+.sc-tbl thead th:hover{color:var(--accent);}
 .sc-tbl thead th:first-child{text-align:left}
+.sort-ico{display:inline-block;margin-left:3px;font-size:.55rem;opacity:.3;vertical-align:middle;}
+.sort-ico::after{content:'⇅';}
+th.sort-asc .sort-ico{opacity:1;color:var(--accent);}
+th.sort-asc .sort-ico::after{content:'▲';}
+th.sort-desc .sort-ico{opacity:1;color:var(--accent);}
+th.sort-desc .sort-ico::after{content:'▼';}
 .sc-tbl tbody td{
   padding:0 14px;height:44px;
   border-bottom:1px solid var(--border);
@@ -1516,9 +1524,9 @@ function buildCardHist(sg,tks,totMkt,ideal,idx,provSeg,anos,provTotal){
   /* Corpo expandido — mesmas colunas do buildCard + rodapé com totais */
   h+='<div class="sc-body"><table class="sc-tbl">';
   h+='<thead><tr>';
-  h+='<th>Ativo</th><th>Qtd</th><th>Preço Médio</th><th>Vlr Aplicado</th>';
-  h+='<th>Preço Atual</th><th>Var %</th><th>L / P</th>';
-  h+='<th>Total Atual</th><th>% Cart.</th><th>% Ideal</th>';
+  ['Ativo','Qtd','Preço Médio','Vlr Aplicado','Preço Atual','Var %','L / P','Total Atual','% Cart.','% Ideal'].forEach(function(col,ci){
+    h+='<th onclick="sortTable(\''+id+'\','+ci+')">'+col+'<span class="sort-ico"></span></th>';
+  });
   h+='</tr></thead><tbody>';
 
   var totAplSeg=0,totMktSeg=0,totLPSeg=0;
@@ -1533,15 +1541,15 @@ function buildCardHist(sg,tks,totMkt,ideal,idx,provSeg,anos,provTotal){
     totAplSeg+=it.apl; totMktSeg+=vAt; totLPSeg+=lp;
     h+='<tr>';
     h+='<td>'+tk+'</td>';
-    h+='<td>'+it.q.toLocaleString('pt-BR',{maximumFractionDigits:2})+'</td>';
-    h+='<td>'+M(pm)+'</td>';
-    h+='<td>'+M(it.apl)+'</td>';
-    h+='<td style="color:'+col+'">'+M(pmkt)+'</td>';
-    h+='<td style="color:'+(vp>=0?'var(--accent)':'var(--red)')+'">'+vp.toFixed(2)+'%</td>';
-    h+='<td style="color:'+(lp>=0?'var(--accent)':'var(--red)')+'">'+M(lp)+'</td>';
-    h+='<td>'+M(vAt)+'</td>';
-    h+='<td>'+pc.toFixed(2)+'%</td>';
-    h+='<td style="color:var(--muted)">'+ideal.toFixed(2)+'%</td>';
+    h+='<td data-val="'+it.q+'">'+it.q.toLocaleString('pt-BR',{maximumFractionDigits:2})+'</td>';
+    h+='<td data-val="'+pm+'">'+M(pm)+'</td>';
+    h+='<td data-val="'+it.apl+'">'+M(it.apl)+'</td>';
+    h+='<td data-val="'+pmkt+'" style="color:'+col+'">'+M(pmkt)+'</td>';
+    h+='<td data-val="'+vp+'" style="color:'+(vp>=0?'var(--accent)':'var(--red)')+'">'+vp.toFixed(2)+'%</td>';
+    h+='<td data-val="'+lp+'" style="color:'+(lp>=0?'var(--accent)':'var(--red)')+'">'+M(lp)+'</td>';
+    h+='<td data-val="'+vAt+'">'+M(vAt)+'</td>';
+    h+='<td data-val="'+pc+'">'+pc.toFixed(2)+'%</td>';
+    h+='<td data-val="'+ideal+'" style="color:var(--muted)">'+ideal.toFixed(2)+'%</td>';
     h+='</tr>';
   });
 
@@ -1570,6 +1578,7 @@ function flipCardHist(id,sg,color){
   document.querySelectorAll('.sc').forEach(function(c){c.classList.remove('open');});
   if(!wasOpen){
     card.classList.add('open');
+    addRowIndex(id);
     switchHistChart(sg,color);
   }else{
     drawHistorico(_histAnos,_histSaldos,_histProvAnual);
@@ -1637,8 +1646,9 @@ function buildCard(sg,tks,totMkt,ideal,idx){
   // expandable table
   h+='<div class="sc-body"><table class="sc-tbl">';
   h+='<thead><tr>';
-  h+='<th>Ativo</th><th>Qtd</th><th>PM</th><th>Vlr Apl.</th>';
-  h+='<th>Preço</th><th>Var %</th><th>L / P</th><th>Total</th><th>% Cart</th><th>% Ideal</th>';
+  ['Ativo','Qtd','PM','Vlr Apl.','Preço','Var %','L / P','Total','% Cart','% Ideal'].forEach(function(col,ci){
+    h+='<th onclick="sortTable(\''+id+'\','+ci+')">'+col+'<span class="sort-ico"></span></th>';
+  });
   h+='</tr></thead><tbody>';
   valid.forEach(function(tk){
     var it=tks[tk];
@@ -1650,15 +1660,15 @@ function buildCard(sg,tks,totMkt,ideal,idx){
     var pc=totMkt>0?(vAt/totMkt)*100:0;
     h+='<tr>';
     h+='<td>'+tk+'</td>';
-    h+='<td>'+it.q.toLocaleString('pt-BR',{maximumFractionDigits:2})+'</td>';
-    h+='<td>'+M(pm)+'</td>';
-    h+='<td>'+M(it.apl)+'</td>';
-    h+='<td style="color:'+col+'">'+M(pmkt)+'</td>';
-    h+='<td style="color:'+(vp>=0?'var(--accent)':'var(--red)')+'">'+vp.toFixed(2)+'%</td>';
-    h+='<td style="color:'+(lp>=0?'var(--accent)':'var(--red)')+'">'+M(lp)+'</td>';
-    h+='<td>'+M(vAt)+'</td>';
-    h+='<td>'+pc.toFixed(2)+'%</td>';
-    h+='<td style="color:var(--muted)">'+ideal.toFixed(2)+'%</td>';
+    h+='<td data-val="'+it.q+'">'+it.q.toLocaleString('pt-BR',{maximumFractionDigits:2})+'</td>';
+    h+='<td data-val="'+pm+'">'+M(pm)+'</td>';
+    h+='<td data-val="'+it.apl+'">'+M(it.apl)+'</td>';
+    h+='<td data-val="'+pmkt+'" style="color:'+col+'">'+M(pmkt)+'</td>';
+    h+='<td data-val="'+vp+'" style="color:'+(vp>=0?'var(--accent)':'var(--red)')+'">'+vp.toFixed(2)+'%</td>';
+    h+='<td data-val="'+lp+'" style="color:'+(lp>=0?'var(--accent)':'var(--red)')+'">'+M(lp)+'</td>';
+    h+='<td data-val="'+vAt+'">'+M(vAt)+'</td>';
+    h+='<td data-val="'+pc+'">'+pc.toFixed(2)+'%</td>';
+    h+='<td data-val="'+ideal+'" style="color:var(--muted)">'+ideal.toFixed(2)+'%</td>';
     h+='</tr>';
   });
   h+='</tbody></table></div></div>';
@@ -2039,11 +2049,57 @@ function togProv(cls,sg,c){
     updChart(c,'TOT');
   }
 }
+function sortTable(cardId,colIdx){
+  var card=document.getElementById(cardId);
+  if(!card)return;
+  var tbl=card.querySelector('.sc-tbl');
+  if(!tbl)return;
+  var th=tbl.querySelectorAll('thead th')[colIdx];
+  if(!th)return;
+
+  // Determine direction: first click = asc, second = desc, third = reset
+  var cur=th.classList.contains('sort-asc')?'asc':th.classList.contains('sort-desc')?'desc':'none';
+  var dir=cur==='none'?'asc':cur==='asc'?'desc':'none';
+
+  // Clear sort state from all headers of this table
+  tbl.querySelectorAll('thead th').forEach(function(h){h.classList.remove('sort-asc','sort-desc');});
+
+  var tbody=tbl.querySelector('tbody');
+  var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+
+  if(dir==='none'){
+    // Restore original order (data-index set on render)
+    rows.sort(function(a,b){return (+a.dataset.ri||0)-(+b.dataset.ri||0);});
+  }else{
+    th.classList.add('sort-'+dir);
+    rows.sort(function(a,b){
+      var aCell=a.cells[colIdx];var bCell=b.cells[colIdx];
+      if(!aCell||!bCell)return 0;
+      var aRaw=(aCell.dataset.val!==undefined)?aCell.dataset.val:aCell.textContent.trim();
+      var bRaw=(bCell.dataset.val!==undefined)?bCell.dataset.val:bCell.textContent.trim();
+      // Try numeric
+      var aNum=parseFloat(aRaw.replace(/[^\d.,-]/g,'').replace(',','.'));
+      var bNum=parseFloat(bRaw.replace(/[^\d.,-]/g,'').replace(',','.'));
+      var isNum=!isNaN(aNum)&&!isNaN(bNum);
+      var cmp=isNum?(aNum-bNum):aRaw.localeCompare(bRaw,'pt-BR',{sensitivity:'base'});
+      return dir==='asc'?cmp:-cmp;
+    });
+  }
+  rows.forEach(function(r){tbody.appendChild(r);});
+}
+
+/* Add data-ri (row index) to tbl rows on card open for sort reset */
+function addRowIndex(cardId){
+  var card=document.getElementById(cardId);
+  if(!card)return;
+  var rows=card.querySelectorAll('.sc-tbl tbody tr');
+  rows.forEach(function(r,i){r.dataset.ri=i;});
+}
+
 function togCol(i){
-  document.querySelectorAll('.ci'+i).forEach(function(c){c.classList.toggle('col-on');});
-  // Persistir estado das colunas ativas
+  document.querySelectorAll('.ci'+i).forEach(function(el){el.classList.toggle('col-on');});
   if(!_UI.colsAtivas)_UI.colsAtivas={};
-  var isOn=document.querySelector('.ci'+i+'[class*="col-on"]')!==null;
+  var isOn=document.querySelector('.ci'+i+'.col-on')!==null;
   if(isOn)_UI.colsAtivas[i]=true;
   else delete _UI.colsAtivas[i];
 }
