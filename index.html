@@ -1376,16 +1376,6 @@ function viewTodos(c){
   _histAnos=anos; _histSaldos=saldos; _histProvAnual=provAnual;
   _histProvSegAnual=provSegAnual; _histC=c;
 
-  var h='';
-  // KPIs
-  h+='<div class="kpi-row">';
-  h+=kpi('Patrimônio Atual',M(totMkt),'valor de mercado','','g');
-  h+=kpi('Total Aplicado',M(totApl),'','','');
-  h+=kpi('L / P Total',M(totMkt-totApl),'s/ proventos','',gc(totMkt-totApl));
-  h+=kpi('Proventos Históricos',M(totProv),anos.length+' anos','','g');
-  h+=kpi('Rentabilidade Total',M(lpT),(rent>=0?'▲':'▼')+' '+Math.abs(rent).toFixed(2)+'%',lpT<0?'bad':'',gc(lpT));
-  h+='</div>';
-
   // ── ABAS (Todos os Anos) ──
   var abaAtiva=_UI.abaAtiva||'carteira';
   h+='<div class="tabs-bar">';
@@ -1396,6 +1386,18 @@ function viewTodos(c){
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10l3-3 2 2 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="2" cy="10" r="1" fill="currentColor"/></svg>';
   h+=' Proventos</button>';
   h+='</div>';
+
+
+  var h='';
+  // KPIs
+  h+='<div class="kpi-row">';
+  h+=kpi('Patrimônio Atual',M(totMkt),'valor de mercado','','g');
+  h+=kpi('Total Aplicado',M(totApl),'','','');
+  h+=kpi('L / P Total',M(totMkt-totApl),'s/ proventos','',gc(totMkt-totApl));
+  h+=kpi('Proventos Históricos',M(totProv),anos.length+' anos','','g');
+  h+=kpi('Rentabilidade Total',M(lpT),(rent>=0?'▲':'▼')+' '+Math.abs(rent).toFixed(2)+'%',lpT<0?'bad':'',gc(lpT));
+  h+='</div>';
+
 
   // ── ABA CARTEIRA (histórico) ──
   h+='<div id="tab-carteira" class="tab-pane'+(abaAtiva==='carteira'?'':' tab-hidden')+'">';
@@ -2057,32 +2059,38 @@ function sortTable(cardId,colIdx){
   var th=tbl.querySelectorAll('thead th')[colIdx];
   if(!th)return;
 
-  // Determine direction: first click = asc, second = desc, third = reset
   var cur=th.classList.contains('sort-asc')?'asc':th.classList.contains('sort-desc')?'desc':'none';
   var dir=cur==='none'?'asc':cur==='asc'?'desc':'none';
 
-  // Clear sort state from all headers of this table
   tbl.querySelectorAll('thead th').forEach(function(h){h.classList.remove('sort-asc','sort-desc');});
 
   var tbody=tbl.querySelector('tbody');
   var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr'));
 
   if(dir==='none'){
-    // Restore original order (data-index set on render)
     rows.sort(function(a,b){return (+a.dataset.ri||0)-(+b.dataset.ri||0);});
   }else{
     th.classList.add('sort-'+dir);
     rows.sort(function(a,b){
-      var aCell=a.cells[colIdx];var bCell=b.cells[colIdx];
+      var aCell=a.cells[colIdx];
+      var bCell=b.cells[colIdx];
       if(!aCell||!bCell)return 0;
-      var aRaw=(aCell.dataset.val!==undefined)?aCell.dataset.val:aCell.textContent.trim();
-      var bRaw=(bCell.dataset.val!==undefined)?bCell.dataset.val:bCell.textContent.trim();
-      // Try numeric
-      var aNum=parseFloat(aRaw.replace(/[^\d.,-]/g,'').replace(',','.'));
-      var bNum=parseFloat(bRaw.replace(/[^\d.,-]/g,'').replace(',','.'));
-      var isNum=!isNaN(aNum)&&!isNaN(bNum);
-      var cmp=isNum?(aNum-bNum):aRaw.localeCompare(bRaw,'pt-BR',{sensitivity:'base'});
-      return dir==='asc'?cmp:-cmp;
+      // Col 0 (Ativo) = always text sort
+      if(colIdx===0){
+        var aT=aCell.textContent.trim();
+        var bT=bCell.textContent.trim();
+        var cmp=aT.localeCompare(bT,'pt-BR',{sensitivity:'base'});
+        return dir==='asc'?cmp:-cmp;
+      }
+      // Numeric cols: prefer data-val (raw number), fallback to textContent
+      var aRaw=aCell.getAttribute('data-val');
+      var bRaw=bCell.getAttribute('data-val');
+      if(aRaw===null)aRaw=aCell.textContent.trim().replace(/[^\d.,-]/g,'').replace(',','.');
+      if(bRaw===null)bRaw=bCell.textContent.trim().replace(/[^\d.,-]/g,'').replace(',','.');
+      var aNum=parseFloat(aRaw);
+      var bNum=parseFloat(bRaw);
+      var cmp2=(!isNaN(aNum)&&!isNaN(bNum))?(aNum-bNum):aRaw.localeCompare(bRaw,'pt-BR',{sensitivity:'base'});
+      return dir==='asc'?cmp2:-cmp2;
     });
   }
   rows.forEach(function(r){tbody.appendChild(r);});
