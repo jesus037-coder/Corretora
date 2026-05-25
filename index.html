@@ -1449,7 +1449,7 @@ function viewTodos(c){
     if(totSg<=0)return;
     var sid='pvh-'+sg.replace(/\W+/g,'-');
     var col=PAL[si%PAL.length];
-    h+='<tr class="seg-hdr" onclick="togProvHist(\''+sid+'\',\''+sg+'\',\''+c+'\',\''+col+'\')"><td colspan="'+(anos.length+2)+'" style="color:'+col+'">▾ '+sg+'</td></tr>';
+    h+='<tr class="seg-hdr" onclick="togProvHist(\''+sid+'\',\''+sg+'\',\''+c+'\',\''+col+'\')"><td colspan="'+(anos.length+2)+'" style="color:'+col+'">▸ '+sg+'</td></tr>';
     Object.keys(allSegsHist[sg]).forEach(function(tk){
       var vAno=anos.map(function(a){
         var pv=(DADOS[a].prov||{})[c];if(!pv||!pv.segs[sg])return 0;
@@ -1458,11 +1458,11 @@ function viewTodos(c){
       });
       var totTk=vAno.reduce(function(a,b){return a+b;},0);
       if(totTk<=0)return;
-      h+='<tr class="'+sid+'"><td class="td-l" style="padding-left:28px">'+tk+'</td>';
+      h+='<tr class="'+sid+' hide"><td class="td-l" style="padding-left:28px">'+tk+'</td>';
       vAno.forEach(function(v,i){h+='<td class="cih'+i+'" style="color:'+(v>0?'var(--accent)':'var(--muted)')+'">'+( v>0?M(v):'—')+'</td>';});
       h+='<td style="color:var(--accent);font-weight:600">'+M(totTk)+'</td></tr>';
     });
-    h+='<tr class="'+sid+'" style="background:var(--panel)"><td class="td-l" style="padding-left:28px;color:var(--muted);font-size:.72rem">TOTAL '+sg+'</td>';
+    h+='<tr class="'+sid+' hide" style="background:var(--panel)"><td class="td-l" style="padding-left:28px;color:var(--muted);font-size:.72rem">TOTAL '+sg+'</td>';
     totSgAno.forEach(function(v,i){h+='<td class="cih'+i+'" style="color:'+(v>0?'var(--accent)':'var(--muted)')+'"><strong>'+(v>0?M(v):'—')+'</strong></td>';});
     h+='<td style="color:var(--accent)"><strong>'+M(totSg)+'</strong></td></tr>';
   });
@@ -1472,19 +1472,48 @@ function viewTodos(c){
   h+='<td>'+M(totProv)+'</td></tr></tfoot></table></div></div>';
   h+='</div>'; // fim tab-proventos
 
+
   document.getElementById('content').innerHTML=h;
+
+  // Sempre inicializa os dois conjuntos de charts juntos,
+  // tornando ambas as abas visíveis brevemente para o Chart.js medir o canvas
   requestAnimationFrame(function(){
+    var pC=document.getElementById('tab-carteira');
+    var pP=document.getElementById('tab-proventos');
+
+    // Revela temporariamente ambas as abas (ocultas com visibility, não display:none)
+    if(pC){pC.style.cssText='display:block!important';}
+    if(pP){pP.style.cssText='display:block!important;visibility:hidden;position:absolute;top:-9999px;';}
+
+    // Inicializa charts da aba carteira
+    drawHistorico(anos,saldos,provAnual);
+
+    // Inicializa charts da aba proventos
+    var cc=chartColors();var GC=cc.gc,TC=cc.tc;
+    if(cB)cB.destroy();
+    var ctxB=document.getElementById('cvB');
+    if(ctxB){
+      cB=new Chart(ctxB,{type:'bar',
+        data:{labels:anos.map(String),datasets:[{label:'Proventos',data:provAnual,
+          backgroundColor:anos.map(function(_,i){return PAL[i%PAL.length];}),borderRadius:5}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ct){return M(ct.parsed.y);}}}},
+          scales:{x:{grid:{color:GC},ticks:{color:TC}},y:{grid:{color:GC},ticks:{color:TC,callback:function(v){return M(v);}}}},
+          onClick:function(_,els){if(!els.length)return;filtrarRoscaAno(_histAnos[els[0].index],_histC);}
+        }
+      });
+    }
+    drawRoscaHist(_histC,null);
+
+    // Restaura estado correto das abas após charts inicializados
     if(abaAtiva==='carteira'){
-      drawHistorico(anos,saldos,provAnual);
+      if(pC)pC.style.cssText='';
+      if(pP){pP.style.cssText='';pP.classList.add('tab-hidden');}
     }else{
-      drawRoscaHist(c,null);
-      // Inicializa barras de proventos anuais mesmo na aba proventos
-      var cc=chartColors();var GC=cc.gc,TC=cc.tc;
-      if(cB)cB.destroy();
-      var ctxB=document.getElementById('cvB');
-      if(ctxB){
-        cB=new Chart(ctxB,{type:'bar',data:{labels:anos.map(String),datasets:[{label:'Proventos',data:provAnual,backgroundColor:anos.map(function(_,i){return PAL[i%PAL.length];}),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ct){return M(ct.parsed.y);}}}},scales:{x:{grid:{color:GC},ticks:{color:TC}},y:{grid:{color:GC},ticks:{color:TC,callback:function(v){return M(v);}}}},onClick:function(_,els){if(!els.length)return;filtrarRoscaAno(_histAnos[els[0].index],c);}}});
-      }
+      if(pC){pC.style.cssText='';pC.classList.add('tab-hidden');}
+      if(pP)pP.style.cssText='';
+      if(cB)cB.resize();
+      if(cP)cP.resize();
     }
   });
 }
@@ -1999,14 +2028,17 @@ function switchTab(aba){
     // Se mudar para proventos no modo TODOS e charts não existirem, inicializa
     if(aba==='proventos'&&anoSel==='TODOS'&&_histAnos.length){
       if(!cB||!cP){
-        drawRoscaHist(_histC,null);
-        var cc=chartColors();
+        var cc2=chartColors();
         if(!cB){
-          var ctxB=document.getElementById('cvB');
-          if(ctxB){
-            cB=new Chart(ctxB,{type:'bar',data:{labels:_histAnos.map(String),datasets:[{label:'Proventos',data:_histProvAnual,backgroundColor:_histAnos.map(function(_,i){return PAL[i%PAL.length];}),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ct){return M(ct.parsed.y);}}}},scales:{x:{grid:{color:cc.gc},ticks:{color:cc.tc}},y:{grid:{color:cc.gc},ticks:{color:cc.tc,callback:function(v){return M(v);}}}}}});
+          var ctxB2=document.getElementById('cvB');
+          if(ctxB2){
+            cB=new Chart(ctxB2,{type:'bar',data:{labels:_histAnos.map(String),datasets:[{label:'Proventos',data:_histProvAnual,backgroundColor:_histAnos.map(function(_,i){return PAL[i%PAL.length];}),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ct){return M(ct.parsed.y);}}}},scales:{x:{grid:{color:cc2.gc},ticks:{color:cc2.tc}},y:{grid:{color:cc2.gc},ticks:{color:cc2.tc,callback:function(v){return M(v);}}}}}});
           }
         }
+        if(!cP)drawRoscaHist(_histC,null);
+      }else{
+        if(cB)cB.resize();
+        if(cP)cP.resize();
       }
     }
     // Se mudar para carteira no modo TODOS e cvE não existir, inicializa
