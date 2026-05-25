@@ -1322,7 +1322,27 @@ function viewAno(c,ano){
   h+='</div>'; // fim tab-carteira
 
   // ── ABA PROVENTOS ──
+  // Calcular KPIs específicos de proventos
+  var hoje3=new Date();
+  var mesAtual=ano<hoje3.getFullYear()?11:hoje3.getMonth();
+  // Último mês com provento (retroage até encontrar um > 0)
+  var provUltMes=0,mesUlt=mesAtual;
+  for(var mi=mesAtual;mi>=0;mi--){
+    if(pv.tot[mi]>0){provUltMes=pv.tot[mi];mesUlt=mi;break;}
+  }
+  var dyUltMes=totMkt>0?(provUltMes/totMkt)*100:0;
+  var dyAno=totMkt>0?(totProv/totMkt)*100:0;
+  var roi=totApl>0?(lpT/totApl)*100:0;
+
   h+='<div id="tab-proventos" class="tab-pane'+(abaAtiva==='proventos'?'':' tab-hidden')+'">';
+  // KPIs de proventos
+  h+='<div class="kpi-row">';
+  h+=kpi('Proventos '+MES[mesUlt],M(provUltMes),'último mês com rendimento','','g');
+  h+=kpi('Proventos '+ano,M(totProv),'acumulado no ano','','g');
+  h+=kpi('DY Mês ('+MES[mesUlt]+')',dyUltMes.toFixed(2)+'%','dividend yield mensal','',dyUltMes>0?'g':'');
+  h+=kpi('DY Ano '+ano,dyAno.toFixed(2)+'%','dividend yield anual','',dyAno>0?'g':'');
+  h+=kpi('ROI Carteira',roi.toFixed(2)+'%',fmt(lpT),roi<0?'bad':'',gc(roi));
+  h+='</div>';
   h+='<div class="sec-head"><h3>Proventos Recebidos</h3><span class="tag">ano '+ano+'</span></div>';
   h+='<div class="chart-duo">';
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Distribuição Mensal (R$)</div><div class="chart-h-bar" style="height:190px"><canvas id="cvB"></canvas></div></div>';
@@ -1415,6 +1435,15 @@ function viewTodos(c){
   h+='</div>'; // fim tab-carteira
 
   // ── ABA PROVENTOS (histórico) ──
+  // KPIs de proventos para modo TODOS OS ANOS
+  var anoAtual=new Date().getFullYear();
+  var pvAnoAtual=(DADOS[anoAtual]&&DADOS[anoAtual].prov&&DADOS[anoAtual].prov[c])||{segs:{},tot:Array(12).fill(0)};
+  var provAnoAtual=pvAnoAtual.tot.reduce(function(a,b){return a+b;},0);
+  var dyUltAno=anos.length>0?(provAnual[provAnual.length-1]||0):0;
+  var dyUltAnoPct=totMkt>0?(dyUltAno/totMkt)*100:0;
+  var dyTotalPct=totMkt>0?(totProv/totMkt)*100:0;
+  var roiTotal=totApl>0?(lpT/totApl)*100:0;
+
   var allSegsHist={};
   anos.forEach(function(a){
     var pv=(DADOS[a].prov||{})[c];if(!pv)return;
@@ -1425,6 +1454,14 @@ function viewTodos(c){
   });
 
   h+='<div id="tab-proventos" class="tab-pane'+(abaAtiva==='proventos'?'':' tab-hidden')+'">';
+  // KPIs de proventos — modo TODOS OS ANOS
+  h+='<div class="kpi-row">';
+  h+=kpi('Proventos '+anoAtual,M(provAnoAtual),'ano em curso','','g');
+  h+=kpi('Proventos Totais',M(totProv),anos.length+' anos acumulados','','g');
+  h+=kpi('DY Último Ano',dyUltAnoPct.toFixed(2)+'%',M(dyUltAno)+' em '+anos[anos.length-1],'',dyUltAnoPct>0?'g':'');
+  h+=kpi('DY Total',dyTotalPct.toFixed(2)+'%','sobre valor atual de mercado','',dyTotalPct>0?'g':'');
+  h+=kpi('ROI Carteira',roiTotal.toFixed(2)+'%',M(lpT),roiTotal<0?'bad':'',gc(roiTotal));
+  h+='</div>';
   h+='<div class="sec-head"><h3>Proventos Históricos</h3><span class="tag">todos os anos · clique no segmento para filtrar</span></div>';
   h+='<div class="chart-duo">';
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl" id="hist-prov-ttl" style="display:flex;align-items:center;gap:8px"><span id="hist-prov-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="hist-prov-lbl">Proventos por Ano — Total</span></div><div class="chart-h-bar" style="height:190px"><canvas id="cvB"></canvas></div></div>';
