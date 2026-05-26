@@ -1289,10 +1289,9 @@ function viewAno(c,ano){
   SEG_EVOL['__TOTAL__']=d.evol[c]||Array(12).fill(0);
 
   var h='';
-
-  // ── KPIs (sempre visíveis, acima das abas) ──
-  // ── ABAS ──
   var abaAtiva=_UI.abaAtiva||'carteira';
+
+  // ── ABAS ──
   h+='<div class="tabs-bar">';
   h+='<button class="tab-btn'+(abaAtiva==='carteira'?' tab-on':'')+'" onclick="switchTab(\'carteira\')">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>';
@@ -1302,6 +1301,8 @@ function viewAno(c,ano){
   h+=' Proventos</button>';
   h+='</div>';
 
+  // ── ABA CARTEIRA ──
+  h+='<div id="tab-carteira" class="tab-pane'+(abaAtiva==='carteira'?'':' tab-hidden')+'">';
   h+='<div class="kpi-row">';
   h+=kpi('Valor Aplicado',M(totApl),'','','');
   h+=kpi('Valor de Mercado',M(totMkt),'','','g');
@@ -1309,9 +1310,6 @@ function viewAno(c,ano){
   h+=kpi('Proventos '+ano,M(totProv),'','','g');
   h+=kpi('Rentabilidade',M(lpT),(rent>=0?'▲':'▼')+' '+Math.abs(rent).toFixed(2)+'%',lpT<0?'bad':'',gc(lpT));
   h+='</div>';
-
-  // ── ABA CARTEIRA ──
-  h+='<div id="tab-carteira" class="tab-pane'+(abaAtiva==='carteira'?'':' tab-hidden')+'">';
   h+='<div class="sec-head"><h3>Evolução do Patrimônio</h3><span class="tag">mensal '+ano+'</span></div>';
   h+='<div class="chart-box"><div class="chart-ttl" id="evol-ttl" style="display:flex;align-items:center;gap:8px"><span id="evol-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span><span id="evol-lbl">Patrimônio Total Investido — '+ano+'</span></div><div class="chart-h-evol" style="height:220px"><canvas id="cvE"></canvas></div></div>';
   var segsOk=Object.keys(seg).filter(function(s){return Object.keys(seg[s]).some(function(t){return seg[s][t].q>0.0001;});});
@@ -1341,7 +1339,7 @@ function viewAno(c,ano){
   h+=kpi('Proventos '+ano,M(totProv),'acumulado no ano','','g');
   h+=kpi('DY Mês ('+MES[mesUlt]+')',dyUltMes.toFixed(2)+'%','dividend yield mensal','',dyUltMes>0?'g':'');
   h+=kpi('DY Ano '+ano,dyAno.toFixed(2)+'%','dividend yield anual','',dyAno>0?'g':'');
-  h+=kpi('ROI Carteira',roi.toFixed(2)+'%',fmt(lpT),roi<0?'bad':'',gc(roi));
+  h+=kpi('ROI Carteira',roi.toFixed(2)+'%',M(lpT),roi<0?'bad':'',gc(roi));
   h+='</div>';
   h+='<div class="sec-head"><h3>Proventos Recebidos</h3><span class="tag">ano '+ano+'</span></div>';
   h+='<div class="chart-duo">';
@@ -1409,7 +1407,11 @@ function viewTodos(c){
   h+=' Proventos</button>';
   h+='</div>';
 
-  // ── KPIs ──
+  // ── KPIs da carteira vão DENTRO da aba carteira ──
+  // (definidos antes para cálculo, renderizados dentro da aba)
+
+  // ── ABA CARTEIRA (histórico) ──
+  h+='<div id="tab-carteira" class="tab-pane'+(abaAtiva==='carteira'?'':' tab-hidden')+'">';
   h+='<div class="kpi-row">';
   h+=kpi('Patrimônio Atual',M(totMkt),'valor de mercado','','g');
   h+=kpi('Total Aplicado',M(totApl),'','','');
@@ -1417,9 +1419,6 @@ function viewTodos(c){
   h+=kpi('Proventos Históricos',M(totProv),anos.length+' anos','','g');
   h+=kpi('Rentabilidade Total',M(lpT),(rent>=0?'▲':'▼')+' '+Math.abs(rent).toFixed(2)+'%',lpT<0?'bad':'',gc(lpT));
   h+='</div>';
-
-  // ── ABA CARTEIRA (histórico) ──
-  h+='<div id="tab-carteira" class="tab-pane'+(abaAtiva==='carteira'?'':' tab-hidden')+'">';
   h+='<div class="sec-head"><h3>Evolução Histórica</h3><span class="tag">'+anos[0]+' → '+anos[anos.length-1]+'</span></div>';
   h+='<div class="chart-box"><div class="chart-ttl" id="hist-ttl" style="display:flex;align-items:center;gap:8px">';
   h+='<span id="hist-dot" style="width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;flex-shrink:0;transition:background .3s"></span>';
@@ -1512,20 +1511,22 @@ function viewTodos(c){
 
   document.getElementById('content').innerHTML=h;
 
-  // Sempre inicializa os dois conjuntos de charts juntos,
-  // tornando ambas as abas visíveis brevemente para o Chart.js medir o canvas
   requestAnimationFrame(function(){
     var pC=document.getElementById('tab-carteira');
     var pP=document.getElementById('tab-proventos');
 
-    // Revela temporariamente ambas as abas (ocultas com visibility, não display:none)
-    if(pC){pC.style.cssText='display:block!important';}
-    if(pP){pP.style.cssText='display:block!important;visibility:hidden;position:absolute;top:-9999px;';}
-
-    // Inicializa charts da aba carteira
+    // Init carteira charts (always in visible pane or forced visible briefly)
+    if(pC)pC.classList.remove('tab-hidden');
     drawHistorico(anos,saldos,provAnual);
 
-    // Inicializa charts da aba proventos
+    // Init proventos charts: show offscreen, init, then restore
+    if(pP){
+      pP.classList.remove('tab-hidden');
+      pP.style.visibility='hidden';
+      pP.style.position='absolute';
+      pP.style.top='-9999px';
+    }
+
     var cc=chartColors();var GC=cc.gc,TC=cc.tc;
     if(cB)cB.destroy();
     var ctxB=document.getElementById('cvB');
@@ -1542,15 +1543,13 @@ function viewTodos(c){
     }
     drawRoscaHist(_histC,null);
 
-    // Restaura estado correto das abas após charts inicializados
+    // Restore correct tab visibility
     if(abaAtiva==='carteira'){
-      if(pC)pC.style.cssText='';
-      if(pP){pP.style.cssText='';pP.classList.add('tab-hidden');}
+      if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';pP.classList.add('tab-hidden');}
     }else{
-      if(pC){pC.style.cssText='';pC.classList.add('tab-hidden');}
-      if(pP)pP.style.cssText='';
-      if(cB)cB.resize();
-      if(cP)cP.resize();
+      if(pC)pC.classList.add('tab-hidden');
+      if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';}
+      setTimeout(function(){if(cB)cB.resize();if(cP)cP.resize();},30);
     }
   });
 }
@@ -2446,4 +2445,3 @@ function silentRefresh(){rebuscarTudo();}
 </script>
 </body>
 </html>
-
