@@ -272,9 +272,19 @@ body.is-mobile .sc-kpi:nth-child(6){border-bottom:none;}
 body.is-mobile .sc-kpi-lbl{font-size:.53rem;letter-spacing:.3px;text-align:center;}
 body.is-mobile .sc-kpi-val{font-size:.82rem;text-align:center;}
 body.is-mobile .sc-body{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-body.is-mobile .sc-tbl{min-width:520px;}
-body.is-mobile .sc-tbl thead th{padding:8px 8px;font-size:.53rem;}
-body.is-mobile .sc-tbl tbody td{padding:0 8px;height:36px;font-size:.7rem;}
+body.is-mobile .sc-tbl{min-width:700px;}
+body.is-mobile .sc-tbl thead th:first-child{
+  position:sticky;left:0;z-index:3;
+  background:var(--panel);
+}
+body.is-mobile .sc-tbl tbody td:first-child{
+  position:sticky;left:0;z-index:2;
+  background:var(--surface);
+  box-shadow:2px 0 6px rgba(0,0,0,.25);
+}
+body.is-mobile .sc-tbl tbody tr:hover td:first-child{background:rgba(255,255,255,.03);}
+body.is-mobile .sc-tbl thead th{padding:10px 14px;font-size:.6rem;}
+body.is-mobile .sc-tbl tbody td{padding:0 14px;height:44px;font-size:.8rem;}
 
 /* ── LOADER ─────────────────────────────────── */
 #loader{
