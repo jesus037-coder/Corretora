@@ -239,38 +239,82 @@ body.is-mobile .topbar-meta{display:none;}
 body.is-mobile .sec-head{margin:20px 0 10px;}
 body.is-mobile .sec-head h3{font-size:1rem;}
 
-/* ── CARD MOBILE: header vira 2 linhas, KPIs em grid 3x2 ── */
-/* ── CARD MOBILE: linha 1 = ícone colorido, linha 2 = KPIs grid 3×2 centralizados ── */
+/* ── CARD MOBILE: design moderno e limpo ── */
+body.is-mobile .seg-stack{gap:8px;}
+body.is-mobile .sc{border-radius:14px;overflow:hidden;}
+
+/* Header: linha única — badge colorido + KPIs compactos */
 body.is-mobile .sc-head{
-  flex-direction:column;min-height:auto;align-items:stretch;
+  flex-direction:column;
+  min-height:auto;
+  align-items:stretch;
+  position:relative;
 }
+
+/* Stripe mais grossa como indicador visual */
+body.is-mobile .sc-stripe{height:4px;}
+
+/* Linha 1: badge com abreviação à esquerda, indicador de abrir/fechar à direita */
 body.is-mobile .sc-icon{
-  width:100%;height:40px;border-right:none;
-  border-bottom:1px solid var(--border);
-  flex-direction:row;gap:10px;justify-content:flex-start;
-  padding:0 14px;font-size:.7rem;font-weight:700;
-  letter-spacing:1px;text-transform:uppercase;
+  width:100%;height:44px;
+  border-right:none;
+  border-bottom:none;
+  flex-direction:row;gap:10px;
+  justify-content:flex-start;align-items:center;
+  padding:0 14px;
+  font-size:.72rem;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
 }
-body.is-mobile .sc-icon-name{display:none;}
+/* Mostrar indicador de tap (chevron) no canto direito */
+body.is-mobile .sc-icon::after{
+  content:'›';
+  position:absolute;right:14px;
+  font-size:1.4rem;font-weight:300;
+  color:currentColor;opacity:.5;
+  transition:transform .25s ease;
+  line-height:1;
+}
+body.is-mobile .sc.open .sc-icon::after{transform:rotate(90deg);}
 body.is-mobile .sc-arr{display:none;}
+body.is-mobile .sc-icon-name{display:none;}
+
+/* KPIs: grid 3×2, visual de pill/chip compacto */
 body.is-mobile .sc-kpis{
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:0;
+  background:var(--panel);
+  border-top:1px solid var(--border);
+  padding:10px 10px 8px;
+  gap:6px;
 }
 body.is-mobile .sc-kpi{
-  padding:11px 4px;
+  display:flex;flex-direction:column;
   align-items:center;justify-content:center;
-  border-right:1px solid var(--border);
-  border-bottom:1px solid var(--border);
+  padding:8px 4px;gap:4px;
+  background:var(--surface);
+  border-radius:8px;
+  border:none;/* remove dividers — usa cards individuais */
 }
-body.is-mobile .sc-kpi:nth-child(3){border-right:none;}
-body.is-mobile .sc-kpi:nth-child(4){border-right:1px solid var(--border);}
-body.is-mobile .sc-kpi:nth-child(5){border-right:1px solid var(--border);}
-body.is-mobile .sc-kpi:nth-child(6){border-right:none;}
-body.is-mobile .sc-kpi:nth-child(4),
-body.is-mobile .sc-kpi:nth-child(5),
-body.is-mobile .sc-kpi:nth-child(6){border-bottom:none;}
-body.is-mobile .sc-kpi-lbl{font-size:.53rem;letter-spacing:.3px;text-align:center;}
-body.is-mobile .sc-kpi-val{font-size:.82rem;text-align:center;}
+/* Remove border overrides herdados */
+body.is-mobile .sc-kpi:nth-child(n){border-right:none;border-bottom:none;}
+body.is-mobile .sc-kpi-lbl{
+  font-size:.52rem;letter-spacing:.3px;
+  text-align:center;color:var(--muted);
+  text-transform:uppercase;font-weight:500;
+  line-height:1;
+}
+body.is-mobile .sc-kpi-val{
+  font-size:.86rem;font-weight:700;
+  text-align:center;line-height:1;
+}
+
+/* Corpo expandido: padding antes da tabela */
+body.is-mobile .sc-body{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  border-top:1px solid var(--border);
+}
 body.is-mobile .sc-body{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 body.is-mobile .sc-tbl{min-width:700px;}
 body.is-mobile .sc-tbl thead th:first-child{
