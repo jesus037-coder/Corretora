@@ -235,6 +235,20 @@ body.is-mobile .chart-h-hist{height:180px!important;}
 body.is-mobile .seg-stack{gap:8px;}
 body.is-mobile .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 body.is-mobile table{min-width:480px;}
+/* Trava nome do segmento e do ativo à esquerda no scroll horizontal */
+body.is-mobile .seg-hdr td{
+  position:sticky;left:0;z-index:3;
+  min-width:90px;max-width:120px;
+  white-space:nowrap;
+}
+body.is-mobile .td-l{
+  position:sticky;left:0;z-index:2;
+  background:var(--surface);
+  box-shadow:2px 0 6px rgba(0,0,0,.2);
+  min-width:80px;max-width:110px;
+  white-space:nowrap;
+}
+body.is-mobile tr:hover .td-l{background:rgba(255,255,255,.03);}
 body.is-mobile .topbar-meta{display:none;}
 body.is-mobile .sec-head{margin:20px 0 10px;}
 body.is-mobile .sec-head h3{font-size:1rem;}
