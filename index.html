@@ -809,7 +809,8 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
       <div class="modal-row">
         <div class="mfield">
           <label>Ativo (ticker)</label>
-          <input id="m-ativo" type="text" placeholder="Ex: MXRF11" oninput="this.value=this.value.toUpperCase();calcTotal()"/>
+          <input id="m-ativo" type="text" placeholder="Ex: MXRF11" oninput="this.value=this.value.toUpperCase();calcTotal();lookupPreco(this.value)"/>
+          <span id="m-preco-hint" style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--accent);margin-top:4px;display:none;"></span>
         </div>
         <div class="mfield">
           <label>Segmento / Tipo</label>
@@ -818,6 +819,7 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
             <option value="Ações">Ações</option>
             <option value="ETFs">ETFs</option>
             <option value="BDRs">BDRs</option>
+            <option value="Cripto">Cripto</option>
             <option value="Renda Fixa">Renda Fixa</option>
             <option value="Outros">Outros</option>
           </select>
@@ -2255,6 +2257,25 @@ var APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbyKuM7FoPSMUZ_AGbis
 
 var _cvSel='Compra';
 
+function lookupPreco(ticker){
+  var hint=document.getElementById('m-preco-hint');
+  if(!hint)return;
+  if(!ticker||ticker.length<2){hint.style.display='none';return;}
+  var p=PRECOS[ticker];
+  if(p&&p>0){
+    hint.textContent='Preço atual: '+M(p);
+    hint.style.color='var(--accent)';
+    hint.style.display='block';
+    // Preenche preço automaticamente se o campo estiver vazio
+    var inp=document.getElementById('m-preco');
+    if(inp&&(!inp.value||+inp.value===0)){inp.value=p.toFixed(2);calcTotal();}
+  }else{
+    hint.textContent='Ativo não encontrado na base';
+    hint.style.color='var(--muted)';
+    hint.style.display='block';
+  }
+}
+
 function abrirModal(){
   var sel=document.getElementById('m-cliente');
   sel.innerHTML='';
@@ -2293,6 +2314,8 @@ function fecharModal(){
   document.getElementById('m-preco').value='';
   document.getElementById('m-total').textContent='R$ 0,00';
   document.getElementById('m-total').className='';
+  var hint=document.getElementById('m-preco-hint');
+  if(hint)hint.style.display='none';
   showMsg('','');
 }
 function fecharModalFora(e){if(e.target===document.getElementById('modal-overlay'))fecharModal();}
