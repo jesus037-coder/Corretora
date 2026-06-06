@@ -873,6 +873,7 @@ var SES={nome:'',admin:false};
 var RAW={at:[],pa:[],di:[]};
 var DADOS={};
 var PRECOS={};
+var SEGMENTOS={};
 var CLIENTES=[];
 var anoSel=2026;
 var clienteAtivo=null;
@@ -1031,9 +1032,14 @@ function init(){
   return Promise.all([csv(URLS.AT),csv(URLS.PA),csv(URLS.DI)]).then(function(r){
     RAW.at=r[0];RAW.pa=r[1];RAW.di=r[2];
     PRECOS={};
+    SEGMENTOS={};
     for(var i=1;i<RAW.at.length;i++){
       var tk=(RAW.at[i][2]||'').trim().toUpperCase();
-      if(tk)PRECOS[tk]=n(RAW.at[i][3]);
+      if(tk){
+        PRECOS[tk]=n(RAW.at[i][3]);
+        var sg=(RAW.at[i][1]||'').trim();
+        if(sg)SEGMENTOS[tk]=sg;
+      }
     }
     var aSet={};
     for(var j=1;j<RAW.pa.length;j++){var d=dt(RAW.pa[j][7]);if(d)aSet[d.getFullYear()]=1;}
@@ -2262,13 +2268,29 @@ function lookupPreco(ticker){
   if(!hint)return;
   if(!ticker||ticker.length<2){hint.style.display='none';return;}
   var p=PRECOS[ticker];
+  var sg=SEGMENTOS[ticker]||'';
   if(p&&p>0){
-    hint.textContent='Preço atual: '+M(p);
+    hint.textContent='Preço atual: '+M(p)+(sg?' · '+sg:'');
     hint.style.color='var(--accent)';
     hint.style.display='block';
-    // Preenche preço automaticamente se o campo estiver vazio
+    // Preenche preço automaticamente se vazio
     var inp=document.getElementById('m-preco');
     if(inp&&(!inp.value||+inp.value===0)){inp.value=p.toFixed(2);calcTotal();}
+    // Preenche segmento automaticamente se encontrado
+    if(sg){
+      var sel=document.getElementById('m-tipo');
+      if(sel){
+        // Tenta encontrar opção com match exato ou parcial
+        var matched=false;
+        for(var i=0;i<sel.options.length;i++){
+          if(sel.options[i].value.toUpperCase()===sg.toUpperCase()||
+             sg.toUpperCase().indexOf(sel.options[i].value.toUpperCase())>=0||
+             sel.options[i].value.toUpperCase().indexOf(sg.toUpperCase())>=0){
+            sel.selectedIndex=i;matched=true;break;
+          }
+        }
+      }
+    }
   }else{
     hint.textContent='Ativo não encontrado na base';
     hint.style.color='var(--muted)';
@@ -2492,8 +2514,11 @@ function processarEAtualizar(){
     colsAtivas: Object.assign({}, _UI.colsAtivas||{})
   };
 
-  PRECOS={};
-  for(var i=1;i<RAW.at.length;i++){var tk=(RAW.at[i][2]||'').trim().toUpperCase();if(tk)PRECOS[tk]=n(RAW.at[i][3]);}
+  PRECOS={};SEGMENTOS={};
+  for(var i=1;i<RAW.at.length;i++){
+    var tk=(RAW.at[i][2]||'').trim().toUpperCase();
+    if(tk){PRECOS[tk]=n(RAW.at[i][3]);var sg2=(RAW.at[i][1]||'').trim();if(sg2)SEGMENTOS[tk]=sg2;}
+  }
   var aSet={};
   for(var j=1;j<RAW.pa.length;j++){var d=dt(RAW.pa[j][7]);if(d)aSet[d.getFullYear()]=1;}
   var anos=Object.keys(aSet).map(Number).sort();
