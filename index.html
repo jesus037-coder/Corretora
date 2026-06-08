@@ -1435,7 +1435,12 @@ function viewAno(c,ano){
 
 /* ── VIEW: TODOS OS ANOS ──────────────────── */
 function viewTodos(c){
-  var anos=Object.keys(DADOS).map(Number).sort();
+  // Filtrar apenas anos onde este cliente tem movimentações
+  var anosGlobal=Object.keys(DADOS).map(Number).sort();
+  var anos=anosGlobal.filter(function(a){
+    var d=DADOS[a];
+    return d&&d.pat&&d.pat[c]&&d.pat[c].length>0;
+  });
   if(!anos.length){document.getElementById('content').innerHTML='<div class="empty"><div class="ico">📅</div><p>Sem dados.</p></div>';return;}
 
   var anoUlt=anos[anos.length-1];
