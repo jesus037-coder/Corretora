@@ -1376,6 +1376,10 @@ function viewAno(c,ano){
   h+='<button class="tab-btn'+(abaAtiva==='proventos'?' tab-on':'')+'" onclick="switchTab(\'proventos\')">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10l3-3 2 2 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="2" cy="10" r="1" fill="currentColor"/></svg>';
   h+=' Proventos</button>';
+  var calcBtnCls=(abaAtiva==='calc')?' tab-on':'';
+  h+='<button class="tab-btn'+calcBtnCls+'" onclick="switchTab(\'calc\')">';
+  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><path d="M9 11h4M11 9v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+  h+=' Calculadora</button>';
   h+='</div>';
 
   // ── ABA CARTEIRA ──
@@ -1424,7 +1428,26 @@ function viewAno(c,ano){
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Por Segmento</div><div class="chart-h-bar" style="height:190px"><canvas id="cvP"></canvas></div></div>';
   h+='</div>';
   h+=buildProvTable(pv,c);
-  h+='</div>'; // fim tab-proventos
+
+  // ── ABA CALCULADORA ──
+  h+='<div id="tab-calc" class="tab-pane'+(abaAtiva==='calc'?'':' tab-hidden')+'">';
+  h+='<div class="sec-head"><h3>Calculadora de Juros Compostos</h3><span class="tag">baseada na carteira atual</span></div>';
+  h+='<div class="calc-wrap">';
+  h+='<div class="calc-inputs">';
+  h+='<div class="calc-field"><label>Capital Inicial (R$)</label>';
+  h+='<input id="ci-capital" type="number" value="'+totMkt.toFixed(2)+'" oninput="calcJuros()"/></div>';
+  h+='<div class="calc-field"><label>Aporte Mensal (R$)</label>';
+  h+='<input id="ci-aporte" type="number" value="0" oninput="calcJuros()"/></div>';
+  h+='<div class="calc-field"><label>Taxa Mensal (%)</label>';
+  h+='<input id="ci-taxa" type="number" step="0.01" value="'+dyUltMes.toFixed(2)+'" oninput="calcJuros()"/><span class="calc-hint">DY último mês: '+dyUltMes.toFixed(2)+'%</span></div>';
+  h+='<div class="calc-field"><label>Período (meses)</label>';
+  h+='<input id="ci-meses" type="number" value="120" oninput="calcJuros()"/></div>';
+  h+='</div>';
+  h+='<div class="calc-results" id="calc-results"></div>';
+  h+='<div class="chart-box" style="margin-top:20px"><div class="chart-ttl">Evolução Patrimonial Projetada</div>';
+  h+='<div style="height:260px"><canvas id="cvCalc"></canvas></div></div>';
+  h+='</div>';
+  h+='</div>'; // fim tab-calc
 
   document.getElementById('content').innerHTML=h;
   requestAnimationFrame(function(){
@@ -1487,6 +1510,10 @@ function viewTodos(c){
   h+='<button class="tab-btn'+(abaAtiva==='proventos'?' tab-on':'')+'" onclick="switchTab(\'proventos\')">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10l3-3 2 2 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="2" cy="10" r="1" fill="currentColor"/></svg>';
   h+=' Proventos</button>';
+  var calcBtnCls=(abaAtiva==='calc')?' tab-on':'';
+  h+='<button class="tab-btn'+calcBtnCls+'" onclick="switchTab(\'calc\')">';
+  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><path d="M9 11h4M11 9v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+  h+=' Calculadora</button>';
   h+='</div>';
 
   // ── KPIs da carteira vão DENTRO da aba carteira ──
@@ -2134,16 +2161,18 @@ function switchTab(aba){
   _UI.abaAtiva=aba;
   var pC=document.getElementById('tab-carteira');
   var pP=document.getElementById('tab-proventos');
+  var pK=document.getElementById('tab-calc');
   if(pC)pC.classList.toggle('tab-hidden',aba!=='carteira');
   if(pP)pP.classList.toggle('tab-hidden',aba!=='proventos');
+  if(pK)pK.classList.toggle('tab-hidden',aba!=='calc');
   document.querySelectorAll('.tab-btn').forEach(function(btn,i){
-    btn.classList.toggle('tab-on',i===(aba==='carteira'?0:1));
+    var abas=['carteira','proventos','calc'];
+    btn.classList.toggle('tab-on',abas[i]===aba);
   });
   setTimeout(function(){
     if(cE)cE.resize();
     if(cB)cB.resize();
     if(cP)cP.resize();
-    // Se mudar para proventos no modo TODOS e charts não existirem, inicializa
     if(aba==='proventos'&&anoSel==='TODOS'&&_histAnos.length){
       if(!cB||!cP){
         var cc2=chartColors();
@@ -2154,14 +2183,13 @@ function switchTab(aba){
           }
         }
         if(!cP)drawRoscaHist(_histC,null);
-      }else{
-        if(cB)cB.resize();
-        if(cP)cP.resize();
-      }
+      }else{if(cB)cB.resize();if(cP)cP.resize();}
     }
-    // Se mudar para carteira no modo TODOS e cvE não existir, inicializa
     if(aba==='carteira'&&anoSel==='TODOS'&&_histAnos.length&&(!cE)){
       drawHistorico(_histAnos,_histSaldos,_histProvAnual);
+    }
+    if(aba==='calc'){
+      setTimeout(function(){renderCalcChart();},80);
     }
   },60);
 }
@@ -2561,6 +2589,93 @@ function processarEAtualizar(){
       _UI.colsAtivas[i]=true;
     });
   },80);
+}
+
+/* ── CALCULADORA DE JUROS COMPOSTOS ─────── */
+var cCalc=null;
+function calcJuros(){
+  var capital=parseFloat(document.getElementById('ci-capital').value)||0;
+  var aporte =parseFloat(document.getElementById('ci-aporte').value)||0;
+  var taxa   =parseFloat(document.getElementById('ci-taxa').value)||0;
+  var meses  =parseInt(document.getElementById('ci-meses').value)||0;
+  if(!meses||taxa<0)return;
+  var t=taxa/100;
+  // Juros compostos com aporte: M = C*(1+t)^n + A*((1+t)^n - 1)/t
+  var evolucao=[];
+  var saldo=capital;
+  var totalAportado=capital;
+  var totalJuros=0;
+  var rendMensal=0;
+  for(var i=1;i<=meses;i++){
+    var juros=saldo*t;
+    totalJuros+=juros;
+    saldo=saldo*(1+t)+aporte;
+    totalAportado+=(i>1?aporte:0);
+    rendMensal=juros;
+    if(i%12===0||i===meses)evolucao.push({m:i,v:saldo});
+  }
+  var totalFinal=saldo;
+  var ganho=totalFinal-totalAportado;
+  var rendAnual=capital>0?((Math.pow(1+t,12)-1)*100):0;
+  var rendaMensalFinal=totalFinal*t;
+  // Resultados
+  var res=document.getElementById('calc-results');
+  if(res){
+    res.innerHTML=''
+      +ck2('Montante Final',M(totalFinal),'')
+      +ck2('Total Investido',M(totalAportado),'capital + aportes')
+      +ck2('Total em Juros',M(totalJuros),ganho>=0?'':'red')
+      +ck2('Renda Mensal Final',M(rendaMensalFinal),'no '+meses+'° mês')
+      +ck2('Taxa Anual Equiv.',rendAnual.toFixed(2)+'%','juros sobre juros')
+      +ck2('Retorno Total',((totalFinal/totalAportado-1)*100).toFixed(2)+'%','sobre total investido');
+  }
+  // Gráfico
+  renderCalcChart(capital,aporte,t,meses);
+}
+function ck2(lbl,val,sub){
+  return '<div class="calc-kpi"><div class="calc-kpi-lbl">'+lbl+'</div>'
+    +'<div class="calc-kpi-val">'+val+'</div>'
+    +(sub?'<div class="calc-kpi-sub">'+sub+'</div>':'')
+    +'</div>';
+}
+function renderCalcChart(capital,aporte,t,meses){
+  if(cCalc)cCalc.destroy();
+  var ctx=document.getElementById('cvCalc');if(!ctx)return;
+  var lbls=[],vSaldo=[],vAport=[];
+  var saldo=capital,totalAportado=capital;
+  for(var i=1;i<=meses;i++){
+    saldo=saldo*(1+t)+aporte;
+    totalAportado+=(i>1?aporte:0);
+    if(i%Math.max(1,Math.round(meses/24))===0||i===meses){
+      lbls.push(i>11?(Math.floor(i/12)+'a '+(i%12?i%12+'m':'')):i+'m');
+      vSaldo.push(+saldo.toFixed(2));
+      vAport.push(+totalAportado.toFixed(2));
+    }
+  }
+  var cc=chartColors();
+  cCalc=new Chart(ctx,{
+    type:'line',
+    data:{labels:lbls,datasets:[
+      {label:'Montante',data:vSaldo,borderColor:'#3ddc84',backgroundColor:'rgba(61,220,132,.08)',fill:true,tension:.35,pointRadius:2,borderWidth:2},
+      {label:'Investido',data:vAport,borderColor:'#4da6ff',backgroundColor:'rgba(77,166,255,.06)',fill:true,tension:.35,pointRadius:2,borderWidth:1.5,borderDash:[4,3]}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:cc.tc,font:{size:11}}},
+        tooltip:{callbacks:{label:function(ct){return ct.dataset.label+': '+M(ct.parsed.y);}}}},
+      scales:{
+        x:{grid:{color:cc.gc},ticks:{color:cc.tc,maxTicksLimit:12}},
+        y:{grid:{color:cc.gc},ticks:{color:cc.tc,callback:function(v){return M(v);}},beginAtZero:false}
+      }
+    }
+  });
+}
+// Alias: chamado pelo switchTab
+function renderCalcChart(){
+  var capital=parseFloat((document.getElementById('ci-capital')||{}).value)||0;
+  var aporte =parseFloat((document.getElementById('ci-aporte')||{}).value)||0;
+  var taxa   =parseFloat((document.getElementById('ci-taxa')||{}).value)||0;
+  var meses  =parseInt((document.getElementById('ci-meses')||{}).value)||120;
+  if(capital>0)calcJuros();
 }
 
 function silentRefresh(){rebuscarTudo();}
