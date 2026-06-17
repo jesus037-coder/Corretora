@@ -1596,8 +1596,9 @@ function viewAno(c,ano){
     return (pva.tot||Array(12).fill(0)).reduce(function(s,v){return s+v;},0);
   }
 
-  // Capital inicial: se ano fechou, usa patrimônio real do fim do ano; senão usa mercado atual
-  var capitalCalcAno=anoJaFechou?saldoFinalAno(ano):(totMkt||0);
+  // Capital inicial: se ano fechou, usa patrimônio real do fim do ano; senão mercado atual ou aplicado
+  var _sfAnoCalc=anoJaFechou?saldoFinalAno(ano):0;
+  var capitalCalcAno=anoJaFechou?(_sfAnoCalc||totMkt||totApl||0):(totMkt||totApl||0);
   // Taxa mensal sugerida: DY do último mês com provento
   var taxaSugAno=dyUltMes>0?dyUltMes:0;
 
@@ -1657,7 +1658,9 @@ function viewAno(c,ano){
 
   // Período
   h+='<div class="calc-field"><label>Período (meses)</label>';
-  h+='<input id="ci-meses" type="number" min="1" value="120" oninput="calcJuros()"/></div>';
+  h+='<input id="ci-meses" type="number" min="1" value="120" oninput="calcJuros()"/>';
+  h+='<span class="calc-hint" id="periodo-hint">= 10 anos</span>';
+  h+='</div>';
 
   // Toggle mensal / anual
   h+='<div class="calc-toggle-row">';
@@ -1892,12 +1895,39 @@ function viewTodos(c){
   h+='<td>'+M(totProv)+'</td></tr></tfoot></table></div></div>';
   h+='</div>'; // fim tab-proventos
 
-  // ── ABA CALCULADORA (viewTodos) ──
-  var safeTotMktH=(totMkt||0).toFixed(2);
-  var safeDyH=(dyUltAnoPct>0?(dyUltAnoPct/12):0).toFixed(2);
+  // ── ABA CALCULADORA (viewTodos) ── idêntica ao viewAno
+  var anoAtualRealT=new Date().getFullYear();
+  // Para viewTodos: usa último ano disponível com dados como referência
+  var anosComDados=Object.keys(DADOS).map(Number).sort().filter(function(a){return (DADOS[a].pat[c]||[]).length>0;});
+  var ultimoAnoT=anosComDados.length>0?anosComDados[anosComDados.length-1]:0;
+
+  function saldoFinalAnoT(a){
+    var ev=(DADOS[a]&&DADOS[a].evol&&DADOS[a].evol[c])||Array(12).fill(0);
+    for(var i=11;i>=0;i--){if(ev[i]>0)return ev[i];}return 0;
+  }
+  function provTotalAnoT(a){
+    var pva=(DADOS[a]&&DADOS[a].prov&&DADOS[a].prov[c])||{tot:Array(12).fill(0)};
+    return (pva.tot||Array(12).fill(0)).reduce(function(s,v){return s+v;},0);
+  }
+
+  var capitalCalcT=(totMkt||0);
+  var taxaSugT=(dyUltAnoPct>0?(dyUltAnoPct/12):0);
+
   h+='<div id="tab-calc" class="tab-pane'+(abaAtiva==='calc'?'':' tab-hidden')+'">';
-  h+='<div class="sec-head"><h3>Calculadora de Juros Compostos</h3><span class="tag">simulação patrimonial</span></div>';
+  h+='<div class="sec-head"><h3>Calculadora de Juros Compostos</h3><span class="tag">consolidado · todos os anos</span></div>';
   h+='<div class="calc-wrap">';
+
+  // Banner com resumo consolidado
+  if(totMkt>0){
+    h+='<div style="background:rgba(61,220,132,.07);border:1px solid rgba(61,220,132,.25);border-radius:10px;padding:14px 18px;display:flex;flex-wrap:wrap;gap:16px;align-items:center">';
+    h+='<svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="color:#3ddc84;flex-shrink:0"><circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M9 5v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem;color:var(--muted)">Dados consolidados de <strong style="color:var(--text)">todos os anos</strong> carregados como base</span>';
+    h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem;margin-left:auto">Patrimônio atual: <strong style="color:#3ddc84">'+M(totMkt)+'</strong></span>';
+    if(dyUltAnoPct>0)h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem">DY anual: <strong style="color:#3ddc84">'+dyUltAnoPct.toFixed(2)+'%</strong></span>';
+    h+='</div>';
+  }
+
+  // Card retrátil
   h+='<div class="calc-card open" id="calc-input-card">';
   h+='<div class="calc-card-head" onclick="toggleCalcCard()">';
   h+='<div class="calc-card-title">';
@@ -1911,34 +1941,89 @@ function viewTodos(c){
   h+='</div>';
   h+='<div class="calc-card-body">';
   h+='<div class="calc-card-inner">';
+
+  // Capital inicial
   h+='<div class="calc-field"><label>Capital Inicial (R$)</label>';
-  h+='<input id="ci-capital" type="number" min="0" value="'+safeTotMktH+'" oninput="calcJuros()"/>';
-  h+=(totMkt>0?'<span class="calc-hint">Carteira atual: R$ '+parseFloat(safeTotMktH).toLocaleString("pt-BR",{minimumFractionDigits:2})+'</span>':'');
+  h+='<input id="ci-capital" type="number" min="0" value="'+capitalCalcT.toFixed(2)+'" oninput="calcJuros()"/>';
+  if(totMkt>0)h+='<span class="calc-hint">Carteira atual: '+M(totMkt)+'</span>';
   h+='</div>';
+
+  // Aporte mensal
   h+='<div class="calc-field"><label>Aporte Mensal (R$)</label>';
   h+='<input id="ci-aporte" type="number" min="0" value="0" oninput="calcJuros()"/>';
   h+='</div>';
+
+  // Taxa de juros
   h+='<div class="calc-field">';
   h+='<label>Taxa de Juros (%)</label>';
-  h+='<input id="ci-taxa" type="number" min="0" step="0.01" value="'+safeDyH+'" oninput="calcJuros()"/>';
-  h+=(parseFloat(safeDyH)>0?'<span class="calc-hint">DY último ano ÷ 12: '+safeDyH+'%</span>':'');
+  h+='<input id="ci-taxa" type="number" min="0" step="0.01" value="'+taxaSugT.toFixed(4)+'" oninput="calcJuros()"/>';
+  if(taxaSugT>0)h+='<span class="calc-hint">DY anual ÷ 12: '+taxaSugT.toFixed(4)+'%</span>';
   h+='</div>';
+
+  // Período
   h+='<div class="calc-field"><label>Período (meses)</label>';
   h+='<input id="ci-meses" type="number" min="1" value="120" oninput="calcJuros()"/>';
-  h+='<span class="calc-hint" id="periodo-hint">= 10 anos</span></div>';
+  h+='<span class="calc-hint" id="periodo-hint">= 10 anos</span>';
+  h+='</div>';
+
+  // Toggle mensal / anual
   h+='<div class="calc-toggle-row">';
   h+='<label>Tipo de taxa</label>';
   h+='<div class="calc-toggle">';
   h+='<button id="btn-mensal" class="on" onclick="setTipoTaxa(\'mensal\')">Mensal</button>';
   h+='<button id="btn-anual" onclick="setTipoTaxa(\'anual\')">Anual</button>';
   h+='</div>';
-  h+='<span style="font-family:\'DM Mono\',monospace;font-size:.65rem;color:var(--muted)" id="taxa-equiv"></span>';
+  h+='<span style="font-family:\'DM Mono\',monospace;font-size:.65rem;color:var(--muted)" id="taxa-equiv">'+(taxaSugT>0?'≈ '+((Math.pow(1+taxaSugT/100,12)-1)*100).toFixed(2)+'% a.a.':'')+'</span>';
   h+='</div>';
-  h+='</div></div></div>';
+
+  h+='</div></div></div>'; // calc-card-inner / calc-card-body / calc-card
+
+  // Resultados KPIs
   h+='<div id="calc-results"></div>';
-  h+='<div class="chart-box" id="calc-chart-box" style="display:none"><div class="chart-ttl">Evolução Patrimonial Projetada</div><div style="height:260px"><canvas id="cvCalc"></canvas></div></div>';
-  h+='<div class="chart-box" id="calc-tbl-box" style="display:none"><div class="chart-ttl">Projeção Ano a Ano</div><div class="calc-tbl-wrap"><table class="calc-tbl" id="calc-tbl"></table></div></div>';
-  h+='<div class="calc-empty" id="calc-empty"><svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="22" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M22 29h16M30 22v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Preencha os parâmetros acima para simular</div>';
+
+  // Gráfico projetado
+  h+='<div class="chart-box" id="calc-chart-box" style="display:none">';
+  h+='<div class="chart-ttl">Evolução Patrimonial Projetada</div>';
+  h+='<div style="height:260px"><canvas id="cvCalc"></canvas></div>';
+  h+='</div>';
+
+  // Tabela de projeção
+  h+='<div class="chart-box" id="calc-tbl-box" style="display:none">';
+  h+='<div class="chart-ttl">Projeção Ano a Ano</div>';
+  h+='<div class="calc-tbl-wrap"><table class="calc-tbl" id="calc-tbl"></table></div>';
+  h+='</div>';
+
+  // Histórico real de todos os anos disponíveis
+  if(anosComDados.length>0){
+    h+='<div class="chart-box" id="calc-hist-box">';
+    h+='<div class="chart-ttl">Histórico Real — Patrimônio & Proventos</div>';
+    h+='<div class="calc-tbl-wrap"><table class="calc-tbl" id="calc-hist-tbl">';
+    h+='<thead><tr><th>Ano</th><th>Patrimônio Final</th><th>Proventos Totais</th><th>DY Anual</th><th>Variação Pat.</th></tr></thead><tbody>';
+    var patAntT=0;
+    anosComDados.forEach(function(a){
+      var sf=saldoFinalAnoT(a);
+      var pt=provTotalAnoT(a);
+      var dy=sf>0?(pt/sf)*100:0;
+      var varPat=(patAntT>0?((sf/patAntT-1)*100):null);
+      var varStr=varPat===null?'—':(varPat>=0?'<span style="color:#3ddc84">▲ '+varPat.toFixed(1)+'%</span>':'<span style="color:var(--red)">▼ '+Math.abs(varPat).toFixed(1)+'%</span>');
+      var fechado=(a<anoAtualRealT);
+      h+='<tr>';
+      h+='<td>'+(fechado?'<span style="color:var(--muted)">✓</span> ':'')+a+'</td>';
+      h+='<td style="font-weight:600">'+M(sf)+'</td>';
+      h+='<td class="g">'+M(pt)+'</td>';
+      h+='<td class="g">'+(dy>0?dy.toFixed(2)+'%':'—')+'</td>';
+      h+='<td>'+varStr+'</td>';
+      h+='</tr>';
+      patAntT=sf;
+    });
+    h+='</tbody></table></div>';
+    h+='</div>'; // calc-hist-box
+  }
+
+  h+='<div class="calc-empty" id="calc-empty" style="'+(anosComDados.length>0?'display:none':'')+'">';
+  h+='<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="22" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M22 29h16M30 22v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  h+='Preencha os parâmetros acima para simular</div>';
+
   h+='</div></div>'; // calc-wrap + tab-calc
 
   document.getElementById('content').innerHTML=h;
@@ -1981,6 +2066,7 @@ function viewTodos(c){
     }else if(abaAtiva==='calc'){
       if(pC)pC.classList.add('tab-hidden');
       if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';pP.classList.add('tab-hidden');}
+      _tipoTaxa='mensal';
       setTimeout(function(){calcJuros();},100);
     }else{
       if(pC)pC.classList.add('tab-hidden');
@@ -2956,10 +3042,16 @@ function setTipoTaxa(tipo){
 }
 
 function calcJuros(){
-  var capital=parseFloat((document.getElementById('ci-capital')||{}).value)||0;
-  var aporte =parseFloat((document.getElementById('ci-aporte')||{}).value)||0;
-  var taxaInp=parseFloat((document.getElementById('ci-taxa')||{}).value)||0;
-  var meses  =parseInt((document.getElementById('ci-meses')||{}).value)||0;
+  var elCap=document.getElementById('ci-capital');
+  var elAp =document.getElementById('ci-aporte');
+  var elTx =document.getElementById('ci-taxa');
+  var elMs =document.getElementById('ci-meses');
+  // Se os campos não existem no DOM ainda, aguarda
+  if(!elCap||!elAp||!elTx||!elMs){return;}
+  var capital=parseFloat(elCap.value)||0;
+  var aporte =parseFloat(elAp.value)||0;
+  var taxaInp=parseFloat(elTx.value)||0;
+  var meses  =parseInt(elMs.value)||120;
 
   // Converte taxa para mensal sempre
   var tMes;
@@ -2982,8 +3074,9 @@ function calcJuros(){
 
   var phint=document.getElementById('periodo-hint');
   if(phint&&meses>0){var anosH=Math.floor(meses/12);var mRH=meses%12;phint.textContent='= '+(anosH>0?anosH+' ano'+(anosH>1?'s':'')+(mRH>0?' e '+mRH+'m':''):(mRH+'m'));}
-  if(!meses||meses<1||tMes<0||capital<0){return;}
-  if(tMes===0&&capital===0&&aporte===0){return;}
+  if(!meses||meses<1){return;}
+  // Não retorna se só a taxa for 0 — permite simular crescimento por aporte
+  if(capital===0&&aporte===0){return;}
 
   // Simulação mês a mês
   var saldo=capital;
@@ -3129,10 +3222,9 @@ function _renderCalcChart(capital,aporte,tMes,meses){
   });
 }
 
-// Alias chamado pelo switchTab
+// Alias chamado pelo switchTab — sempre executa
 function renderCalcChart(){
-  var capital=parseFloat((document.getElementById('ci-capital')||{}).value)||0;
-  if(capital>0||parseFloat((document.getElementById('ci-taxa')||{}).value)>0)calcJuros();
+  calcJuros();
 }
 
 function silentRefresh(){rebuscarTudo();}
