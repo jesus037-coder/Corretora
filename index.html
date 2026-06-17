@@ -1648,17 +1648,26 @@ function viewAno(c,ano){
   h+='<input id="ci-aporte" type="number" min="0" value="0" oninput="calcJuros()"/>';
   h+='</div>';
 
-  // Taxa mensal — sem toggle, só mensal
+  // Taxa de juros + toggle mensal/anual
   h+='<div class="calc-field">';
-  h+='<label>Taxa Mensal (%)</label>';
+  h+='<label>Taxa de Juros (%)</label>';
   h+='<input id="ci-taxa" type="number" min="0" step="0.01" value="'+taxaSugAno.toFixed(4)+'" oninput="calcJuros()"/>';
-  h+='<span class="calc-hint" id="taxa-equiv">'+(taxaSugAno>0?'≡ '+((Math.pow(1+taxaSugAno/100,12)-1)*100).toFixed(2)+'% a.a.':'')+'</span>';
+  h+=(taxaSugAno>0?'<span class="calc-hint">DY último mês: '+taxaSugAno.toFixed(4)+'%</span>':'');
   h+='</div>';
 
   // Período
   h+='<div class="calc-field"><label>Período (meses)</label>';
-  h+='<input id="ci-meses" type="number" min="1" value="120" oninput="calcJuros()"/>';
-  h+='<span class="calc-hint" id="periodo-hint">= 10 anos</span></div>';
+  h+='<input id="ci-meses" type="number" min="1" value="120" oninput="calcJuros()"/></div>';
+
+  // Toggle mensal / anual
+  h+='<div class="calc-toggle-row">';
+  h+='<label>Tipo de taxa</label>';
+  h+='<div class="calc-toggle">';
+  h+='<button id="btn-mensal" class="on" onclick="setTipoTaxa(\'mensal\')">Mensal</button>';
+  h+='<button id="btn-anual" onclick="setTipoTaxa(\'anual\')">Anual</button>';
+  h+='</div>';
+  h+='<span style="font-family:\'DM Mono\',monospace;font-size:.65rem;color:var(--muted)" id="taxa-equiv">'+(taxaSugAno>0?'≈ '+((Math.pow(1+taxaSugAno/100,12)-1)*100).toFixed(2)+'% a.a.':'')+'</span>';
+  h+='</div>';
 
   h+='</div></div></div>'; // calc-card-inner / calc-card-body / calc-card
 
@@ -3130,4 +3139,3 @@ function silentRefresh(){rebuscarTudo();}
 </script>
 </body>
 </html>
-
