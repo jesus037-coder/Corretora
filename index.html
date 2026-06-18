@@ -1222,7 +1222,8 @@ function init(){
   }).finally(function(){load(false);});
 }
 function reload(){
-  _UI.cardAberto=null;_UI.cardSg=null;_UI.cardCor=null;_UI.provAberto=null;_UI.colsAtivas={};_UI.abaAtiva='carteira';
+  _UI.cardAberto=null;_UI.cardSg=null;_UI.cardCor=null;_UI.provAberto=null;_UI.colsAtivas={};
+  // Preserva a aba ativa ao trocar o ano de referência
   init();
 }
 
