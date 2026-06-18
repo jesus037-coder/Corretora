@@ -1718,7 +1718,7 @@ function viewAno(c,ano){
     h+='</div>'; // calc-hist-box
   }
 
-  h+='<div class="calc-empty" id="calc-empty" style="'+(anosHist.length>0?'display:none':'')+'">'; 
+  h+='<div class="calc-empty" id="calc-empty" style="display:none">';
   h+='<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="22" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M22 29h16M30 22v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   h+='Preencha os parâmetros acima para simular</div>';
 
@@ -1730,7 +1730,7 @@ function viewAno(c,ano){
     drawEvol(SEG_EVOL['__TOTAL__'],ano,SEG_EVOL);
     drawBarPie(pv);
     _tipoTaxa='mensal'; // view de ano: sempre mensal
-    if(abaAtiva==='calc'){setTimeout(function(){calcJuros();},80);}
+    setTimeout(function(){calcJuros();},80);
   });
 }
 
@@ -2020,7 +2020,7 @@ function viewTodos(c){
     h+='</div>'; // calc-hist-box
   }
 
-  h+='<div class="calc-empty" id="calc-empty" style="'+(anosComDados.length>0?'display:none':'')+'">';
+  h+='<div class="calc-empty" id="calc-empty" style="display:none">';
   h+='<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="22" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M22 29h16M30 22v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   h+='Preencha os parâmetros acima para simular</div>';
 
@@ -2061,13 +2061,13 @@ function viewTodos(c){
     drawRoscaHist(_histC,null);
 
     // Restore correct tab visibility
+    _tipoTaxa='mensal';
+    setTimeout(function(){calcJuros();},100);
     if(abaAtiva==='carteira'){
       if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';pP.classList.add('tab-hidden');}
     }else if(abaAtiva==='calc'){
       if(pC)pC.classList.add('tab-hidden');
       if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';pP.classList.add('tab-hidden');}
-      _tipoTaxa='mensal';
-      setTimeout(function(){calcJuros();},100);
     }else{
       if(pC)pC.classList.add('tab-hidden');
       if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';}
@@ -3046,7 +3046,6 @@ function calcJuros(){
   var elAp =document.getElementById('ci-aporte');
   var elTx =document.getElementById('ci-taxa');
   var elMs =document.getElementById('ci-meses');
-  // Se os campos não existem no DOM ainda, aguarda
   if(!elCap||!elAp||!elTx||!elMs){return;}
   var capital=parseFloat(elCap.value)||0;
   var aporte =parseFloat(elAp.value)||0;
@@ -3075,8 +3074,21 @@ function calcJuros(){
   var phint=document.getElementById('periodo-hint');
   if(phint&&meses>0){var anosH=Math.floor(meses/12);var mRH=meses%12;phint.textContent='= '+(anosH>0?anosH+' ano'+(anosH>1?'s':'')+(mRH>0?' e '+mRH+'m':''):(mRH+'m'));}
   if(!meses||meses<1){return;}
-  // Não retorna se só a taxa for 0 — permite simular crescimento por aporte
-  if(capital===0&&aporte===0){return;}
+
+  // Se não há capital nem aporte, mostra o card mas sem projeção
+  var semDados=(capital===0&&aporte===0);
+  var empty=document.getElementById('calc-empty');
+  var chartBox=document.getElementById('calc-chart-box');
+  var tblBox=document.getElementById('calc-tbl-box');
+  if(semDados){
+    if(empty)empty.style.display='';
+    if(chartBox)chartBox.style.display='none';
+    if(tblBox)tblBox.style.display='none';
+    var res2=document.getElementById('calc-results');
+    if(res2)res2.innerHTML='';
+    atualizarChips();
+    return;
+  }
 
   // Simulação mês a mês
   var saldo=capital;
