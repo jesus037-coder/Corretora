@@ -1578,6 +1578,8 @@ function viewAno(c,ano){
   h+='</div>';
   h+=buildProvTable(pv,c);
 
+  h+='</div>'; // fim tab-proventos
+
   // ── ABA CALCULADORA (viewAno) ──
   // Detecta se o ano já fechou
   var anoAtualReal=new Date().getFullYear();
@@ -1728,22 +1730,11 @@ function viewAno(c,ano){
 
   document.getElementById('content').innerHTML=h;
   requestAnimationFrame(function(){
-    drawEvol(SEG_EVOL['__TOTAL__'], ano, SEG_EVOL);
+    drawEvol(SEG_EVOL['__TOTAL__'],ano,SEG_EVOL);
     drawBarPie(pv);
-    _tipoTaxa = 'mensal';
-
-    // Se a aba ativa é calc, remove tab-hidden antes de calcJuros
-    // para que o Chart.js consiga medir o canvas
-    var pK = document.getElementById('tab-calc');
-    var pC = document.getElementById('tab-carteira');
-    var pP = document.getElementById('tab-proventos');
-    if(abaAtiva === 'calc'){
-        if(pC) pC.classList.add('tab-hidden');
-        if(pP) pP.classList.add('tab-hidden');
-        if(pK) pK.classList.remove('tab-hidden');
-    }
-    setTimeout(function(){ calcJuros(); }, 80);
-});
+    _tipoTaxa='mensal'; // view de ano: sempre mensal
+    setTimeout(function(){calcJuros();},80);
+  });
 }
 
 /* ── VIEW: TODOS OS ANOS ──────────────────── */
