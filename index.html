@@ -1524,6 +1524,7 @@ function viewAno(c,ano){
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Por Segmento</div><div class="chart-h-bar" style="height:190px"><canvas id="cvP"></canvas></div></div>';
   h+='</div>';
   h+=buildProvTable(pv,c);
+  h+='</div>'; // fim tab-proventos
 
   // ── ABA CALCULADORA ──
   h+='<div id="tab-calc" class="tab-pane'+(abaAtiva==='calc'?'':' tab-hidden')+'">';
