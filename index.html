@@ -254,19 +254,152 @@ body.is-mobile .sec-head{margin:20px 0 10px;}
 body.is-mobile .sec-head h3{font-size:1rem;}
 
 /* ── CALCULADORA ────────────────────────────── */
-.calc-wrap{display:grid;grid-template-columns:1fr 1fr;gap:24px;min-width:0}
-.calc-inputs{display:flex;flex-direction:column;gap:18px;min-width:0}
-.calc-field label{display:block;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px}
-.calc-field input{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:.9rem;outline:none;transition:border-color .2s,box-shadow .2s}
+.calc-wrap{display:flex;flex-direction:column;gap:20px;min-width:0}
+
+/* Card retrátil de inputs */
+.calc-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+  transition:box-shadow .2s;
+}
+.calc-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.calc-card-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;cursor:pointer;
+  border-bottom:1px solid transparent;
+  transition:background .15s,border-color .2s;
+  user-select:none;
+}
+.calc-card-head:hover{background:rgba(255,255,255,.02)}
+.calc-card.open .calc-card-head{border-bottom-color:var(--border)}
+.calc-card-title{
+  display:flex;align-items:center;gap:10px;
+  font-family:'DM Serif Display',serif;font-size:1rem;font-weight:400;
+}
+.calc-card-title svg{color:var(--accent);flex-shrink:0}
+.calc-card-arrow{
+  color:var(--muted);transition:transform .25s cubic-bezier(.4,0,.2,1);
+  flex-shrink:0;
+}
+.calc-card.open .calc-card-arrow{transform:rotate(180deg)}
+.calc-card-body{
+  max-height:0;overflow:hidden;
+  transition:max-height .35s cubic-bezier(.4,0,.2,1);
+}
+.calc-card.open .calc-card-body{max-height:600px}
+.calc-card-inner{padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:600px){.calc-card-inner{grid-template-columns:1fr}}
+
+/* Preview chips no header quando fechado */
+.calc-preview{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.calc-chip{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:6px;padding:3px 10px;
+  font-family:'DM Mono',monospace;font-size:.62rem;
+  color:var(--muted);white-space:nowrap;
+}
+.calc-chip span{color:var(--accent);font-weight:600}
+.calc-card.open .calc-preview{display:none}
+
+/* Campos de input */
+.calc-field{display:flex;flex-direction:column;gap:0}
+.calc-field label{
+  display:block;font-family:'DM Mono',monospace;
+  font-size:.6rem;text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--muted);margin-bottom:8px;
+}
+.calc-field input{
+  width:100%;background:var(--panel);border:1px solid var(--border);
+  border-radius:8px;padding:11px 14px;color:var(--text);
+  font-family:'DM Mono',monospace;font-size:.9rem;
+  outline:none;transition:border-color .2s,box-shadow .2s;
+}
 .calc-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
-.calc-hint{display:block;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--accent);margin-top:8px}
-.calc-results{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;min-width:0}
-.calc-kpi{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;animation:up .3s ease both}
-.calc-kpi-lbl{font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px}
-.calc-kpi-val{font-family:'DM Mono',monospace;font-size:1.15rem;font-weight:600;color:var(--text);line-height:1.2}
-.calc-kpi-sub{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted);margin-top:4px}
-.calc-results .red{color:var(--red)}
-@media(max-width:860px){.calc-wrap{grid-template-columns:1fr;}}
+.calc-hint{display:block;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--accent);margin-top:6px}
+
+/* Toggle mensal / anual */
+.calc-toggle-row{
+  grid-column:1/-1;
+  display:flex;align-items:center;gap:10px;
+}
+.calc-toggle-row label{
+  font-family:'DM Mono',monospace;font-size:.6rem;
+  text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);
+  white-space:nowrap;
+}
+.calc-toggle{
+  display:flex;background:var(--panel);border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;flex-shrink:0;
+}
+.calc-toggle button{
+  padding:7px 14px;background:transparent;border:none;
+  font-family:'DM Mono',monospace;font-size:.72rem;
+  color:var(--muted);cursor:pointer;transition:background .15s,color .15s;
+  white-space:nowrap;
+}
+.calc-toggle button.on{
+  background:var(--accent-glow);color:var(--accent);
+  border:1px solid rgba(61,220,132,.3);border-radius:6px;
+}
+
+/* Grid de KPIs resultado */
+.calc-kpi-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+}
+@media(max-width:700px){.calc-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.calc-kpi{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:14px;
+  animation:up .3s ease both;
+  position:relative;overflow:hidden;
+}
+.calc-kpi::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:var(--accent);opacity:.2;
+}
+.calc-kpi.hi::after{opacity:.6}
+.calc-kpi-lbl{
+  font-family:'DM Mono',monospace;font-size:.58rem;
+  text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px;
+}
+.calc-kpi-val{
+  font-family:'DM Mono',monospace;font-size:1.05rem;
+  font-weight:600;color:var(--text);line-height:1.2;
+}
+.calc-kpi-val.g{color:var(--accent)}
+.calc-kpi-sub{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);margin-top:4px}
+
+/* Tabela de projeção anual */
+.calc-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:4px}
+.calc-tbl{
+  width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;
+  font-size:.76rem;min-width:520px;
+}
+.calc-tbl thead th{
+  padding:9px 14px;text-align:right;
+  font-size:.6rem;text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--muted);border-bottom:1px solid var(--border);
+}
+.calc-tbl thead th:first-child{text-align:left}
+.calc-tbl tbody td{
+  padding:9px 14px;text-align:right;border-bottom:1px solid var(--border);
+  color:var(--text);
+}
+.calc-tbl tbody td:first-child{text-align:left;color:var(--muted)}
+.calc-tbl tbody tr:hover td{background:rgba(255,255,255,.02)}
+.calc-tbl .g{color:var(--accent)}
+.calc-tbl tfoot td{
+  padding:10px 14px;text-align:right;
+  font-weight:600;color:var(--accent);
+  border-top:1px solid var(--border);
+  font-size:.82rem;
+}
+.calc-tbl tfoot td:first-child{text-align:left}
+.calc-empty{
+  text-align:center;padding:60px 20px;
+  font-family:'DM Mono',monospace;font-size:.8rem;color:var(--muted);
+}
+.calc-empty svg{display:block;margin:0 auto 16px;opacity:.3}
 
 /* ── CARD MOBILE: design moderno e limpo ── */
 body.is-mobile .seg-stack{gap:8px;}
@@ -705,81 +838,6 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 }
 .modal-msg.ok{background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3);color:var(--accent);}
 .modal-msg.err{background:rgba(242,92,92,.1);border:1px solid rgba(242,92,92,.3);color:var(--red);}
-
-/* ── METAS ──────────────────────────────────── */
-/* Botão de toggle principal */
-.btn-lancar-meta{
-  display:inline-flex;align-items:center;gap:8px;
-  background:var(--accent-glow);border:1px solid rgba(61,220,132,.3);
-  border-radius:8px;color:var(--accent);
-  font-family:'DM Mono',monospace;font-size:.72rem;
-  text-transform:uppercase;letter-spacing:1px;
-  padding:10px 18px;cursor:pointer;
-  transition:background .18s,border-color .18s;
-  margin-bottom:20px;
-}
-.btn-lancar-meta:hover{background:rgba(61,220,132,.18);border-color:var(--accent)}
-.btn-lancar-meta.cancelar{color:var(--muted);border-color:var(--border);background:transparent}
-.btn-lancar-meta.cancelar:hover{color:var(--red);border-color:var(--red)}
-
-/* Formulário colapsável */
-.meta-form-panel{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:22px;
-  display:none;flex-direction:column;gap:16px;
-  margin-bottom:20px;animation:up .22s ease both;
-}
-.meta-form-panel.aberto{display:flex;}
-.meta-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-@media(max-width:600px){.meta-form-row{grid-template-columns:1fr;}}
-.meta-field label{display:block;font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px}
-.meta-field select,.meta-field input{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:.9rem;outline:none;transition:border-color .2s,box-shadow .2s}
-.meta-field select:focus,.meta-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
-.meta-field select option{background:var(--panel);}
-.meta-hint{display:block;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted);margin-top:8px}
-.btn-salvar-meta{margin-top:4px;background:var(--accent);color:#09110e;border:none;border-radius:8px;font-family:'DM Mono',monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:10px 18px;cursor:pointer;transition:opacity .18s;width:100%;font-weight:700;}
-.btn-salvar-meta:hover{opacity:.88}
-.btn-salvar-meta:disabled{opacity:.4;cursor:not-allowed}
-.meta-msg{padding:10px 14px;border-radius:8px;font-family:'DM Mono',monospace;font-size:.75rem;text-align:center;display:none;margin-top:4px}
-.meta-msg.ok{background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3);color:var(--accent);}
-.meta-msg.err{background:rgba(242,92,92,.1);border:1px solid rgba(242,92,92,.3);color:var(--red);}
-
-/* Lista vertical de cards de objetivos */
-.meta-objetivos{display:flex;flex-direction:column;gap:16px;}
-
-/* Card individual de objetivo */
-.meta-card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:22px 24px;
-  display:flex;flex-direction:column;gap:14px;
-  animation:up .3s ease both;
-}
-.meta-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.meta-card-tipo{
-  font-family:'DM Mono',monospace;font-size:.6rem;
-  text-transform:uppercase;letter-spacing:2px;color:var(--muted);
-  background:var(--panel);border:1px solid var(--border);
-  border-radius:99px;padding:3px 10px;
-}
-.meta-card-pct{
-  font-family:'DM Mono',monospace;font-size:1.4rem;font-weight:700;
-  color:var(--accent);line-height:1;
-}
-.meta-card-pct.over{color:var(--red);}
-.meta-bar-bg{width:100%;height:10px;background:var(--panel);border-radius:99px;overflow:hidden;border:1px solid var(--border);}
-.meta-bar-fill{height:100%;border-radius:99px;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,var(--accent-dim),var(--accent));}
-.meta-bar-fill.over{background:linear-gradient(90deg,#b03030,var(--red));}
-.meta-card-vals{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-.meta-val-item{display:flex;flex-direction:column;gap:4px;}
-.meta-val-lbl{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);}
-.meta-val-num{font-family:'DM Mono',monospace;font-size:.92rem;font-weight:600;color:var(--text);}
-.meta-val-num.g{color:var(--accent);}.meta-val-num.r{color:var(--red);}
-/* Card vazio — sem meta */
-.meta-empty-card{
-  background:var(--surface);border:1px dashed var(--border);
-  border-radius:var(--radius);padding:36px;text-align:center;
-}
-.meta-empty-card p{color:var(--muted);font-size:.88rem;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -948,8 +1006,7 @@ var URLS={
   CL:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=42982816&single=true&output=csv',
   PA:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=1605208368&single=true&output=csv',
   DI:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=948257245&single=true&output=csv',
-  AT:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=713165597&single=true&output=csv',
-  MT:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=1743696611&single=true&output=csv'
+  AT:'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=713165597&single=true&output=csv'
 };
 var MES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 var PAL=['#3ddc84','#4da6ff','#b388ff','#f25c5c','#ffb347','#40c4ff','#a5d6a7','#ef9a9a'];
@@ -961,8 +1018,7 @@ function chartColors(){
 
 /* ── STATE ────────────────────────────────── */
 var SES={nome:'',admin:false};
-var RAW={at:[],pa:[],di:[],mt:[]};
-var METAS={}; // { 'NomeCliente': { tipo: 'Patrimônio'|'Renda', valor: Number } }
+var RAW={at:[],pa:[],di:[]};
 var DADOS={};
 var PRECOS={};
 var SEGMENTOS={};
@@ -1054,8 +1110,8 @@ function doLogin(){
 }
 
 function doLogout(){
-  SES={nome:'',admin:false};RAW={at:[],pa:[],di:[],mt:[]};
-  DADOS={};PRECOS={};CLIENTES=[];clienteAtivo=null;METAS={};
+  SES={nome:'',admin:false};RAW={at:[],pa:[],di:[]};
+  DADOS={};PRECOS={};CLIENTES=[];clienteAtivo=null;
   document.getElementById('app').classList.remove('on');
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('btn-login').disabled=false;
@@ -1121,9 +1177,8 @@ function init(){
   load(true);
   var sv=document.getElementById('sel-ano').value;
   anoSel=sv==='TODOS'?'TODOS':parseInt(sv);
-  return Promise.all([csv(URLS.AT),csv(URLS.PA),csv(URLS.DI),csv(URLS.MT)]).then(function(r){
-    RAW.at=r[0];RAW.pa=r[1];RAW.di=r[2];RAW.mt=r[3];
-    parseMetas();
+  return Promise.all([csv(URLS.AT),csv(URLS.PA),csv(URLS.DI)]).then(function(r){
+    RAW.at=r[0];RAW.pa=r[1];RAW.di=r[2];
     PRECOS={};
     SEGMENTOS={};
     for(var i=1;i<RAW.at.length;i++){
@@ -1167,7 +1222,8 @@ function init(){
   }).finally(function(){load(false);});
 }
 function reload(){
-  _UI.cardAberto=null;_UI.cardSg=null;_UI.cardCor=null;_UI.provAberto=null;_UI.colsAtivas={};_UI.abaAtiva='carteira';
+  _UI.cardAberto=null;_UI.cardSg=null;_UI.cardCor=null;_UI.provAberto=null;_UI.colsAtivas={};
+  // Preserva a aba ativa ao trocar o ano de referência
   init();
 }
 
@@ -1473,9 +1529,6 @@ function viewAno(c,ano){
   h+='<button class="tab-btn'+calcBtnCls+'" onclick="switchTab(\'calc\')">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><path d="M9 11h4M11 9v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
   h+=' Calculadora</button>';
-  h+='<button class="tab-btn'+(abaAtiva==='metas'?' tab-on':'')+'" onclick="switchTab(\'metas\')">';
-  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  h+=' Metas</button>';
   h+='</div>';
 
   // ── ABA CARTEIRA ──
@@ -1524,43 +1577,163 @@ function viewAno(c,ano){
   h+='<div class="chart-box" style="margin-bottom:0"><div class="chart-ttl">Por Segmento</div><div class="chart-h-bar" style="height:190px"><canvas id="cvP"></canvas></div></div>';
   h+='</div>';
   h+=buildProvTable(pv,c);
+
   h+='</div>'; // fim tab-proventos
 
-  // ── ABA CALCULADORA ──
-  h+='<div id="tab-calc" class="tab-pane'+(abaAtiva==='calc'?'':' tab-hidden')+'">';
-  h+='<div class="sec-head"><h3>Calculadora de Juros Compostos</h3><span class="tag">baseada na carteira atual</span></div>';
-  h+='<div class="calc-wrap">';
-  h+='<div class="calc-inputs">';
-  var safeTotMkt=(totMkt||0).toFixed(2);
-  var safeDyUltMes=((dyUltMes||0)>=0?dyUltMes:0).toFixed(2);
-  h+='<div class="calc-field"><label>Capital Inicial (R$)</label>';
-  h+='<input id="ci-capital" type="number" value="'+safeTotMkt+'" oninput="calcJuros()"/></div>';
-  h+='<div class="calc-field"><label>Aporte Mensal (R$)</label>';
-  h+='<input id="ci-aporte" type="number" value="0" oninput="calcJuros()"/></div>';
-  h+='<div class="calc-field"><label>Taxa Mensal (%)</label>';
-  h+='<input id="ci-taxa" type="number" step="0.01" value="'+safeDyUltMes+'" oninput="calcJuros()"/><span class="calc-hint">DY último mês: '+safeDyUltMes+'%</span></div>';
-  h+='<div class="calc-field"><label>Período (meses)</label>';
-  h+='<input id="ci-meses" type="number" value="120" oninput="calcJuros()"/></div>';
-  h+='</div>';
-  h+='<div class="calc-results" id="calc-results"></div>';
-  h+='<div class="chart-box" style="margin-top:20px"><div class="chart-ttl">Evolução Patrimonial Projetada</div>';
-  h+='<div style="height:260px"><canvas id="cvCalc"></canvas></div></div>';
-  h+='</div>';
-  h+='</div>'; // fim tab-calc
+  // ── ABA CALCULADORA (viewAno) ──
+  // Detecta se o ano já fechou
+  var anoAtualReal=new Date().getFullYear();
+  var anoJaFechou=(ano<anoAtualReal);
 
-  // ── ABA METAS ──
-  // Calcula última renda mensal para passar ao buildTabMetas
-  var hoje4=new Date();
-  var mesAtualMeta=ano<hoje4.getFullYear()?11:hoje4.getMonth();
-  var rendUltMeta=0;
-  for(var mi2=mesAtualMeta;mi2>=0;mi2--){if(pv.tot[mi2]>0){rendUltMeta=pv.tot[mi2];break;}}
-  h+=buildTabMetas(c,totMkt,rendUltMeta,abaAtiva);
+  // Coleta histórico de anos anteriores disponíveis para este cliente
+  var anosHist=Object.keys(DADOS).map(Number).sort().filter(function(a){return a<=ano&&(DADOS[a].pat[c]||[]).length>0;});
+
+  // Patrimônio final de cada ano histórico (último mês com saldo >0)
+  function saldoFinalAno(a){
+    var ev=(DADOS[a]&&DADOS[a].evol&&DADOS[a].evol[c])||Array(12).fill(0);
+    for(var i=11;i>=0;i--){if(ev[i]>0)return ev[i];}return 0;
+  }
+  // Proventos totais de cada ano histórico
+  function provTotalAno(a){
+    var pva=(DADOS[a]&&DADOS[a].prov&&DADOS[a].prov[c])||{tot:Array(12).fill(0)};
+    return (pva.tot||Array(12).fill(0)).reduce(function(s,v){return s+v;},0);
+  }
+
+  // Capital inicial: se ano fechou, usa patrimônio real do fim do ano; senão mercado atual ou aplicado
+  var _sfAnoCalc=anoJaFechou?saldoFinalAno(ano):0;
+  var capitalCalcAno=anoJaFechou?(_sfAnoCalc||totMkt||totApl||0):(totMkt||totApl||0);
+  // Taxa mensal sugerida: DY do último mês com provento
+  var taxaSugAno=dyUltMes>0?dyUltMes:0;
+
+  h+='<div id="tab-calc" class="tab-pane'+(abaAtiva==='calc'?'':' tab-hidden')+'">';
+  h+='<div class="sec-head"><h3>Calculadora de Juros Compostos</h3>';
+  h+='<span class="tag">'+(anoJaFechou?'ano '+ano+' fechado · dados reais':'ano '+ano+' em curso')+'</span></div>';
+  h+='<div class="calc-wrap">';
+
+  // ── BANNER de dados reais (só se o ano já fechou) ──
+  if(anoJaFechou){
+    var sfAno=saldoFinalAno(ano);
+    var ptAno=provTotalAno(ano);
+    h+='<div style="background:rgba(61,220,132,.07);border:1px solid rgba(61,220,132,.25);border-radius:10px;padding:14px 18px;display:flex;flex-wrap:wrap;gap:16px;align-items:center">';
+    h+='<svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="color:#3ddc84;flex-shrink:0"><circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M9 5v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem;color:var(--muted)">Dados reais de <strong style="color:var(--text)">'+ano+'</strong> carregados como base da simulação</span>';
+    h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem;margin-left:auto">Patrimônio final: <strong style="color:#3ddc84">'+M(sfAno)+'</strong></span>';
+    if(ptAno>0)h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem">Proventos '+ano+': <strong style="color:#3ddc84">'+M(ptAno)+'</strong></span>';
+    h+='</div>';
+  }
+
+  // ── Card retrátil de inputs (só taxa mensal) ──
+  h+='<div class="calc-card open" id="calc-input-card">';
+  h+='<div class="calc-card-head" onclick="toggleCalcCard()">';
+  h+='<div class="calc-card-title">';
+  h+='<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="1" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="1" y="9" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><path d="M9 12h6M12 9v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  h+='<span>Parâmetros da Simulação</span>';
+  h+='</div>';
+  h+='<div style="display:flex;align-items:center;gap:12px">';
+  h+='<div class="calc-preview" id="calc-chips"></div>';
+  h+='<svg class="calc-card-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  h+='</div>';
+  h+='</div>'; // calc-card-head
+  h+='<div class="calc-card-body">';
+  h+='<div class="calc-card-inner">';
+
+  // Capital inicial
+  h+='<div class="calc-field"><label>Capital Inicial (R$)</label>';
+  h+='<input id="ci-capital" type="number" min="0" value="'+capitalCalcAno.toFixed(2)+'" oninput="calcJuros()"/>';
+  if(anoJaFechou&&capitalCalcAno>0){
+    h+='<span class="calc-hint">Patrimônio real dez/'+ano+': '+M(capitalCalcAno)+'</span>';
+  } else if(totMkt>0){
+    h+='<span class="calc-hint">Carteira atual: '+M(totMkt)+'</span>';
+  }
+  h+='</div>';
+
+  // Aporte mensal
+  h+='<div class="calc-field"><label>Aporte Mensal (R$)</label>';
+  h+='<input id="ci-aporte" type="number" min="0" value="0" oninput="calcJuros()"/>';
+  h+='</div>';
+
+  // Taxa de juros + toggle mensal/anual
+  h+='<div class="calc-field">';
+  h+='<label>Taxa de Juros (%)</label>';
+  h+='<input id="ci-taxa" type="number" min="0" step="0.01" value="'+taxaSugAno.toFixed(4)+'" oninput="calcJuros()"/>';
+  h+=(taxaSugAno>0?'<span class="calc-hint">DY último mês: '+taxaSugAno.toFixed(4)+'%</span>':'');
+  h+='</div>';
+
+  // Período
+  h+='<div class="calc-field"><label>Período (meses)</label>';
+  h+='<input id="ci-meses" type="number" min="1" value="120" oninput="calcJuros()"/>';
+  h+='<span class="calc-hint" id="periodo-hint">= 10 anos</span>';
+  h+='</div>';
+
+  // Toggle mensal / anual
+  h+='<div class="calc-toggle-row">';
+  h+='<label>Tipo de taxa</label>';
+  h+='<div class="calc-toggle">';
+  h+='<button id="btn-mensal" class="on" onclick="setTipoTaxa(\'mensal\')">Mensal</button>';
+  h+='<button id="btn-anual" onclick="setTipoTaxa(\'anual\')">Anual</button>';
+  h+='</div>';
+  h+='<span style="font-family:\'DM Mono\',monospace;font-size:.65rem;color:var(--muted)" id="taxa-equiv">'+(taxaSugAno>0?'≈ '+((Math.pow(1+taxaSugAno/100,12)-1)*100).toFixed(2)+'% a.a.':'')+'</span>';
+  h+='</div>';
+
+  h+='</div></div></div>'; // calc-card-inner / calc-card-body / calc-card
+
+  // Resultados KPIs
+  h+='<div id="calc-results"></div>';
+
+  // Gráfico projetado
+  h+='<div class="chart-box" id="calc-chart-box" style="display:none">';
+  h+='<div class="chart-ttl">Evolução Patrimonial Projetada</div>';
+  h+='<div style="height:260px"><canvas id="cvCalc"></canvas></div>';
+  h+='</div>';
+
+  // Tabela de projeção
+  h+='<div class="chart-box" id="calc-tbl-box" style="display:none">';
+  h+='<div class="chart-ttl">Projeção Ano a Ano</div>';
+  h+='<div class="calc-tbl-wrap"><table class="calc-tbl" id="calc-tbl"></table></div>';
+  h+='</div>';
+
+  // ── HISTÓRICO REAL (anos fechados disponíveis) ──
+  if(anosHist.length>0){
+    h+='<div class="chart-box" id="calc-hist-box">';
+    h+='<div class="chart-ttl">Histórico Real — Patrimônio & Proventos</div>';
+    h+='<div class="calc-tbl-wrap"><table class="calc-tbl" id="calc-hist-tbl">';
+    h+='<thead><tr>';
+    h+='<th>Ano</th><th>Patrimônio Final</th><th>Proventos Totais</th><th>DY Anual</th><th>Variação Pat.</th>';
+    h+='</tr></thead><tbody>';
+    var patAnterior=0;
+    anosHist.forEach(function(a){
+      var sf=saldoFinalAno(a);
+      var pt=provTotalAno(a);
+      var dy=sf>0?(pt/sf)*100:0;
+      var varPat=(patAnterior>0?((sf/patAnterior-1)*100):null);
+      var varStr=varPat===null?'—':(varPat>=0?'<span style="color:#3ddc84">▲ '+varPat.toFixed(1)+'%</span>':'<span style="color:var(--red)">▼ '+Math.abs(varPat).toFixed(1)+'%</span>');
+      var fechado=(a<anoAtualReal);
+      h+='<tr>';
+      h+='<td>'+(fechado?'<span style="color:var(--muted)">✓</span> ':'')+a+'</td>';
+      h+='<td style="font-weight:600">'+M(sf)+'</td>';
+      h+='<td class="g">'+M(pt)+'</td>';
+      h+='<td class="g">'+(dy>0?dy.toFixed(2)+'%':'—')+'</td>';
+      h+='<td>'+varStr+'</td>';
+      h+='</tr>';
+      patAnterior=sf;
+    });
+    h+='</tbody></table></div>';
+    h+='</div>'; // calc-hist-box
+  }
+
+  h+='<div class="calc-empty" id="calc-empty" style="display:none">';
+  h+='<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="22" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M22 29h16M30 22v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  h+='Preencha os parâmetros acima para simular</div>';
+
+  h+='</div>'; // calc-wrap
+  h+='</div>'; // fim tab-calc
 
   document.getElementById('content').innerHTML=h;
   requestAnimationFrame(function(){
     drawEvol(SEG_EVOL['__TOTAL__'],ano,SEG_EVOL);
     drawBarPie(pv);
-    if(abaAtiva==='metas')calcMetas();
+    _tipoTaxa='mensal'; // view de ano: sempre mensal
+    setTimeout(function(){calcJuros();},80);
   });
 }
 
@@ -1622,9 +1795,6 @@ function viewTodos(c){
   h+='<button class="tab-btn'+calcBtnCls+'" onclick="switchTab(\'calc\')">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="4" height="4" rx=".8" stroke="currentColor" stroke-width="1.3"/><path d="M9 11h4M11 9v4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
   h+=' Calculadora</button>';
-  h+='<button class="tab-btn'+(abaAtiva==='metas'?' tab-on':'')+'" onclick="switchTab(\'metas\')">';
-  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  h+=' Metas</button>';
   h+='</div>';
 
   // ── KPIs da carteira vão DENTRO da aba carteira ──
@@ -1728,13 +1898,136 @@ function viewTodos(c){
   h+='<td>'+M(totProv)+'</td></tr></tfoot></table></div></div>';
   h+='</div>'; // fim tab-proventos
 
-  // ── ABA METAS (modo histórico) ──
-  // Última renda: pegar do ano mais recente
-  var rendUltMetaH=0;
-  var pvUltH=(DADOS[anoUlt]&&DADOS[anoUlt].prov&&DADOS[anoUlt].prov[c])||{tot:Array(12).fill(0)};
-  var mesHoje=new Date().getMonth();
-  for(var mi3=mesHoje;mi3>=0;mi3--){if(pvUltH.tot[mi3]>0){rendUltMetaH=pvUltH.tot[mi3];break;}}
-  h+=buildTabMetas(c,totMkt,rendUltMetaH,abaAtiva);
+  // ── ABA CALCULADORA (viewTodos) ── idêntica ao viewAno
+  var anoAtualRealT=new Date().getFullYear();
+  // Para viewTodos: usa último ano disponível com dados como referência
+  var anosComDados=Object.keys(DADOS).map(Number).sort().filter(function(a){return (DADOS[a].pat[c]||[]).length>0;});
+  var ultimoAnoT=anosComDados.length>0?anosComDados[anosComDados.length-1]:0;
+
+  function saldoFinalAnoT(a){
+    var ev=(DADOS[a]&&DADOS[a].evol&&DADOS[a].evol[c])||Array(12).fill(0);
+    for(var i=11;i>=0;i--){if(ev[i]>0)return ev[i];}return 0;
+  }
+  function provTotalAnoT(a){
+    var pva=(DADOS[a]&&DADOS[a].prov&&DADOS[a].prov[c])||{tot:Array(12).fill(0)};
+    return (pva.tot||Array(12).fill(0)).reduce(function(s,v){return s+v;},0);
+  }
+
+  var capitalCalcT=(totMkt||0);
+  var taxaSugT=(dyUltAnoPct>0?(dyUltAnoPct/12):0);
+
+  h+='<div id="tab-calc" class="tab-pane'+(abaAtiva==='calc'?'':' tab-hidden')+'">';
+  h+='<div class="sec-head"><h3>Calculadora de Juros Compostos</h3><span class="tag">consolidado · todos os anos</span></div>';
+  h+='<div class="calc-wrap">';
+
+  // Banner com resumo consolidado
+  if(totMkt>0){
+    h+='<div style="background:rgba(61,220,132,.07);border:1px solid rgba(61,220,132,.25);border-radius:10px;padding:14px 18px;display:flex;flex-wrap:wrap;gap:16px;align-items:center">';
+    h+='<svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="color:#3ddc84;flex-shrink:0"><circle cx="9" cy="9" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M9 5v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem;color:var(--muted)">Dados consolidados de <strong style="color:var(--text)">todos os anos</strong> carregados como base</span>';
+    h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem;margin-left:auto">Patrimônio atual: <strong style="color:#3ddc84">'+M(totMkt)+'</strong></span>';
+    if(dyUltAnoPct>0)h+='<span style="font-family:\'DM Mono\',monospace;font-size:.72rem">DY anual: <strong style="color:#3ddc84">'+dyUltAnoPct.toFixed(2)+'%</strong></span>';
+    h+='</div>';
+  }
+
+  // Card retrátil
+  h+='<div class="calc-card open" id="calc-input-card">';
+  h+='<div class="calc-card-head" onclick="toggleCalcCard()">';
+  h+='<div class="calc-card-title">';
+  h+='<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="1" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="1" y="9" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><path d="M9 12h6M12 9v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  h+='<span>Parâmetros da Simulação</span>';
+  h+='</div>';
+  h+='<div style="display:flex;align-items:center;gap:12px">';
+  h+='<div class="calc-preview" id="calc-chips"></div>';
+  h+='<svg class="calc-card-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  h+='</div>';
+  h+='</div>';
+  h+='<div class="calc-card-body">';
+  h+='<div class="calc-card-inner">';
+
+  // Capital inicial
+  h+='<div class="calc-field"><label>Capital Inicial (R$)</label>';
+  h+='<input id="ci-capital" type="number" min="0" value="'+capitalCalcT.toFixed(2)+'" oninput="calcJuros()"/>';
+  if(totMkt>0)h+='<span class="calc-hint">Carteira atual: '+M(totMkt)+'</span>';
+  h+='</div>';
+
+  // Aporte mensal
+  h+='<div class="calc-field"><label>Aporte Mensal (R$)</label>';
+  h+='<input id="ci-aporte" type="number" min="0" value="0" oninput="calcJuros()"/>';
+  h+='</div>';
+
+  // Taxa de juros
+  h+='<div class="calc-field">';
+  h+='<label>Taxa de Juros (%)</label>';
+  h+='<input id="ci-taxa" type="number" min="0" step="0.01" value="'+taxaSugT.toFixed(4)+'" oninput="calcJuros()"/>';
+  if(taxaSugT>0)h+='<span class="calc-hint">DY anual ÷ 12: '+taxaSugT.toFixed(4)+'%</span>';
+  h+='</div>';
+
+  // Período
+  h+='<div class="calc-field"><label>Período (meses)</label>';
+  h+='<input id="ci-meses" type="number" min="1" value="120" oninput="calcJuros()"/>';
+  h+='<span class="calc-hint" id="periodo-hint">= 10 anos</span>';
+  h+='</div>';
+
+  // Toggle mensal / anual
+  h+='<div class="calc-toggle-row">';
+  h+='<label>Tipo de taxa</label>';
+  h+='<div class="calc-toggle">';
+  h+='<button id="btn-mensal" class="on" onclick="setTipoTaxa(\'mensal\')">Mensal</button>';
+  h+='<button id="btn-anual" onclick="setTipoTaxa(\'anual\')">Anual</button>';
+  h+='</div>';
+  h+='<span style="font-family:\'DM Mono\',monospace;font-size:.65rem;color:var(--muted)" id="taxa-equiv">'+(taxaSugT>0?'≈ '+((Math.pow(1+taxaSugT/100,12)-1)*100).toFixed(2)+'% a.a.':'')+'</span>';
+  h+='</div>';
+
+  h+='</div></div></div>'; // calc-card-inner / calc-card-body / calc-card
+
+  // Resultados KPIs
+  h+='<div id="calc-results"></div>';
+
+  // Gráfico projetado
+  h+='<div class="chart-box" id="calc-chart-box" style="display:none">';
+  h+='<div class="chart-ttl">Evolução Patrimonial Projetada</div>';
+  h+='<div style="height:260px"><canvas id="cvCalc"></canvas></div>';
+  h+='</div>';
+
+  // Tabela de projeção
+  h+='<div class="chart-box" id="calc-tbl-box" style="display:none">';
+  h+='<div class="chart-ttl">Projeção Ano a Ano</div>';
+  h+='<div class="calc-tbl-wrap"><table class="calc-tbl" id="calc-tbl"></table></div>';
+  h+='</div>';
+
+  // Histórico real de todos os anos disponíveis
+  if(anosComDados.length>0){
+    h+='<div class="chart-box" id="calc-hist-box">';
+    h+='<div class="chart-ttl">Histórico Real — Patrimônio & Proventos</div>';
+    h+='<div class="calc-tbl-wrap"><table class="calc-tbl" id="calc-hist-tbl">';
+    h+='<thead><tr><th>Ano</th><th>Patrimônio Final</th><th>Proventos Totais</th><th>DY Anual</th><th>Variação Pat.</th></tr></thead><tbody>';
+    var patAntT=0;
+    anosComDados.forEach(function(a){
+      var sf=saldoFinalAnoT(a);
+      var pt=provTotalAnoT(a);
+      var dy=sf>0?(pt/sf)*100:0;
+      var varPat=(patAntT>0?((sf/patAntT-1)*100):null);
+      var varStr=varPat===null?'—':(varPat>=0?'<span style="color:#3ddc84">▲ '+varPat.toFixed(1)+'%</span>':'<span style="color:var(--red)">▼ '+Math.abs(varPat).toFixed(1)+'%</span>');
+      var fechado=(a<anoAtualRealT);
+      h+='<tr>';
+      h+='<td>'+(fechado?'<span style="color:var(--muted)">✓</span> ':'')+a+'</td>';
+      h+='<td style="font-weight:600">'+M(sf)+'</td>';
+      h+='<td class="g">'+M(pt)+'</td>';
+      h+='<td class="g">'+(dy>0?dy.toFixed(2)+'%':'—')+'</td>';
+      h+='<td>'+varStr+'</td>';
+      h+='</tr>';
+      patAntT=sf;
+    });
+    h+='</tbody></table></div>';
+    h+='</div>'; // calc-hist-box
+  }
+
+  h+='<div class="calc-empty" id="calc-empty" style="display:none">';
+  h+='<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="4" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="22" y="4" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="22" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M22 29h16M30 22v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  h+='Preencha os parâmetros acima para simular</div>';
+
+  h+='</div></div>'; // calc-wrap + tab-calc
 
   document.getElementById('content').innerHTML=h;
 
@@ -1771,12 +2064,13 @@ function viewTodos(c){
     drawRoscaHist(_histC,null);
 
     // Restore correct tab visibility
+    _tipoTaxa='mensal';
+    setTimeout(function(){calcJuros();},100);
     if(abaAtiva==='carteira'){
       if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';pP.classList.add('tab-hidden');}
-    }else if(abaAtiva==='metas'){
+    }else if(abaAtiva==='calc'){
       if(pC)pC.classList.add('tab-hidden');
       if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';pP.classList.add('tab-hidden');}
-      calcMetas();
     }else{
       if(pC)pC.classList.add('tab-hidden');
       if(pP){pP.style.visibility='';pP.style.position='';pP.style.top='';}
@@ -2284,13 +2578,11 @@ function switchTab(aba){
   var pC=document.getElementById('tab-carteira');
   var pP=document.getElementById('tab-proventos');
   var pK=document.getElementById('tab-calc');
-  var pM=document.getElementById('tab-metas');
   if(pC)pC.classList.toggle('tab-hidden',aba!=='carteira');
   if(pP)pP.classList.toggle('tab-hidden',aba!=='proventos');
   if(pK)pK.classList.toggle('tab-hidden',aba!=='calc');
-  if(pM)pM.classList.toggle('tab-hidden',aba!=='metas');
   document.querySelectorAll('.tab-btn').forEach(function(btn,i){
-    var abas=['carteira','proventos','calc','metas'];
+    var abas=['carteira','proventos','calc'];
     btn.classList.toggle('tab-on',abas[i]===aba);
   });
   setTimeout(function(){
@@ -2314,9 +2606,6 @@ function switchTab(aba){
     }
     if(aba==='calc'){
       setTimeout(function(){renderCalcChart();},80);
-    }
-    if(aba==='metas'){
-      calcMetas();
     }
   },60);
 }
@@ -2589,8 +2878,7 @@ function rebuscarTudo(){
   Promise.all([
     fetch(URLS.AT+t,opts).then(function(r){return r.text();}),
     fetch(URLS.PA+t,opts).then(function(r){return r.text();}),
-    fetch(URLS.DI+t,opts).then(function(r){return r.text();}),
-    fetch(URLS.MT+t,opts).then(function(r){return r.text();})
+    fetch(URLS.DI+t,opts).then(function(r){return r.text();})
   ]).then(function(txts){
     var mudou=false;
     // Valida CSV real
@@ -2606,11 +2894,6 @@ function rebuscarTudo(){
       var novoDi=parseCSV(txts[2]);
       if(JSON.stringify(novoDi)!==JSON.stringify(RAW.di)){RAW.di=novoDi;mudou=true;}
     }
-    if(txts[3]&&txts[3].indexOf('<html')<0&&txts[3].trim().length>0){
-      var novoMt=parseCSV(txts[3]);
-      if(JSON.stringify(novoMt)!==JSON.stringify(RAW.mt)){RAW.mt=novoMt;mudou=true;}
-    }
-    parseMetas();
     // Sempre reprocessa para refletir preços atuais mesmo sem mudança de movs
     processarEAtualizar();
     if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
@@ -2637,13 +2920,11 @@ function rebuscarAposLancamento(linhasAntes,tentativas){
   Promise.all([
     fetch(URLS.AT+t,opts).then(function(r){return r.text();}),
     fetch(URLS.PA+t,opts).then(function(r){return r.text();}),
-    fetch(URLS.DI+t,opts).then(function(r){return r.text();}),
-    fetch(URLS.MT+t,opts).then(function(r){return r.text();})
+    fetch(URLS.DI+t,opts).then(function(r){return r.text();})
   ]).then(function(txts){
     var atOk=txts[0]&&txts[0].indexOf('<html')<0&&txts[0].trim().length>0;
     var paOk=txts[1]&&txts[1].indexOf('<html')<0&&txts[1].trim().length>0;
     var diOk=txts[2]&&txts[2].indexOf('<html')<0&&txts[2].trim().length>0;
-    var mtOk=txts[3]&&txts[3].indexOf('<html')<0&&txts[3].trim().length>0;
     var novoPa=paOk?parseCSV(txts[1]):null;
     // Verifica se a nova linha já está presente
     if(novoPa&&novoPa.length>linhasAntes){
@@ -2651,7 +2932,6 @@ function rebuscarAposLancamento(linhasAntes,tentativas){
       if(atOk)RAW.at=parseCSV(txts[0]);
       RAW.pa=novoPa;
       if(diOk)RAW.di=parseCSV(txts[2]);
-      if(mtOk){RAW.mt=parseCSV(txts[3]);parseMetas();}
       processarEAtualizar();
       if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
       if(meta)meta.textContent='Atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -2664,7 +2944,6 @@ function rebuscarAposLancamento(linhasAntes,tentativas){
       if(atOk)RAW.at=parseCSV(txts[0]);
       if(paOk)RAW.pa=novoPa;
       if(diOk)RAW.di=parseCSV(txts[2]);
-      if(mtOk){RAW.mt=parseCSV(txts[3]);parseMetas();}
       processarEAtualizar();
       if(dot){dot.style.background='var(--accent)';dot.style.opacity='.5';}
     }
@@ -2730,363 +3009,240 @@ function processarEAtualizar(){
 
 /* ── CALCULADORA DE JUROS COMPOSTOS ─────── */
 var cCalc=null;
+var _tipoTaxa='mensal'; // 'mensal' | 'anual'
+
+function toggleCalcCard(){
+  var card=document.getElementById('calc-input-card');
+  if(!card)return;
+  card.classList.toggle('open');
+  atualizarChips();
+}
+
+function atualizarChips(){
+  var card=document.getElementById('calc-input-card');
+  var chips=document.getElementById('calc-chips');
+  if(!card||!chips)return;
+  if(card.classList.contains('open')){chips.innerHTML='';return;}
+  var capital=parseFloat((document.getElementById('ci-capital')||{}).value)||0;
+  var aporte =parseFloat((document.getElementById('ci-aporte')||{}).value)||0;
+  var taxa   =parseFloat((document.getElementById('ci-taxa')||{}).value)||0;
+  var meses  =parseInt((document.getElementById('ci-meses')||{}).value)||0;
+  var tipo=_tipoTaxa==='anual'?'a.a.':'a.m.';
+  chips.innerHTML=
+    '<div class="calc-chip">Capital <span>'+M(capital)+'</span></div>'+
+    '<div class="calc-chip">Aporte <span>'+M(aporte)+'/mês</span></div>'+
+    '<div class="calc-chip">Taxa <span>'+taxa+'% '+tipo+'</span></div>'+
+    '<div class="calc-chip">Período <span>'+meses+' meses</span></div>';
+}
+
+function setTipoTaxa(tipo){
+  _tipoTaxa=tipo;
+  var bM=document.getElementById('btn-mensal');
+  var bA=document.getElementById('btn-anual');
+  if(bM){bM.className=tipo==='mensal'?'on':'';}
+  if(bA){bA.className=tipo==='anual'?'on':'';}
+  calcJuros();
+}
+
 function calcJuros(){
-  var capital=parseFloat(document.getElementById('ci-capital').value)||0;
-  var aporte =parseFloat(document.getElementById('ci-aporte').value)||0;
-  var taxa   =parseFloat(document.getElementById('ci-taxa').value)||0;
-  var meses  =parseInt(document.getElementById('ci-meses').value)||0;
-  if(!meses||taxa<0)return;
-  var t=taxa/100;
-  // Juros compostos com aporte: M = C*(1+t)^n + A*((1+t)^n - 1)/t
-  var evolucao=[];
+  var elCap=document.getElementById('ci-capital');
+  var elAp =document.getElementById('ci-aporte');
+  var elTx =document.getElementById('ci-taxa');
+  var elMs =document.getElementById('ci-meses');
+  if(!elCap||!elAp||!elTx||!elMs){return;}
+  var capital=parseFloat(elCap.value)||0;
+  var aporte =parseFloat(elAp.value)||0;
+  var taxaInp=parseFloat(elTx.value)||0;
+  var meses  =parseInt(elMs.value)||120;
+
+  // Converte taxa para mensal sempre
+  var tMes;
+  if(_tipoTaxa==='anual'){
+    tMes=Math.pow(1+taxaInp/100,1/12)-1;
+  } else {
+    tMes=taxaInp/100;
+  }
+  // Equivalente inverso para mostrar no hint
+  var tAnual=(Math.pow(1+tMes,12)-1)*100;
+  var tMesEq=tMes*100;
+  var equiv=document.getElementById('taxa-equiv');
+  if(equiv){
+    if(_tipoTaxa==='anual'){
+      equiv.textContent='≈ '+tMesEq.toFixed(4)+'% a.m.';
+    } else {
+      equiv.textContent='≈ '+tAnual.toFixed(2)+'% a.a.';
+    }
+  }
+
+  var phint=document.getElementById('periodo-hint');
+  if(phint&&meses>0){var anosH=Math.floor(meses/12);var mRH=meses%12;phint.textContent='= '+(anosH>0?anosH+' ano'+(anosH>1?'s':'')+(mRH>0?' e '+mRH+'m':''):(mRH+'m'));}
+  if(!meses||meses<1){return;}
+
+  // Se não há capital nem aporte, mostra o card mas sem projeção
+  var semDados=(capital===0&&aporte===0);
+  var empty=document.getElementById('calc-empty');
+  var chartBox=document.getElementById('calc-chart-box');
+  var tblBox=document.getElementById('calc-tbl-box');
+  if(semDados){
+    if(empty)empty.style.display='';
+    if(chartBox)chartBox.style.display='none';
+    if(tblBox)tblBox.style.display='none';
+    var res2=document.getElementById('calc-results');
+    if(res2)res2.innerHTML='';
+    atualizarChips();
+    return;
+  }
+
+  // Simulação mês a mês
   var saldo=capital;
   var totalAportado=capital;
   var totalJuros=0;
-  var rendMensal=0;
+  var tblAnos=[];
+  var saldoIniAno=capital;
+  var jurosAno=0;
+  var aporteAno=0;
+
   for(var i=1;i<=meses;i++){
-    var juros=saldo*t;
+    var juros=saldo*tMes;
     totalJuros+=juros;
-    saldo=saldo*(1+t)+aporte;
-    totalAportado+=(i>1?aporte:0);
-    rendMensal=juros;
-    if(i%12===0||i===meses)evolucao.push({m:i,v:saldo});
+    jurosAno+=juros;
+    saldo=saldo+juros+aporte;
+    if(i>1){totalAportado+=aporte;aporteAno+=aporte;}
+    // Fechar ano
+    if(i%12===0||i===meses){
+      tblAnos.push({
+        ano:Math.ceil(i/12),
+        mes:i,
+        saldo:saldo,
+        totalAportado:totalAportado,
+        jurosAno:jurosAno,
+        aporteAno:aporteAno,
+        rendaMes:saldo*tMes
+      });
+      jurosAno=0;aporteAno=0;saldoIniAno=saldo;
+    }
   }
+
   var totalFinal=saldo;
-  var ganho=totalFinal-totalAportado;
-  var rendAnual=capital>0?((Math.pow(1+t,12)-1)*100):0;
-  var rendaMensalFinal=totalFinal*t;
-  // Resultados
+  var rendaMensalFinal=totalFinal*tMes;
+  var retorno=totalAportado>0?((totalFinal/totalAportado-1)*100):0;
+  var multiplicador=totalAportado>0?(totalFinal/totalAportado):1;
+
+  // Ocultar empty, mostrar sections
+  var empty=document.getElementById('calc-empty');
+  var chartBox=document.getElementById('calc-chart-box');
+  var tblBox=document.getElementById('calc-tbl-box');
+  if(empty)empty.style.display='none';
+  if(chartBox)chartBox.style.display='';
+  if(tblBox)tblBox.style.display='';
+
+  // KPIs de resultado
   var res=document.getElementById('calc-results');
   if(res){
-    res.innerHTML=''
-      +ck2('Montante Final',M(totalFinal),'')
-      +ck2('Total Investido',M(totalAportado),'capital + aportes')
-      +ck2('Total em Juros',M(totalJuros),ganho>=0?'':'red')
-      +ck2('Renda Mensal Final',M(rendaMensalFinal),'no '+meses+'° mês')
-      +ck2('Taxa Anual Equiv.',rendAnual.toFixed(2)+'%','juros sobre juros')
-      +ck2('Retorno Total',((totalFinal/totalAportado-1)*100).toFixed(2)+'%','sobre total investido');
+    res.innerHTML='<div class="calc-kpi-grid">'
+      +ck2('Montante Final',M(totalFinal),'','hi')
+      +ck2('Total Investido',M(totalAportado),'capital + aportes','')
+      +ck2('Juros Acumulados',M(totalJuros),'dinheiro trabalhando','')
+      +ck2('Renda Mensal Final',M(rendaMensalFinal),'no '+meses+'° mês','')
+      +ck2('Taxa Anual Equiv.',tAnual.toFixed(2)+'%','juros sobre juros','')
+      +ck2('Multiplicador',multiplicador.toFixed(2)+'×',retorno.toFixed(1)+'% de retorno','')
+      +'</div>';
   }
+
+  // Tabela anual
+  var tbl=document.getElementById('calc-tbl');
+  if(tbl){
+    var th='<thead><tr>'
+      +'<th>Ano</th>'
+      +'<th>Mês</th>'
+      +'<th>Aportes no Ano</th>'
+      +'<th>Juros no Ano</th>'
+      +'<th>Total Investido</th>'
+      +'<th>Montante</th>'
+      +'<th>Renda Mensal</th>'
+      +'</tr></thead>';
+    var tb='<tbody>';
+    tblAnos.forEach(function(r){
+      tb+='<tr>'
+        +'<td>'+r.ano+'°</td>'
+        +'<td>'+r.mes+'</td>'
+        +'<td>'+M(r.aporteAno)+'</td>'
+        +'<td class="g">'+M(r.jurosAno)+'</td>'
+        +'<td>'+M(r.totalAportado)+'</td>'
+        +'<td style="font-weight:600">'+M(r.saldo)+'</td>'
+        +'<td class="g">'+M(r.rendaMes)+'</td>'
+        +'</tr>';
+    });
+    tb+='</tbody>';
+    var tf='<tfoot><tr>'
+      +'<td colspan="2">TOTAL</td>'
+      +'<td>'+M(totalAportado-capital)+'</td>'
+      +'<td>'+M(totalJuros)+'</td>'
+      +'<td>'+M(totalAportado)+'</td>'
+      +'<td>'+M(totalFinal)+'</td>'
+      +'<td>'+M(rendaMensalFinal)+'</td>'
+      +'</tr></tfoot>';
+    tbl.innerHTML=th+tb+tf;
+  }
+
   // Gráfico
-  renderCalcChart(capital,aporte,t,meses);
+  _renderCalcChart(capital,aporte,tMes,meses);
+  atualizarChips();
 }
-function ck2(lbl,val,sub){
-  return '<div class="calc-kpi"><div class="calc-kpi-lbl">'+lbl+'</div>'
-    +'<div class="calc-kpi-val">'+val+'</div>'
+
+function ck2(lbl,val,sub,cls){
+  return '<div class="calc-kpi '+(cls||'')+'">'
+    +'<div class="calc-kpi-lbl">'+lbl+'</div>'
+    +'<div class="calc-kpi-val '+(cls==='hi'?'g':'')+'">' +val+'</div>'
     +(sub?'<div class="calc-kpi-sub">'+sub+'</div>':'')
     +'</div>';
 }
-function renderCalcChart(capital,aporte,t,meses){
-  if(cCalc)cCalc.destroy();
+
+function _renderCalcChart(capital,aporte,tMes,meses){
+  if(cCalc){cCalc.destroy();cCalc=null;}
   var ctx=document.getElementById('cvCalc');if(!ctx)return;
-  var lbls=[],vSaldo=[],vAport=[];
-  var saldo=capital,totalAportado=capital;
+  var lbls=[],vSaldo=[],vAport=[],vJuros=[];
+  var saldo=capital,totalAportado=capital,totalJuros=0;
+  var step=Math.max(1,Math.round(meses/36));
   for(var i=1;i<=meses;i++){
-    saldo=saldo*(1+t)+aporte;
-    totalAportado+=(i>1?aporte:0);
-    if(i%Math.max(1,Math.round(meses/24))===0||i===meses){
-      lbls.push(i>11?(Math.floor(i/12)+'a '+(i%12?i%12+'m':'')):i+'m');
+    var j=saldo*tMes;
+    totalJuros+=j;
+    saldo=saldo+j+aporte;
+    if(i>1)totalAportado+=aporte;
+    if(i%step===0||i===meses){
+      lbls.push(i>=12?(Math.round(i/12)+'a'):i+'m');
       vSaldo.push(+saldo.toFixed(2));
       vAport.push(+totalAportado.toFixed(2));
+      vJuros.push(+totalJuros.toFixed(2));
     }
   }
   var cc=chartColors();
   cCalc=new Chart(ctx,{
     type:'line',
     data:{labels:lbls,datasets:[
-      {label:'Montante',data:vSaldo,borderColor:'#3ddc84',backgroundColor:'rgba(61,220,132,.08)',fill:true,tension:.35,pointRadius:2,borderWidth:2},
-      {label:'Investido',data:vAport,borderColor:'#4da6ff',backgroundColor:'rgba(77,166,255,.06)',fill:true,tension:.35,pointRadius:2,borderWidth:1.5,borderDash:[4,3]}
+      {label:'Montante',data:vSaldo,borderColor:'#3ddc84',backgroundColor:'rgba(61,220,132,.08)',fill:true,tension:.35,pointRadius:0,borderWidth:2.5},
+      {label:'Total Investido',data:vAport,borderColor:'#4da6ff',backgroundColor:'rgba(77,166,255,.05)',fill:true,tension:.35,pointRadius:0,borderWidth:1.5,borderDash:[5,4]},
+      {label:'Juros Acumulados',data:vJuros,borderColor:'#ffb347',backgroundColor:'rgba(255,179,71,.04)',fill:false,tension:.35,pointRadius:0,borderWidth:1.5,borderDash:[2,4]}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:cc.tc,font:{size:11}}},
-        tooltip:{callbacks:{label:function(ct){return ct.dataset.label+': '+M(ct.parsed.y);}}}},
+      plugins:{
+        legend:{labels:{color:cc.tc,font:{size:11},boxWidth:14}},
+        tooltip:{callbacks:{label:function(ct){return ct.dataset.label+': '+M(ct.parsed.y);}}}
+      },
       scales:{
-        x:{grid:{color:cc.gc},ticks:{color:cc.tc,maxTicksLimit:12}},
+        x:{grid:{color:cc.gc},ticks:{color:cc.tc,maxTicksLimit:14}},
         y:{grid:{color:cc.gc},ticks:{color:cc.tc,callback:function(v){return M(v);}},beginAtZero:false}
       }
     }
   });
 }
-// Alias: chamado pelo switchTab
+
+// Alias chamado pelo switchTab — sempre executa
 function renderCalcChart(){
-  var capital=parseFloat((document.getElementById('ci-capital')||{}).value)||0;
-  var aporte =parseFloat((document.getElementById('ci-aporte')||{}).value)||0;
-  var taxa   =parseFloat((document.getElementById('ci-taxa')||{}).value)||0;
-  var meses  =parseInt((document.getElementById('ci-meses')||{}).value)||120;
-  if(capital>0)calcJuros();
+  calcJuros();
 }
 
 function silentRefresh(){rebuscarTudo();}
-
-/* ── PARSER BASE_METAS ────────────────────────
-   Colunas esperadas: [0] Cliente | [1] TipoMeta | [2] ValorMeta
-   TipoMeta: 'Patrimônio' ou 'Renda'
-────────────────────────────────────────────── */
-function parseMetas(){
-  METAS={};
-  for(var i=1;i<RAW.mt.length;i++){
-    var row=RAW.mt[i];
-    if(!row||!row[0])continue;
-    var cli=(row[0]||'').trim();
-    var tipo=(row[1]||'').trim();
-    var valor=n(row[2]);
-    if(!cli||!tipo||!valor)continue;
-    METAS[cli.toUpperCase()]={tipo:tipo,valor:valor};
-  }
-}
-
-/* ── BUILD ABA METAS ──────────────────────────
-   Retorna o HTML completo da aba Metas para
-   ser inserido dentro do tabs-bar context.
-   totMkt   = valor de mercado atual da carteira
-   rendUlt  = última renda mensal apurada de proventos
-────────────────────────────────────────────── */
-function buildTabMetas(c,totMkt,rendUlt,abaAtiva){
-  var metaObj=METAS[(c||'').toUpperCase()]||null;
-  var tipoSalvo=metaObj?metaObj.tipo:'Patrimônio';
-  var valorSalvo=metaObj?metaObj.valor:0;
-  var temMeta=!!(metaObj&&metaObj.valor>0);
-
-  var h='<div id="tab-metas" class="tab-pane'+(abaAtiva==='metas'?'':' tab-hidden')+'">';
-
-  // ── Cabeçalho da aba ──
-  h+='<div class="sec-head" style="justify-content:space-between">';
-  h+='<div style="display:flex;align-items:center;gap:10px"><h3>Metas</h3>';
-  h+='<span class="tag">'+(temMeta?tipoSalvo:'sem meta')+'</span></div>';
-  h+='<button class="btn-lancar-meta" id="btn-toggle-meta" onclick="toggleMetaForm()">';
-  h+='🎯 Lançar Nova Meta</button>';
-  h+='</div>';
-
-  // ── Formulário colapsável (oculto por padrão) ──
-  h+='<div class="meta-form-panel" id="meta-form-panel">';
-
-  // Linha 1: tipo + valor alvo
-  h+='<div class="meta-form-row">';
-  h+='<div class="meta-field"><label>Tipo de Meta</label>';
-  h+='<select id="meta-tipo" onchange="calcMetas()">';
-  h+='<option value="Patrimônio"'+(tipoSalvo==='Patrimônio'?' selected':'')+'>Patrimônio</option>';
-  h+='<option value="Renda"'+(tipoSalvo==='Renda'?' selected':'')+'>Renda Mensal</option>';
-  h+='</select></div>';
-
-  h+='<div class="meta-field"><label>Valor Alvo (R$)</label>';
-  h+='<input id="meta-valor" type="number" min="0" step="100" value="'+(valorSalvo||0)+'" oninput="calcMetas()"/>';
-  h+='<span class="meta-hint" id="meta-hint">'+(temMeta?'Meta carregada da base de dados':'Defina um valor e clique em salvar')+'</span>';
-  h+='</div>';
-  h+='</div>'; // fim meta-form-row
-
-  // Botão salvar + feedback
-  h+='<button class="btn-salvar-meta" id="btn-salvar-meta" onclick="salvarMeta()">💾 Salvar Nova Meta</button>';
-  h+='<div class="meta-msg" id="meta-msg"></div>';
-  h+='</div>'; // fim meta-form-panel
-
-  // ── Lista vertical de objetivos ──
-  h+='<div class="meta-objetivos" id="meta-objetivos">';
-  if(temMeta){
-    // Card gerado pelo JS ao carregar — renderMetaCard() faz o HTML
-    h+=buildMetaCard(tipoSalvo,valorSalvo,totMkt,rendUlt);
-  }else{
-    h+='<div class="meta-empty-card">';
-    h+='<div style="font-size:2rem;opacity:.25">🎯</div>';
-    h+='<p>Nenhuma meta definida ainda.<br>Clique em <strong>Lançar Nova Meta</strong> para começar.</p>';
-    h+='</div>';
-  }
-  h+='</div>'; // fim meta-objetivos
-
-  h+='</div>'; // fim tab-metas
-
-  // Injeta os valores para calcMetas() e para o card dinâmico
-  h+='<script>_metaTotMkt='+totMkt+';_metaRendUlt='+rendUlt+';<\/script>';
-  return h;
-}
-
-/* Constrói o HTML de um card de objetivo */
-function buildMetaCard(tipo,alvo,totMkt,rendUlt){
-  var atual=tipo==='Renda'?rendUlt:totMkt;
-  var pct=alvo>0?Math.min((atual/alvo)*100,999):0;
-  var pctDisp=Math.min(pct,100);
-  var falta=Math.max(alvo-atual,0);
-  var over=pct>=100;
-
-  var h='<div class="meta-card">';
-
-  // Cabeçalho do card: badge tipo + percentual
-  h+='<div class="meta-card-header">';
-  h+='<div style="display:flex;flex-direction:column;gap:4px">';
-  h+='<span class="meta-card-tipo">'+tipo+'</span>';
-  h+='<span style="font-family:\'DM Serif Display\',serif;font-size:1.1rem;color:var(--muted)">'+
-     (tipo==='Renda'?'Renda Mensal vs. Meta':'Patrimônio vs. Meta')+'</span>';
-  h+='</div>';
-  h+='<span class="meta-card-pct'+(over?' over':'')+'" id="meta-pct-display">'+(alvo>0?pct.toFixed(1)+'%':'—')+'</span>';
-  h+='</div>';
-
-  // Barra de progresso
-  h+='<div class="meta-bar-bg"><div id="meta-bar-fill" class="meta-bar-fill'+(over?' over':'')+'" style="width:'+(alvo>0?pctDisp:0)+'%"></div></div>';
-
-  // Três valores: atual · meta · faltam
-  h+='<div class="meta-card-vals">';
-  h+='<div class="meta-val-item"><span class="meta-val-lbl">'+(tipo==='Renda'?'Última Renda':'Patrimônio Atual')+'</span>';
-  h+='<span class="meta-val-num g" id="ms-atual">'+M(atual)+'</span></div>';
-
-  h+='<div class="meta-val-item"><span class="meta-val-lbl">Meta</span>';
-  h+='<span class="meta-val-num" id="ms-alvo">'+M(alvo)+'</span></div>';
-
-  h+='<div class="meta-val-item"><span class="meta-val-lbl">Faltam</span>';
-  h+='<span class="meta-val-num r" id="ms-falta">'+(alvo>0?(over?'✓ Atingida!':M(falta)):'—')+'</span></div>';
-  h+='</div>'; // fim meta-card-vals
-
-  h+='</div>'; // fim meta-card
-  return h;
-}
-
-// Valores atuais acessíveis por calcMetas (preenchidos por buildTabMetas)
-var _metaTotMkt=0;
-var _metaRendUlt=0;
-
-function calcMetas(){
-  var tipoEl=document.getElementById('meta-tipo');
-  var valorEl=document.getElementById('meta-valor');
-  if(!tipoEl||!valorEl)return;
-  var tipo=tipoEl.value;
-  var alvo=n(valorEl.value);
-  // Seleciona o valor atual correto baseado no tipo
-  var atual=tipo==='Renda'?_metaRendUlt:_metaTotMkt;
-
-  // Atualiza os elementos do card de objetivo
-  var elAtual=document.getElementById('ms-atual');
-  var elAlvo=document.getElementById('ms-alvo');
-  var elFalta=document.getElementById('ms-falta');
-  var elPct=document.getElementById('meta-pct-display');
-  var elBar=document.getElementById('meta-bar-fill');
-
-  if(elAtual)elAtual.textContent=M(atual);
-  if(elAlvo)elAlvo.textContent=M(alvo);
-
-  if(!alvo||alvo<=0){
-    if(elPct){elPct.textContent='—';elPct.className='meta-card-pct';}
-    if(elBar){elBar.style.width='0%';elBar.className='meta-bar-fill';}
-    if(elFalta)elFalta.textContent='—';
-    return;
-  }
-
-  var pct=Math.min((atual/alvo)*100,999);
-  var pctDisp=Math.min(pct,100);
-  var falta=Math.max(alvo-atual,0);
-  var over=pct>=100;
-
-  if(elPct){
-    elPct.textContent=pct.toFixed(1)+'%';
-    elPct.className='meta-card-pct'+(over?' over':'');
-  }
-  // Animação CSS só dispara se largura mudar — usa setTimeout para garantir reflow
-  setTimeout(function(){
-    if(elBar){
-      elBar.style.width=pctDisp+'%';
-      elBar.className='meta-bar-fill'+(over?' over':'');
-    }
-  },80);
-  if(elFalta){
-    elFalta.textContent=over?'✓ Atingida!':M(falta);
-    elFalta.className='meta-val-num'+(over?' g':' r');
-  }
-
-  // Se o painel de objetivos só tem o card vazio, substitui pelo card real
-  var obj=document.getElementById('meta-objetivos');
-  if(obj&&obj.querySelector('.meta-empty-card')){
-    obj.innerHTML=buildMetaCard(tipo,alvo,_metaTotMkt,_metaRendUlt);
-    // Dispara a animação da barra após inserir no DOM
-    setTimeout(function(){
-      var b=document.getElementById('meta-bar-fill');
-      if(b){b.style.width=pctDisp+'%';b.className='meta-bar-fill'+(over?' over':'');}
-    },80);
-  }
-}
-
-/* ── TOGGLE DO FORMULÁRIO DE NOVA META ─────── */
-function toggleMetaForm(){
-  var panel=document.getElementById('meta-form-panel');
-  var btn=document.getElementById('btn-toggle-meta');
-  if(!panel||!btn)return;
-  var aberto=panel.classList.contains('aberto');
-  if(aberto){
-    panel.classList.remove('aberto');
-    btn.textContent='🎯 Lançar Nova Meta';
-    btn.classList.remove('cancelar');
-  }else{
-    panel.classList.add('aberto');
-    btn.textContent='✕ Cancelar Lançamento';
-    btn.classList.add('cancelar');
-    // Foca o campo de valor para UX mais fluida
-    setTimeout(function(){
-      var v=document.getElementById('meta-valor');
-      if(v)v.focus();
-    },80);
-  }
-}
-
-function showMetaMsg(txt,tipo){
-  var el=document.getElementById('meta-msg');
-  if(!el)return;
-  if(!txt){el.style.display='none';return;}
-  el.textContent=txt;el.className='meta-msg '+tipo;el.style.display='block';
-}
-
-function salvarMeta(){
-  var tipoEl=document.getElementById('meta-tipo');
-  var valorEl=document.getElementById('meta-valor');
-  var btn=document.getElementById('btn-salvar-meta');
-  if(!tipoEl||!valorEl)return;
-  var tipo=tipoEl.value;
-  var valor=n(valorEl.value);
-  if(!valor||valor<=0){showMetaMsg('Informe um valor alvo válido.','err');return;}
-  if(APPS_SCRIPT_URL.indexOf('SEU_ID_AQUI')>=0){
-    showMetaMsg('⚠️ Configure APPS_SCRIPT_URL.','err');return;
-  }
-  btn.disabled=true;btn.textContent='Salvando…';showMetaMsg('','');
-  var payload={acao:'salvar_meta',cliente:clienteAtivo,tipo:tipo,valor:valor};
-  fetch(APPS_SCRIPT_URL,{
-    method:'POST',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify(payload)
-  })
-  .then(function(resp){return resp.text();})
-  .then(function(txt){
-    if(!txt||txt.toLowerCase().indexOf('erro')===0){
-      showMetaMsg('Erro: '+txt,'err');
-      btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
-      return;
-    }
-    // Atualiza cache local imediatamente
-    METAS[(clienteAtivo||'').toUpperCase()]={tipo:tipo,valor:valor};
-    showMetaMsg('✓ Meta salva com sucesso!','ok');
-    btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
-    // Atualiza hint
-    var hint=document.getElementById('meta-hint');
-    if(hint)hint.textContent='Meta atualizada na base de dados';
-    // Redesenha o card de objetivo com os novos valores
-    var obj=document.getElementById('meta-objetivos');
-    if(obj){
-      obj.innerHTML=buildMetaCard(tipo,valor,_metaTotMkt,_metaRendUlt);
-      // Dispara animação da barra após DOM update
-      setTimeout(function(){
-        var pct=valor>0?Math.min(((tipo==='Renda'?_metaRendUlt:_metaTotMkt)/valor)*100,100):0;
-        var b=document.getElementById('meta-bar-fill');
-        if(b)b.style.width=pct+'%';
-      },80);
-    }
-    // Fecha o formulário automaticamente após salvar com sucesso
-    setTimeout(function(){
-      var panel=document.getElementById('meta-form-panel');
-      var btnT=document.getElementById('btn-toggle-meta');
-      if(panel)panel.classList.remove('aberto');
-      if(btnT){btnT.textContent='🎯 Lançar Nova Meta';btnT.classList.remove('cancelar');}
-    },1200);
-  })
-  .catch(function(e){
-    showMetaMsg('Erro: '+e.message,'err');
-    btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
-  });
-}
-
-
 </script>
 </body>
 </html>
