@@ -2776,6 +2776,15 @@ function ck2(lbl,val,sub){
     +'</div>';
 }
 function renderCalcChart(capital,aporte,t,meses){
+  // Quando chamada sem argumentos (pelo switchTab), lê os campos do DOM
+  if(capital===undefined){
+    capital=parseFloat((document.getElementById('ci-capital')||{}).value)||0;
+    aporte =parseFloat((document.getElementById('ci-aporte')||{}).value)||0;
+    var taxa=parseFloat((document.getElementById('ci-taxa')||{}).value)||0;
+    t=taxa/100;
+    meses=parseInt((document.getElementById('ci-meses')||{}).value)||120;
+    if(!capital)return;
+  }
   if(cCalc)cCalc.destroy();
   var ctx=document.getElementById('cvCalc');if(!ctx)return;
   var lbls=[],vSaldo=[],vAport=[];
@@ -2805,14 +2814,6 @@ function renderCalcChart(capital,aporte,t,meses){
       }
     }
   });
-}
-// Alias: chamado pelo switchTab
-function renderCalcChart(){
-  var capital=parseFloat((document.getElementById('ci-capital')||{}).value)||0;
-  var aporte =parseFloat((document.getElementById('ci-aporte')||{}).value)||0;
-  var taxa   =parseFloat((document.getElementById('ci-taxa')||{}).value)||0;
-  var meses  =parseInt((document.getElementById('ci-meses')||{}).value)||120;
-  if(capital>0)calcJuros();
 }
 
 function silentRefresh(){rebuscarTudo();}
