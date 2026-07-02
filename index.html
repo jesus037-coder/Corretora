@@ -3093,11 +3093,13 @@ function parseMetas(){
   for(var i=1;i<RAW.mt.length;i++){
     var row=RAW.mt[i];
     if(!row||!row[0])continue;
-    var cli=(row[0]||'').trim();
-    var tipo=(row[1]||'').trim();
-    var valor=n(row[2]);
+    var cli   =(row[0]||'').trim();
+    var tipo  =(row[1]||'').trim();
+    var valor =n(row[2]);
+    var aporte=n(row[3]||0);   // col D — aporte mensal
+    var juros =n(row[4]||0);   // col E — rentabilidade mensal (%)
     if(!cli||!tipo||!valor)continue;
-    METAS[cli.toUpperCase()]={tipo:tipo,valor:valor};
+    METAS[cli.toUpperCase()]={tipo:tipo,valor:valor,aporte:aporte,juros:juros};
   }
 }
 
@@ -3192,8 +3194,10 @@ function buildTabCalc(c, abaAtiva) {
 function buildTabMetas(c, abaAtiva){
   var latest = getLatestData(c);
   var metaObj = METAS[(c||'').toUpperCase()]||null;
-  var tipoSalvo = metaObj ? metaObj.tipo : 'Patrimônio';
-  var valorSalvo = metaObj ? metaObj.valor : 0;
+  var tipoSalvo   = metaObj ? metaObj.tipo   : 'Patrimônio';
+  var valorSalvo  = metaObj ? metaObj.valor  : 0;
+  var aporteSalvo = metaObj ? metaObj.aporte : 0;
+  var jurosSalvo  = metaObj ? metaObj.juros  : 1;
   var temMeta = !!(metaObj && metaObj.valor > 0);
   var isPatrimonio = tipoSalvo === 'Patrimônio';
 
@@ -3217,10 +3221,10 @@ function buildTabMetas(c, abaAtiva){
 
   h += '<div class="meta-form-row" id="meta-proj-row" style="'+(isPatrimonio?'':'display:none')+'">';
   h += '<div class="meta-field"><label>Aporte Mensal (R$)</label>';
-  h += '<input id="meta-aporte" type="number" min="0" step="100" value="0" oninput="calcMetas()"/>';
+  h += '<input id="meta-aporte" type="number" min="0" step="100" value="'+aporteSalvo+'" oninput="calcMetas()"/>';
   h += '<span class="meta-hint">Quanto você investe por mês</span></div>';
   h += '<div class="meta-field"><label>Rentabilidade Mensal Esperada (%)</label>';
-  h += '<input id="meta-rent" type="number" min="0" step="0.01" value="1.00" oninput="calcMetas()"/>';
+  h += '<input id="meta-rent" type="number" min="0" step="0.01" value="'+(jurosSalvo||1).toFixed(2)+'" oninput="calcMetas()"/>';
   h += '<span class="meta-hint">Ex: 1.00 para 1% ao mês</span></div></div>';
 
   h += '<button class="btn-salvar-meta" id="btn-salvar-meta" onclick="salvarMeta()">💾 Salvar Nova Meta</button>';
@@ -3228,7 +3232,7 @@ function buildTabMetas(c, abaAtiva){
 
   h += '<div class="meta-objetivos" id="meta-objetivos">';
   if(temMeta){
-    h += buildMetaCard(tipoSalvo, valorSalvo, latest.mkt, latest.rendUlt, 0, 1);
+    h += buildMetaCard(tipoSalvo, valorSalvo, latest.mkt, latest.rendUlt, aporteSalvo, jurosSalvo);
   } else {
     h += '<div class="meta-empty-card"><div style="font-size:2rem;opacity:.25">🎯</div>';
     h += '<p>Nenhuma meta definida ainda.<br>Clique em <strong>Lançar Nova Meta</strong> para começar.</p></div>';
@@ -3466,7 +3470,7 @@ function salvarMeta(){
   var rent=rentEl?n(rentEl.value):1;
 
   btn.disabled=true;btn.textContent='Salvando…';showMetaMsg('','');
-  var payload={acao:'salvar_meta',cliente:clienteAtivo,tipo:tipo,valor:valor};
+  var payload={acao:'salvar_meta',cliente:clienteAtivo,tipo:tipo,valor:valor,aporte:aporte,juros:rent};
   fetch(APPS_SCRIPT_URL,{
     method:'POST',
     headers:{'Content-Type':'text/plain'},
@@ -3479,7 +3483,7 @@ function salvarMeta(){
       btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
       return;
     }
-    METAS[(clienteAtivo||'').toUpperCase()]={tipo:tipo,valor:valor};
+    METAS[(clienteAtivo||'').toUpperCase()]={tipo:tipo,valor:valor,aporte:aporte,juros:rent};
     showMetaMsg('✓ Meta salva com sucesso!','ok');
     btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
     var hint=document.getElementById('meta-hint');
