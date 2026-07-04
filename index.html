@@ -1660,10 +1660,12 @@ function viewAno(c,ano){
   h+='</div>'; // fim tab-proventos
 
   // ABAS INDEPENDENTES
+  var _latestForMeta = getLatestData(c);
   h += buildTabCalc(c, abaAtiva);
   h += buildTabMetas(c, abaAtiva);
 
   document.getElementById('content').innerHTML=h;
+  initMetaState(_latestForMeta.mkt, _latestForMeta.rendUlt);
   requestAnimationFrame(function(){
     drawEvol(SEG_EVOL['__TOTAL__'],ano,SEG_EVOL);
     drawBarPie(pv);
@@ -1837,10 +1839,12 @@ function viewTodos(c){
   h+='</div>'; // fim tab-proventos
 
   // ABAS INDEPENDENTES
+  var _latestForMetaT = getLatestData(c);
   h += buildTabCalc(c, abaAtiva);
   h += buildTabMetas(c, abaAtiva);
 
   document.getElementById('content').innerHTML=h;
+  initMetaState(_latestForMetaT.mkt, _latestForMetaT.rendUlt);
 
   requestAnimationFrame(function(){
     var pC=document.getElementById('tab-carteira');
@@ -2424,6 +2428,9 @@ function switchTab(aba){
       setTimeout(function(){renderCalcChart();},80);
     }
     if(aba==='metas'){
+      // Garante que _metaTotMkt e _metaRendUlt estão atualizados
+      var _ltSwitch=getLatestData(clienteAtivo||'');
+      initMetaState(_ltSwitch.mkt, _ltSwitch.rendUlt);
       calcMetas();
     }
   },60);
@@ -3085,20 +3092,20 @@ function renderCalcChart(){
 function silentRefresh(){rebuscarTudo();}
 
 /* ── PARSER BASE_METAS ────────────────────────
-   Colunas esperadas: [0] Cliente | [1] TipoMeta | [2] ValorMeta
-   TipoMeta: 'Patrimônio' ou 'Renda'
+   Colunas: A=cliente B=tipo C=valor D=aporte E=juros(%)
 ────────────────────────────────────────────── */
 function parseMetas(){
   METAS={};
+  if(!RAW.mt||RAW.mt.length<2)return;
   for(var i=1;i<RAW.mt.length;i++){
     var row=RAW.mt[i];
     if(!row||!row[0])continue;
-    var cli   =(row[0]||'').trim();
-    var tipo  =(row[1]||'').trim();
-    var valor =n(row[2]);
-    var aporte=n(row[3]||0);   // col D — aporte mensal
-    var juros =n(row[4]||0);   // col E — rentabilidade mensal (%)
-    if(!cli||!tipo||!valor)continue;
+    var cli   =(row[0]||'').toString().trim();
+    var tipo  =(row[1]||'').toString().trim();
+    var valor =parseFloat((row[2]||'').toString().replace(',','.'))||0;
+    var aporte=parseFloat((row[3]||'').toString().replace(',','.'))||0;
+    var juros =parseFloat((row[4]||'').toString().replace(',','.'))||0;
+    if(!cli||!tipo)continue; // aceita valor=0 (meta ainda não definida)
     METAS[cli.toUpperCase()]={tipo:tipo,valor:valor,aporte:aporte,juros:juros};
   }
 }
@@ -3238,9 +3245,13 @@ function buildTabMetas(c, abaAtiva){
     h += '<p>Nenhuma meta definida ainda.<br>Clique em <strong>Lançar Nova Meta</strong> para começar.</p></div>';
   }
   h += '</div></div>';
-
-  h += '<script>_metaTotMkt='+latest.mkt+';_metaRendUlt='+latest.rendUlt+';<\/script>';
   return h;
+}
+
+/* chamado após buildTabMetas ser inserido no DOM */
+function initMetaState(mkt, rendUlt){
+  _metaTotMkt  = mkt    || 0;
+  _metaRendUlt = rendUlt|| 0;
 }
 
 /* ── HELPER: formata meses em "X ano(s) e Y mês(es)" ── */
