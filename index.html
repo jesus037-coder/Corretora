@@ -3363,14 +3363,17 @@ function calcMetas(){
   var valorEl=document.getElementById('meta-valor');
   if(!tipoEl||!valorEl)return;
   var tipo=tipoEl.value;
-  var alvo=n(valorEl.value);
+  var alvo=parseFloat(valorEl.value)||0;
   var atual=tipo==='Renda'?_metaRendUlt:_metaTotMkt;
 
   // Lê aporte e rentabilidade (só relevantes para Patrimônio)
+  // Campos <input type="number"> nativos: valor já vem em notação decimal
+  // padrão do navegador (ponto = decimal), então usa parseFloat direto —
+  // n() é para campos texto em formato BRL e trataria o ponto como milhar.
   var aporteEl=document.getElementById('meta-aporte');
   var rentEl=document.getElementById('meta-rent');
-  var aporte=aporteEl?n(aporteEl.value):0;
-  var rent=rentEl?n(rentEl.value):1;
+  var aporte=aporteEl?(parseFloat(aporteEl.value)||0):0;
+  var rent=rentEl?(parseFloat(rentEl.value)||1):1;
 
   // ── Atualiza campos básicos do card ──
   var elAtual=document.getElementById('ms-atual');
@@ -3470,15 +3473,15 @@ function salvarMeta(){
   var btn=document.getElementById('btn-salvar-meta');
   if(!tipoEl||!valorEl)return;
   var tipo=tipoEl.value;
-  var valor=n(valorEl.value);
+  var valor=parseFloat(valorEl.value)||0;
   if(!valor||valor<=0){showMetaMsg('Informe um valor alvo válido.','err');return;}
   if(APPS_SCRIPT_URL.indexOf('SEU_ID_AQUI')>=0){
     showMetaMsg('⚠️ Configure APPS_SCRIPT_URL.','err');return;
   }
   var aporteEl=document.getElementById('meta-aporte');
   var rentEl=document.getElementById('meta-rent');
-  var aporte=aporteEl?n(aporteEl.value):0;
-  var rent=rentEl?n(rentEl.value):1;
+  var aporte=aporteEl?(parseFloat(aporteEl.value)||0):0;
+  var rent=rentEl?(parseFloat(rentEl.value)||1):1;
 
   btn.disabled=true;btn.textContent='Salvando…';showMetaMsg('','');
   var payload={acao:'salvar_meta',cliente:clienteAtivo,tipo:tipo,valor:valor,aporte:aporte,juros:rent};
