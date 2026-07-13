@@ -3484,7 +3484,7 @@ function salvarMeta(){
   var payload={acao:'salvar_meta',cliente:clienteAtivo,tipo:tipo,valor:valor,aporte:aporte,juros:rent};
   fetch(APPS_SCRIPT_URL,{
     method:'POST',
-    headers:{'Content-Type':'text/plain'},
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify(payload)
   })
   .then(function(resp){return resp.text();})
