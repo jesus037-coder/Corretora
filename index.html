@@ -3094,19 +3094,35 @@ function silentRefresh(){rebuscarTudo();}
 /* ── PARSER BASE_METAS ────────────────────────
    Colunas: A=cliente B=tipo C=valor D=aporte E=juros(%)
 ────────────────────────────────────────────── */
+var METAS_PENDENTES={}; // metas salvas localmente ainda não confirmadas pelo CSV publicado
+
 function parseMetas(){
   METAS={};
-  if(!RAW.mt||RAW.mt.length<2)return;
-  for(var i=1;i<RAW.mt.length;i++){
-    var row=RAW.mt[i];
-    if(!row||!row[0])continue;
-    var cli   =(row[0]||'').toString().trim();
-    var tipo  =(row[1]||'').toString().trim();
-    var valor =parseFloat((row[2]||'').toString().replace(',','.'))||0;
-    var aporte=parseFloat((row[3]||'').toString().replace(',','.'))||0;
-    var juros =parseFloat((row[4]||'').toString().replace(',','.'))||0;
-    if(!cli||!tipo)continue; // aceita valor=0 (meta ainda não definida)
-    METAS[cli.toUpperCase()]={tipo:tipo,valor:valor,aporte:aporte,juros:juros};
+  if(RAW.mt&&RAW.mt.length>=2){
+    for(var i=1;i<RAW.mt.length;i++){
+      var row=RAW.mt[i];
+      if(!row||!row[0])continue;
+      var cli   =(row[0]||'').toString().trim();
+      var tipo  =(row[1]||'').toString().trim();
+      var valor =parseFloat((row[2]||'').toString().replace(',','.'))||0;
+      var aporte=parseFloat((row[3]||'').toString().replace(',','.'))||0;
+      var juros =parseFloat((row[4]||'').toString().replace(',','.'))||0;
+      if(!cli||!tipo)continue; // aceita valor=0 (meta ainda não definida)
+      METAS[cli.toUpperCase()]={tipo:tipo,valor:valor,aporte:aporte,juros:juros};
+    }
+  }
+  // Reaplica metas salvas localmente que o CSV publicado ainda não confirmou.
+  // O "Publicar na Web" do Google Sheets (URLS.MT) tem cache próprio que pode
+  // levar minutos pra propagar uma escrita, independente do cache do navegador.
+  // Sem isso, um refresh manual reconstrói METAS a partir de um CSV desatualizado
+  // e a meta recém-salva some da tela até o cache do Google atualizar — mesmo o
+  // dado nunca tendo sido perdido na planilha.
+  for(var key in METAS_PENDENTES){
+    var pend=METAS_PENDENTES[key];
+    var atual=METAS[key];
+    var confirmado=atual&&atual.tipo===pend.tipo&&atual.valor===pend.valor&&atual.aporte===pend.aporte&&atual.juros===pend.juros;
+    if(confirmado)delete METAS_PENDENTES[key];
+    else METAS[key]=pend;
   }
 }
 
@@ -3497,7 +3513,10 @@ function salvarMeta(){
       btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
       return;
     }
-    METAS[(clienteAtivo||'').toUpperCase()]={tipo:tipo,valor:valor,aporte:aporte,juros:rent};
+    var chave=(clienteAtivo||'').toUpperCase();
+    var metaObjSalva={tipo:tipo,valor:valor,aporte:aporte,juros:rent};
+    METAS_PENDENTES[chave]=metaObjSalva;
+    METAS[chave]=metaObjSalva;
     showMetaMsg('✓ Meta salva com sucesso!','ok');
     btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
     var hint=document.getElementById('meta-hint');
