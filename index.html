@@ -902,11 +902,24 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 .meta-bar-bg{width:100%;height:10px;background:var(--panel);border-radius:99px;overflow:hidden;border:1px solid var(--border);}
 .meta-bar-fill{height:100%;border-radius:99px;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,var(--accent-dim),var(--accent));}
 .meta-bar-fill.over{background:linear-gradient(90deg,#b03030,var(--red));}
+/* Estado "meta atingida" — visual de sucesso (verde/dourado), distinto do
+   ".over" vermelho usado em outros lugares da página (ex: venda) */
+.meta-card.atingida{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-dim) inset;}
+.meta-card-badge-sucesso{
+  font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:1.2px;color:#0a1f14;
+  background:var(--accent);border-radius:99px;padding:5px 12px;
+  display:inline-flex;align-items:center;gap:6px;width:fit-content;
+}
+.meta-bar-fill.atingida{background:linear-gradient(90deg,var(--accent),#ffd76a);}
 .meta-card-vals{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .meta-val-item{display:flex;flex-direction:column;gap:4px;}
 .meta-val-lbl{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);}
 .meta-val-num{font-family:'DM Mono',monospace;font-size:.92rem;font-weight:600;color:var(--text);}
 .meta-val-num.g{color:var(--accent);}.meta-val-num.r{color:var(--red);}
+/* Pré-visualização ao vivo dentro do formulário de nova meta */
+.meta-draft-wrap{margin:14px 0;}
+.meta-draft-lbl{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);display:block;margin-bottom:8px;}
 /* Card vazio — sem meta */
 .meta-empty-card{
   background:var(--surface);border:1px dashed var(--border);
@@ -3091,10 +3104,13 @@ function renderCalcChart(){
 
 function silentRefresh(){rebuscarTudo();}
 
-/* ── PARSER BASE_METAS ────────────────────────
-   Colunas: A=cliente B=tipo C=valor D=aporte E=juros(%)
-────────────────────────────────────────────── */
-var METAS_PENDENTES={}; // metas salvas localmente ainda não confirmadas pelo CSV publicado
+/* ── PARSER BASE_METAS ──────────────────────────────
+   Colunas: A=cliente B=tipo C=valor D=aporte E=juros(%) F=id G=criadoEm
+   METAS[cliente] agora é uma LISTA (permite múltiplas metas por
+   cliente, inclusive mais de uma da mesma categoria), ordenada por
+   ordem de lançamento (criadoEm).
+──────────────────────────────────────────────────── */
+var METAS_PENDENTES={}; // metas salvas localmente ainda não confirmadas pelo CSV publicado (chave = id da meta)
 
 function parseMetas(){
   METAS={};
@@ -3107,23 +3123,45 @@ function parseMetas(){
       var valor =parseFloat((row[2]||'').toString().replace(',','.'))||0;
       var aporte=parseFloat((row[3]||'').toString().replace(',','.'))||0;
       var juros =parseFloat((row[4]||'').toString().replace(',','.'))||0;
+      var id      =(row[5]||'').toString().trim()||('linha'+i); // fallback p/ linhas antigas sem id
+      var criadoEm=(row[6]||'').toString().trim();
       if(!cli||!tipo)continue; // aceita valor=0 (meta ainda não definida)
-      METAS[cli.toUpperCase()]={tipo:tipo,valor:valor,aporte:aporte,juros:juros};
+      var chave=cli.toUpperCase();
+      if(!METAS[chave])METAS[chave]=[];
+      METAS[chave].push({id:id,tipo:tipo,valor:valor,aporte:aporte,juros:juros,criadoEm:criadoEm,_ordem:i});
     }
   }
+  // Ordena cada lista por ordem de lançamento. Linhas antigas sem criadoEm
+  // (gravadas antes desse campo existir) caem pela ordem original na planilha.
+  Object.keys(METAS).forEach(function(k){
+    METAS[k].sort(function(a,b){
+      if(a.criadoEm&&b.criadoEm)return a.criadoEm<b.criadoEm?-1:(a.criadoEm>b.criadoEm?1:0);
+      return a._ordem-b._ordem;
+    });
+  });
+
   // Reaplica metas salvas localmente que o CSV publicado ainda não confirmou.
   // O "Publicar na Web" do Google Sheets (URLS.MT) tem cache próprio que pode
   // levar minutos pra propagar uma escrita, independente do cache do navegador.
   // Sem isso, um refresh manual reconstrói METAS a partir de um CSV desatualizado
-  // e a meta recém-salva some da tela até o cache do Google atualizar — mesmo o
+  // e a meta recém-salva some da lista até o cache do Google atualizar — mesmo o
   // dado nunca tendo sido perdido na planilha.
-  for(var key in METAS_PENDENTES){
-    var pend=METAS_PENDENTES[key];
-    var atual=METAS[key];
-    var confirmado=atual&&atual.tipo===pend.tipo&&atual.valor===pend.valor&&atual.aporte===pend.aporte&&atual.juros===pend.juros;
-    if(confirmado)delete METAS_PENDENTES[key];
-    else METAS[key]=pend;
-  }
+  Object.keys(METAS_PENDENTES).forEach(function(pid){
+    var pend=METAS_PENDENTES[pid];
+    var chave=(pend.cliente||'').toUpperCase();
+    var lista=METAS[chave]||(METAS[chave]=[]);
+    var existente=lista.filter(function(g){return g.id===pid;})[0];
+    var confirmado=existente&&existente.tipo===pend.tipo&&existente.valor===pend.valor&&existente.aporte===pend.aporte&&existente.juros===pend.juros;
+    if(confirmado){
+      delete METAS_PENDENTES[pid];
+    }else{
+      METAS[chave]=lista.filter(function(g){return g.id!==pid;});
+      METAS[chave].push({id:pid,tipo:pend.tipo,valor:pend.valor,aporte:pend.aporte,juros:pend.juros,criadoEm:pend.criadoEm});
+      METAS[chave].sort(function(a,b){
+        return (a.criadoEm||'')<(b.criadoEm||'')?-1:((a.criadoEm||'')>(b.criadoEm||'')?1:0);
+      });
+    }
+  });
 }
 
 /* ── BUILD ABA CALCULADORA ──────────────────── */
@@ -3216,46 +3254,45 @@ function buildTabCalc(c, abaAtiva) {
 /* ── BUILD ABA METAS ────────────────────────── */
 function buildTabMetas(c, abaAtiva){
   var latest = getLatestData(c);
-  var metaObj = METAS[(c||'').toUpperCase()]||null;
-  var tipoSalvo   = metaObj ? metaObj.tipo   : 'Patrimônio';
-  var valorSalvo  = metaObj ? metaObj.valor  : 0;
-  var aporteSalvo = metaObj ? metaObj.aporte : 0;
-  var jurosSalvo  = metaObj ? metaObj.juros  : 1;
-  var temMeta = !!(metaObj && metaObj.valor > 0);
-  var isPatrimonio = tipoSalvo === 'Patrimônio';
+  var metasCliente = METAS[(c||'').toUpperCase()]||[];
 
   var h = '<div id="tab-metas" class="tab-pane' + (abaAtiva==='metas'?'':' tab-hidden') + '">';
   h += '<div class="sec-head" style="justify-content:space-between">';
   h += '<div style="display:flex;align-items:center;gap:10px"><h3>Metas</h3>';
-  h += '<span class="tag">'+(temMeta?tipoSalvo:'sem meta')+'</span></div>';
+  h += '<span class="tag">'+(metasCliente.length?metasCliente.length+' meta'+(metasCliente.length>1?'s':''):'sem meta')+'</span></div>';
   h += '<button class="btn-lancar-meta" id="btn-toggle-meta" onclick="toggleMetaForm()">🎯 Lançar Nova Meta</button></div>';
 
   h += '<div class="meta-form-panel" id="meta-form-panel">';
   h += '<div class="meta-form-row">';
   h += '<div class="meta-field"><label>Tipo de Meta</label>';
   h += '<select id="meta-tipo" onchange="onMetaTipoChange()">';
-  h += '<option value="Patrimônio"'+(isPatrimonio?' selected':'')+'>Patrimônio</option>';
-  h += '<option value="Renda"'+(!isPatrimonio?' selected':'')+'>Renda Mensal</option>';
+  h += '<option value="Patrimônio" selected>Patrimônio</option>';
+  h += '<option value="Renda">Renda Mensal</option>';
   h += '</select></div>';
   h += '<div class="meta-field"><label>Valor Alvo (R$)</label>';
-  h += '<input id="meta-valor" type="number" min="0" step="100" value="'+(valorSalvo||0)+'" oninput="calcMetas()"/>';
-  h += '<span class="meta-hint" id="meta-hint">'+(temMeta?'Meta carregada da base de dados':'Defina um valor e clique em salvar')+'</span>';
+  h += '<input id="meta-valor" type="number" min="0" step="100" value="0" oninput="calcMetas()"/>';
+  h += '<span class="meta-hint" id="meta-hint">Defina um valor e clique em salvar</span>';
   h += '</div></div>';
 
-  h += '<div class="meta-form-row" id="meta-proj-row" style="'+(isPatrimonio?'':'display:none')+'">';
+  h += '<div class="meta-form-row" id="meta-proj-row">';
   h += '<div class="meta-field"><label>Aporte Mensal (R$)</label>';
-  h += '<input id="meta-aporte" type="number" min="0" step="100" value="'+aporteSalvo+'" oninput="calcMetas()"/>';
+  h += '<input id="meta-aporte" type="number" min="0" step="100" value="0" oninput="calcMetas()"/>';
   h += '<span class="meta-hint">Quanto você investe por mês</span></div>';
   h += '<div class="meta-field"><label>Rentabilidade Mensal Esperada (%)</label>';
-  h += '<input id="meta-rent" type="number" min="0" step="0.01" value="'+(jurosSalvo||1).toFixed(2)+'" oninput="calcMetas()"/>';
+  h += '<input id="meta-rent" type="number" min="0" step="0.01" value="1.00" oninput="calcMetas()"/>';
   h += '<span class="meta-hint">Ex: 1.00 para 1% ao mês</span></div></div>';
+
+  h += '<div class="meta-draft-wrap"><span class="meta-draft-lbl">Pré-visualização</span>';
+  h += '<div id="meta-draft-preview"></div></div>';
 
   h += '<button class="btn-salvar-meta" id="btn-salvar-meta" onclick="salvarMeta()">💾 Salvar Nova Meta</button>';
   h += '<div class="meta-msg" id="meta-msg"></div></div>';
 
   h += '<div class="meta-objetivos" id="meta-objetivos">';
-  if(temMeta){
-    h += buildMetaCard(tipoSalvo, valorSalvo, latest.mkt, latest.rendUlt, aporteSalvo, jurosSalvo);
+  if(metasCliente.length){
+    metasCliente.forEach(function(g){
+      h += buildMetaCard(g.tipo, g.valor, latest.mkt, latest.rendUlt, g.aporte, g.juros, g.id);
+    });
   } else {
     h += '<div class="meta-empty-card"><div style="font-size:2rem;opacity:.25">🎯</div>';
     h += '<p>Nenhuma meta definida ainda.<br>Clique em <strong>Lançar Nova Meta</strong> para começar.</p></div>';
@@ -3297,23 +3334,26 @@ function calcTempoMeses(patrimonioAtual,alvo,aporteMensal,rentMensal){
   return meses>=MAX?null:meses;
 }
 
-/* Constrói o HTML de um card de objetivo */
-function buildMetaCard(tipo,alvo,totMkt,rendUlt,aporte,rent){
+/* Constrói o HTML de um card de objetivo.
+   gid: identificador único da meta (para não colidir ids quando há
+   várias metas na lista); usa 'draft' para a pré-visualização do form. */
+function buildMetaCard(tipo,alvo,totMkt,rendUlt,aporte,rent,gid){
+  gid=gid||'draft';
   var aporteMensal=aporte||0;
   var rentMensal=rent!=null?rent:1;
   var atual=tipo==='Renda'?rendUlt:totMkt;
   var pct=alvo>0?Math.min((atual/alvo)*100,999):0;
   var pctDisp=Math.min(pct,100);
   var falta=Math.max(alvo-atual,0);
-  var over=pct>=100;
+  var atingida=alvo>0&&pct>=100;
 
   // Projeção de tempo (só para Patrimônio)
   var tempoMeses=null;
-  if(tipo==='Patrimônio'&&alvo>0&&!over){
+  if(tipo==='Patrimônio'&&alvo>0&&!atingida){
     tempoMeses=calcTempoMeses(totMkt,alvo,aporteMensal,rentMensal);
   }
 
-  var h='<div class="meta-card">';
+  var h='<div class="meta-card'+(atingida?' atingida':'')+'" data-meta-id="'+gid+'">';
 
   // Cabeçalho: badge + percentual
   h+='<div class="meta-card-header">';
@@ -3322,37 +3362,41 @@ function buildMetaCard(tipo,alvo,totMkt,rendUlt,aporte,rent){
   h+='<span style="font-family:\'DM Serif Display\',serif;font-size:1.1rem;color:var(--muted)">';
   h+=(tipo==='Renda'?'Renda Mensal vs. Meta':'Patrimônio vs. Meta')+'</span>';
   h+='</div>';
-  h+='<span class="meta-card-pct'+(over?' over':'')+'" id="meta-pct-display">'+(alvo>0?pct.toFixed(1)+'%':'—')+'</span>';
+  h+='<span class="meta-card-pct" id="meta-pct-display-'+gid+'">'+(alvo>0?pct.toFixed(1)+'%':'—')+'</span>';
   h+='</div>';
 
+  if(atingida){
+    h+='<div class="meta-card-badge-sucesso">🎉 Meta atingida!</div>';
+  }
+
   // Barra de progresso
-  h+='<div class="meta-bar-bg"><div id="meta-bar-fill" class="meta-bar-fill'+(over?' over':'')+'" style="width:'+(alvo>0?pctDisp:0)+'%"></div></div>';
+  h+='<div class="meta-bar-bg"><div id="meta-bar-fill-'+gid+'" class="meta-bar-fill'+(atingida?' atingida':'')+'" style="width:'+(alvo>0?pctDisp:0)+'%"></div></div>';
 
   // Valores: grade de 3 colunas (ou 4 se tiver tempo estimado)
   var cols=tipo==='Patrimônio'?4:3;
   h+='<div class="meta-card-vals" style="grid-template-columns:repeat('+cols+',1fr)">';
 
   h+='<div class="meta-val-item"><span class="meta-val-lbl">'+(tipo==='Renda'?'Última Renda':'Patrimônio Atual')+'</span>';
-  h+='<span class="meta-val-num g" id="ms-atual">'+M(atual)+'</span></div>';
+  h+='<span class="meta-val-num g" id="ms-atual-'+gid+'">'+M(atual)+'</span></div>';
 
   h+='<div class="meta-val-item"><span class="meta-val-lbl">Meta</span>';
-  h+='<span class="meta-val-num" id="ms-alvo">'+M(alvo)+'</span></div>';
+  h+='<span class="meta-val-num" id="ms-alvo-'+gid+'">'+M(alvo)+'</span></div>';
 
   h+='<div class="meta-val-item"><span class="meta-val-lbl">Faltam</span>';
-  h+='<span class="meta-val-num r" id="ms-falta">'+(alvo>0?(over?'✓ Atingida!':M(falta)):'—')+'</span></div>';
+  h+='<span class="meta-val-num'+(atingida?' g':' r')+'" id="ms-falta-'+gid+'">'+(alvo>0?(atingida?'✓ Atingida!':M(falta)):'—')+'</span></div>';
 
   // Quarta coluna: tempo estimado (só Patrimônio)
   if(tipo==='Patrimônio'){
     h+='<div class="meta-val-item"><span class="meta-val-lbl">Tempo Estimado</span>';
-    var tempoTxt=over?'✓ Atingida!':(tempoMeses!=null?fmtTempo(tempoMeses):'Indeterminado');
-    h+='<span class="meta-val-num" id="ms-tempo" style="color:var(--accent)">'+tempoTxt+'</span></div>';
+    var tempoTxt=atingida?'✓ Atingida!':(tempoMeses!=null?fmtTempo(tempoMeses):'Indeterminado');
+    h+='<span class="meta-val-num" id="ms-tempo-'+gid+'" style="color:var(--accent)">'+tempoTxt+'</span></div>';
   }
 
   h+='</div>'; // fim meta-card-vals
 
   // Rodapé de premissas (só Patrimônio, quando ainda não atingiu)
-  if(tipo==='Patrimônio'&&!over&&aporteMensal>=0){
-    h+='<div style="font-family:\'DM Mono\',monospace;font-size:.62rem;color:var(--muted);border-top:1px solid var(--border);padding-top:10px">';
+  if(tipo==='Patrimônio'&&!atingida&&aporteMensal>=0){
+    h+='<div style="font-family:\'DM Mono\',monospace;font-size:.62rem;color:var(--muted);border-top:1px solid var(--border);padding-top:10px" id="meta-premissas-'+gid+'">';
     h+='Projeção: aporte de '+M(aporteMensal)+'/mês · rentabilidade de '+rentMensal.toFixed(2)+'% a.m.';
     h+='</div>';
   }
@@ -3377,12 +3421,12 @@ function onMetaTipoChange(){
 function calcMetas(){
   var tipoEl=document.getElementById('meta-tipo');
   var valorEl=document.getElementById('meta-valor');
-  if(!tipoEl||!valorEl)return;
+  var draftEl=document.getElementById('meta-draft-preview');
+  if(!tipoEl||!valorEl||!draftEl)return;
   var tipo=tipoEl.value;
   var alvo=parseFloat(valorEl.value)||0;
   var atual=tipo==='Renda'?_metaRendUlt:_metaTotMkt;
 
-  // Lê aporte e rentabilidade (só relevantes para Patrimônio)
   // Campos <input type="number"> nativos: valor já vem em notação decimal
   // padrão do navegador (ponto = decimal), então usa parseFloat direto —
   // n() é para campos texto em formato BRL e trataria o ponto como milhar.
@@ -3391,67 +3435,13 @@ function calcMetas(){
   var aporte=aporteEl?(parseFloat(aporteEl.value)||0):0;
   var rent=rentEl?(parseFloat(rentEl.value)||1):1;
 
-  // ── Atualiza campos básicos do card ──
-  var elAtual=document.getElementById('ms-atual');
-  var elAlvo=document.getElementById('ms-alvo');
-  var elFalta=document.getElementById('ms-falta');
-  var elPct=document.getElementById('meta-pct-display');
-  var elBar=document.getElementById('meta-bar-fill');
-  var elTempo=document.getElementById('ms-tempo');
-
-  if(elAtual)elAtual.textContent=M(atual);
-  if(elAlvo)elAlvo.textContent=M(alvo);
-
   if(!alvo||alvo<=0){
-    if(elPct){elPct.textContent='—';elPct.className='meta-card-pct';}
-    if(elBar){elBar.style.width='0%';elBar.className='meta-bar-fill';}
-    if(elFalta)elFalta.textContent='—';
-    if(elTempo)elTempo.textContent='—';
+    draftEl.innerHTML='<div class="meta-empty-card" style="padding:20px"><p style="margin:0">Informe um valor alvo para ver a pré-visualização.</p></div>';
     return;
   }
 
-  var pct=Math.min((atual/alvo)*100,999);
-  var pctDisp=Math.min(pct,100);
-  var falta=Math.max(alvo-atual,0);
-  var over=pct>=100;
-
-  if(elPct){
-    elPct.textContent=pct.toFixed(1)+'%';
-    elPct.className='meta-card-pct'+(over?' over':'');
-  }
-  setTimeout(function(){
-    if(elBar){
-      elBar.style.width=pctDisp+'%';
-      elBar.className='meta-bar-fill'+(over?' over':'');
-    }
-  },80);
-  if(elFalta){
-    elFalta.textContent=over?'✓ Atingida!':M(falta);
-    elFalta.className='meta-val-num'+(over?' g':' r');
-  }
-
-  // ── Projeção de tempo (só Patrimônio) ──
-  if(tipo==='Patrimônio'&&elTempo){
-    if(over){
-      elTempo.textContent='✓ Atingida!';
-    }else{
-      var meses=calcTempoMeses(_metaTotMkt,alvo,aporte,rent);
-      elTempo.textContent=meses!=null?fmtTempo(meses):'Indeterminado';
-    }
-    // Atualiza rodapé de premissas se existir
-    var rodape=document.getElementById('meta-premissas');
-    if(rodape)rodape.textContent='Projeção: aporte de '+M(aporte)+'/mês · rentabilidade de '+rent.toFixed(2)+'% a.m.';
-  }
-
-  // ── Se ainda mostrando card vazio, substitui pelo card real ──
-  var obj=document.getElementById('meta-objetivos');
-  if(obj&&obj.querySelector('.meta-empty-card')){
-    obj.innerHTML=buildMetaCard(tipo,alvo,_metaTotMkt,_metaRendUlt,aporte,rent);
-    setTimeout(function(){
-      var b=document.getElementById('meta-bar-fill');
-      if(b){b.style.width=pctDisp+'%';b.className='meta-bar-fill'+(over?' over':'');}
-    },80);
-  }
+  // Regenera o card de pré-visualização (id fixo "draft") com os valores atuais do form
+  draftEl.innerHTML=buildMetaCard(tipo,alvo,_metaTotMkt,_metaRendUlt,aporte,rent,'draft');
 }
 
 /* ── TOGGLE DO FORMULÁRIO DE NOVA META ─────── */
@@ -3468,6 +3458,7 @@ function toggleMetaForm(){
     panel.classList.add('aberto');
     btn.textContent='✕ Cancelar Lançamento';
     btn.classList.add('cancelar');
+    calcMetas(); // popula a pré-visualização com os valores padrão do form
     // Foca o campo de valor para UX mais fluida
     setTimeout(function(){
       var v=document.getElementById('meta-valor');
@@ -3481,6 +3472,33 @@ function showMetaMsg(txt,tipo){
   if(!el)return;
   if(!txt){el.style.display='none';return;}
   el.textContent=txt;el.className='meta-msg '+tipo;el.style.display='block';
+}
+
+/* Gera um id único simples para identificar cada meta lançada
+   (evita colisão de ids no DOM quando há várias metas na lista) */
+function gerarIdMeta(){
+  return 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+}
+
+/* Reconstrói a lista de cards de metas do cliente ativo a partir de METAS.
+   Chamada após salvar uma nova meta e após todo refresh (rebuscarTudo). */
+function renderizarListaMetas(){
+  var obj=document.getElementById('meta-objetivos');
+  if(!obj)return;
+  var latest=getLatestData(clienteAtivo);
+  var lista=METAS[(clienteAtivo||'').toUpperCase()]||[];
+  var tagEl=document.querySelector('#tab-metas .sec-head .tag');
+  if(tagEl)tagEl.textContent=lista.length?lista.length+' meta'+(lista.length>1?'s':''):'sem meta';
+  if(!lista.length){
+    obj.innerHTML='<div class="meta-empty-card"><div style="font-size:2rem;opacity:.25">🎯</div>'+
+      '<p>Nenhuma meta definida ainda.<br>Clique em <strong>Lançar Nova Meta</strong> para começar.</p></div>';
+    return;
+  }
+  var h='';
+  lista.forEach(function(g){
+    h+=buildMetaCard(g.tipo,g.valor,latest.mkt,latest.rendUlt,g.aporte,g.juros,g.id);
+  });
+  obj.innerHTML=h;
 }
 
 function salvarMeta(){
@@ -3499,8 +3517,13 @@ function salvarMeta(){
   var aporte=aporteEl?(parseFloat(aporteEl.value)||0):0;
   var rent=rentEl?(parseFloat(rentEl.value)||1):1;
 
+  // Cada clique em "Salvar" cria uma meta NOVA e independente — nunca
+  // sobrescreve outra, mesmo que seja da mesma categoria (Patrimônio/Renda).
+  var novoId=gerarIdMeta();
+  var criadoEm=new Date().toISOString();
+
   btn.disabled=true;btn.textContent='Salvando…';showMetaMsg('','');
-  var payload={acao:'salvar_meta',cliente:clienteAtivo,tipo:tipo,valor:valor,aporte:aporte,juros:rent};
+  var payload={acao:'salvar_meta',cliente:clienteAtivo,tipo:tipo,valor:valor,aporte:aporte,juros:rent,id:novoId,criadoEm:criadoEm};
   fetch(APPS_SCRIPT_URL,{
     method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -3514,30 +3537,26 @@ function salvarMeta(){
       return;
     }
     var chave=(clienteAtivo||'').toUpperCase();
-    var metaObjSalva={tipo:tipo,valor:valor,aporte:aporte,juros:rent};
-    METAS_PENDENTES[chave]=metaObjSalva;
-    METAS[chave]=metaObjSalva;
+    var novaMeta={id:novoId,tipo:tipo,valor:valor,aporte:aporte,juros:rent,criadoEm:criadoEm};
+
+    // Marca como pendente até o CSV publicado confirmar (ver parseMetas)
+    METAS_PENDENTES[novoId]={cliente:clienteAtivo,tipo:tipo,valor:valor,aporte:aporte,juros:rent,criadoEm:criadoEm};
+    if(!METAS[chave])METAS[chave]=[];
+    METAS[chave].push(novaMeta);
+
     showMetaMsg('✓ Meta salva com sucesso!','ok');
     btn.disabled=false;btn.textContent='💾 Salvar Nova Meta';
     var hint=document.getElementById('meta-hint');
-    if(hint)hint.textContent='Meta atualizada na base de dados';
-    // Redesenha card com aporte e rentabilidade atuais
-    var obj=document.getElementById('meta-objetivos');
-    if(obj){
-      obj.innerHTML=buildMetaCard(tipo,valor,_metaTotMkt,_metaRendUlt,aporte,rent);
-      setTimeout(function(){
-        var pct=valor>0?Math.min(((tipo==='Renda'?_metaRendUlt:_metaTotMkt)/valor)*100,100):0;
-        var b=document.getElementById('meta-bar-fill');
-        if(b)b.style.width=pct+'%';
-      },80);
-    }
-    // Fecha formulário após 1.2s
-    setTimeout(function(){
-      var panel=document.getElementById('meta-form-panel');
-      var btnT=document.getElementById('btn-toggle-meta');
-      if(panel)panel.classList.remove('aberto');
-      if(btnT){btnT.textContent='🎯 Lançar Nova Meta';btnT.classList.remove('cancelar');}
-    },1200);
+    if(hint)hint.textContent='Meta adicionada à lista';
+
+    renderizarListaMetas();
+
+    // Limpa o formulário para permitir lançar outra meta em seguida
+    // (o painel permanece aberto — o objetivo é dar suporte a várias metas)
+    valorEl.value=0;
+    if(aporteEl)aporteEl.value=0;
+    if(rentEl)rentEl.value=(1).toFixed(2);
+    calcMetas();
   })
   .catch(function(e){
     showMetaMsg('Erro: '+e.message,'err');
