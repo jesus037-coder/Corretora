@@ -994,6 +994,14 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M7.5 4.5v6M4.5 7.5h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           <span>Lançar</span>
         </button>
+        <!-- DIRPF -->
+        <button class="tb-btn icon-btn" id="btn-dirpf" onclick="renderDIRPF()" title="Gerar Relatório de Imposto de Renda">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <path d="M3.5 1.5h5l3 3v8a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            <path d="M8.5 1.5v3h3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            <path d="M5 8h5M5 10.5h5M5 5.5h1.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+          </svg>
+        </button>
         <!-- Atualizar -->
         <button class="tb-btn icon-btn" id="btn-refresh" onclick="refreshManual()" title="Atualizar dados agora">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M12.5 7.5a5 5 0 1 1-1.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 1v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1111,6 +1119,7 @@ var RAW={at:[],pa:[],di:[],mt:[]};
 var METAS={}; // { 'NomeCliente': { tipo: 'Patrimônio'|'Renda', valor: Number } }
 var DADOS={};
 var PRECOS={};
+var INFO_ATIVOS={}; // { TICKER: {cnpj} } — mapeado a partir de BASE_ATIVOS
 var SEGMENTOS={};
 var CLIENTES=[];
 var anoSel=2026;
@@ -1272,12 +1281,15 @@ function init(){
     parseMetas();
     PRECOS={};
     SEGMENTOS={};
+    INFO_ATIVOS={};
     for(var i=1;i<RAW.at.length;i++){
       var tk=(RAW.at[i][2]||'').trim().toUpperCase();
       if(tk){
         PRECOS[tk]=n(RAW.at[i][3]);
         var sg=(RAW.at[i][1]||'').trim();
         if(sg)SEGMENTOS[tk]=sg;
+        // Ajuste o índice 4 abaixo se o CNPJ estiver em outra coluna da sua planilha
+        INFO_ATIVOS[tk]={cnpj:(RAW.at[i][4]||'').trim()};
       }
     }
     var aSet={};
@@ -1908,6 +1920,114 @@ function viewTodos(c){
       setTimeout(function(){if(cB)cB.resize();if(cP)cP.resize();},30);
     }
   });
+}
+
+/* ── DIRPF ────────────────────────────────── */
+function renderDIRPF(){
+  if(!clienteAtivo){alert('Selecione um cliente para gerar a declaração.');return;}
+  if(anoSel==='TODOS'){alert('Selecione um ano específico (não "Todos os Anos") para gerar a declaração de IR.');return;}
+
+  var ano=anoSel;
+  var d=DADOS[ano]||{pat:{},prov:{}};
+  var movs=d.pat[clienteAtivo]||[];
+  var limite=new Date(ano,11,31,23,59,59);
+
+  /* ── Seção 1: Bens e Direitos (posição em 31/12) ── */
+  var pos={}; // { TICKER: {q, custo} } — mesma lógica de PM de consolidar()
+  movs.forEach(function(mv){
+    var dm=mv._d||dt(mv.dt);
+    if(!dm||dm>limite)return;
+    var tk=mv.a;
+    if(!pos[tk])pos[tk]={q:0,custo:0};
+    var p=pos[tk];
+    if(isCompra(mv.cv)){
+      p.custo+=mv.tot;
+      p.q+=mv.q;
+    }else{
+      var pm=p.q>0?p.custo/p.q:0;
+      p.q-=mv.q;
+      p.custo=p.q>0.0001?p.q*pm:0;
+      if(p.q<0.0001){p.q=0;p.custo=0;}
+    }
+  });
+
+  var tks1=Object.keys(pos).filter(function(tk){return pos[tk].q>0.0001;}).sort();
+  var totCusto=0;
+  var rows1='';
+  tks1.forEach(function(tk){
+    var info=INFO_ATIVOS[tk]||{};
+    totCusto+=pos[tk].custo;
+    rows1+='<tr>'
+      +'<td>'+tk+'</td>'
+      +'<td>'+(info.cnpj||'—')+'</td>'
+      +'<td>'+pos[tk].q.toLocaleString('pt-BR',{maximumFractionDigits:2})+'</td>'
+      +'<td>'+M(pos[tk].custo)+'</td>'
+      +'</tr>';
+  });
+  if(!rows1)rows1='<tr><td colspan="4" style="text-align:center;color:var(--muted)">Nenhum ativo em carteira em 31/12/'+ano+'.</td></tr>';
+
+  /* ── Seção 2: Rendimentos recebidos no ano ── */
+  var pv=d.prov[clienteAtivo]||{segs:{},tot:Array(12).fill(0)};
+  var rendPorTk={};
+  Object.keys(pv.segs).forEach(function(sg){
+    pv.segs[sg].forEach(function(at){
+      var totalAno=at.m.reduce(function(s,m){return s+(m.s||0);},0);
+      if(totalAno>0)rendPorTk[at.tk]=(rendPorTk[at.tk]||0)+totalAno;
+    });
+  });
+
+  var tks2=Object.keys(rendPorTk).sort();
+  var totRend=0;
+  var rows2='';
+  tks2.forEach(function(tk){
+    var info=INFO_ATIVOS[tk]||{};
+    var val=R(rendPorTk[tk]);
+    totRend+=val;
+    rows2+='<tr>'
+      +'<td>'+tk+'</td>'
+      +'<td>'+(info.cnpj||'—')+'</td>'
+      +'<td>'+M(val)+'</td>'
+      +'</tr>';
+  });
+  if(!rows2)rows2='<tr><td colspan="3" style="text-align:center;color:var(--muted)">Nenhum rendimento recebido em '+ano+'.</td></tr>';
+
+  /* ── Montagem do HTML ── */
+  var h='';
+  h+='<div class="sec-head"><h3>Declaração de Imposto de Renda</h3><span class="tag">'+clienteAtivo+' · ano-base '+ano+'</span></div>';
+
+  h+='<div class="sc open">';
+  h+='<div class="sc-head">';
+  h+='<div class="sc-icon" style="color:var(--accent)">BENS</div>';
+  h+='<div class="sc-kpis">'
+    +ck('Posição em','31/12/'+ano,'')
+    +ck('Ativos',tks1.length,'')
+    +ck('Custo Total',M(totCusto),'')
+    +'</div>';
+  h+='</div>';
+  h+='<div class="sc-body"><table class="sc-tbl">';
+  h+='<thead><tr><th>Ticker</th><th>CNPJ</th><th>Qtd. Final</th><th>Custo Total</th></tr></thead>';
+  h+='<tbody>'+rows1+'</tbody>';
+  h+='<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">TOTAL</td><td>'+M(totCusto)+'</td></tr></tfoot>';
+  h+='</table></div>';
+  h+='</div>';
+
+  h+='<div class="sc open">';
+  h+='<div class="sc-head">';
+  h+='<div class="sc-icon" style="color:var(--accent)">REND</div>';
+  h+='<div class="sc-kpis">'
+    +ck('Rendimentos','ano '+ano,'')
+    +ck('Ativos',tks2.length,'')
+    +ck('Total Recebido',M(totRend),'g')
+    +'</div>';
+  h+='</div>';
+  h+='<div class="sc-body"><table class="sc-tbl">';
+  h+='<thead><tr><th>Ticker</th><th>CNPJ</th><th>Valor Total no Ano</th></tr></thead>';
+  h+='<tbody>'+rows2+'</tbody>';
+  h+='<tfoot><tr><td colspan="2" style="text-align:right;font-weight:700">TOTAL</td><td>'+M(totRend)+'</td></tr></tfoot>';
+  h+='</table></div>';
+  h+='</div>';
+
+  document.getElementById('content').innerHTML=h;
 }
 
 /* ── CARD HISTÓRICO — para viewTodos ─────── */
@@ -2812,10 +2932,14 @@ function processarEAtualizar(){
     colsAtivas: Object.assign({}, _UI.colsAtivas||{})
   };
 
-  PRECOS={};SEGMENTOS={};
+  PRECOS={};SEGMENTOS={};INFO_ATIVOS={};
   for(var i=1;i<RAW.at.length;i++){
     var tk=(RAW.at[i][2]||'').trim().toUpperCase();
-    if(tk){PRECOS[tk]=n(RAW.at[i][3]);var sg2=(RAW.at[i][1]||'').trim();if(sg2)SEGMENTOS[tk]=sg2;}
+    if(tk){
+      PRECOS[tk]=n(RAW.at[i][3]);
+      var sg2=(RAW.at[i][1]||'').trim();if(sg2)SEGMENTOS[tk]=sg2;
+      INFO_ATIVOS[tk]={cnpj:(RAW.at[i][4]||'').trim()};
+    }
   }
   var aSet={};
   for(var j=1;j<RAW.pa.length;j++){var d=dt(RAW.pa[j][7]);if(d)aSet[d.getFullYear()]=1;}
