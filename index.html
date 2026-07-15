@@ -994,14 +994,6 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M7.5 4.5v6M4.5 7.5h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           <span>Lançar</span>
         </button>
-        <!-- DIRPF -->
-        <button class="tb-btn icon-btn" id="btn-dirpf" onclick="renderDIRPF()" title="Gerar Relatório de Imposto de Renda">
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-            <path d="M3.5 1.5h5l3 3v8a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-            <path d="M8.5 1.5v3h3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-            <path d="M5 8h5M5 10.5h5M5 5.5h1.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-          </svg>
-        </button>
         <!-- Atualizar -->
         <button class="tb-btn icon-btn" id="btn-refresh" onclick="refreshManual()" title="Atualizar dados agora">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M12.5 7.5a5 5 0 1 1-1.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11 1v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1289,7 +1281,7 @@ function init(){
         var sg=(RAW.at[i][1]||'').trim();
         if(sg)SEGMENTOS[tk]=sg;
         // Ajuste o índice 4 abaixo se o CNPJ estiver em outra coluna da sua planilha
-        INFO_ATIVOS[tk]={cnpj:(RAW.at[i][4]||'').trim()};
+        INFO_ATIVOS[tk]={cnpj:(RAW.at[i][6]||'').trim()};
       }
     }
     var aSet={};
@@ -1634,6 +1626,10 @@ function viewAno(c,ano){
   h+='<button class="tab-btn'+(abaAtiva==='metas'?' tab-on':'')+'" onclick="switchTab(\'metas\')">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   h+=' Metas</button>';
+  h+='<span style="width:1px;align-self:center;height:20px;background:var(--border);margin:0 2px"></span>';
+  h+='<button class="tab-btn" style="color:var(--accent)" onclick="renderDIRPF()" title="Gerar Declaração de Imposto de Renda (IRPF)">';
+  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 1h4.5l2.5 2.5V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M7.5 1v2.5H10" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4 7.5h5M4 9.5h5M4 5.5h1.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>';
+  h+=' IRPF</button>';
   h+='</div>';
 
   // ── ABA CARTEIRA ──
@@ -1760,6 +1756,10 @@ function viewTodos(c){
   h+='<button class="tab-btn'+(abaAtiva==='metas'?' tab-on':'')+'" onclick="switchTab(\'metas\')">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   h+=' Metas</button>';
+  h+='<span style="width:1px;align-self:center;height:20px;background:var(--border);margin:0 2px"></span>';
+  h+='<button class="tab-btn" style="color:var(--accent)" onclick="renderDIRPF()" title="Gerar Declaração de Imposto de Renda (IRPF)">';
+  h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 1h4.5l2.5 2.5V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M7.5 1v2.5H10" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4 7.5h5M4 9.5h5M4 5.5h1.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>';
+  h+=' IRPF</button>';
   h+='</div>';
 
   // ── KPIs da carteira vão DENTRO da aba carteira ──
@@ -2047,7 +2047,10 @@ function renderDIRPF(){
   var ano=anoSel;
   var movs=(DADOS[ano]&&DADOS[ano].pat[clienteAtivo])||[];
   var limite=new Date(ano,11,31,23,59,59);
+  var corExclusiva='#e8a54c';
+  var corBens='#3ddc84'; // mesmo tom de var(--accent); hex literal p/ permitir alpha no pill()
 
+  /* ── Bens e Direitos: posicao em 31/12 ── */
   var pos={};
   movs.forEach(function(mv){
     var dm=mv._d||dt(mv.dt);
@@ -2065,82 +2068,148 @@ function renderDIRPF(){
   });
 
   var gruposBens={};
+  var totBens=0;
   Object.keys(pos).filter(function(tk){return pos[tk].q>0.0001;}).sort().forEach(function(tk){
     var cat=getBensCategory(tk,SEGMENTOS[tk]);
     var key=cat.grupo+'|'+cat.codigo;
     if(!gruposBens[key])gruposBens[key]={grupo:cat.grupo,codigo:cat.codigo,label:cat.label,itens:[]};
     var info=INFO_ATIVOS[tk]||{};
     var qtd=pos[tk].q,custo=pos[tk].custo,pm=qtd>0?custo/qtd:0;
+    totBens+=custo;
     var texto='Em 31/12/'+ano+', possuia '+qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})+' ativo(s) de '+tk+' (CNPJ: '+(info.cnpj||'nao informado')+'), adquirido(s) a custo medio de R$ '+pm.toFixed(2)+', totalizando R$ '+custo.toFixed(2)+'.';
-    gruposBens[key].itens.push({tk:tk,texto:texto});
+    gruposBens[key].itens.push({tk:tk,cnpj:info.cnpj||'—',custo:custo,texto:texto});
   });
 
+  /* ── Rendimentos: isentos vs tributacao exclusiva ── */
   var rendMap=calcRendimentosPorNatureza(ano,clienteAtivo);
-  var isentos={},exclusiva={};
+  var isentos={},exclusiva={},totIsento=0,totExclusiva=0;
   Object.keys(rendMap).forEach(function(k){
     var it=rendMap[k];
     if(it.valor<=0)return;
     var cat=getRendimentosCategory(it.tk,it.seg,it.classe);
-    var bucket=cat.secao==='ISENTOS'?isentos:exclusiva;
+    var isI=cat.secao==='ISENTOS';
+    var bucket=isI?isentos:exclusiva;
     if(!bucket[cat.codigo])bucket[cat.codigo]={label:cat.label,itens:[]};
+    if(isI)totIsento+=it.valor;else totExclusiva+=it.valor;
     var info=INFO_ATIVOS[it.tk]||{};
-    var texto=cat.secao==='ISENTOS'
+    var texto=isI
       ?'Rendimentos recebidos a titulo de Dividendos, pagos por '+it.tk+' (CNPJ: '+(info.cnpj||'nao informado')+'), no ano-calendario de '+ano+'.'
       :'Rendimentos pagos por '+it.tk+' (CNPJ: '+(info.cnpj||'nao informado')+'), com imposto retido na fonte, no ano-calendario de '+ano+'.';
     bucket[cat.codigo].itens.push({tk:it.tk,cnpj:info.cnpj||'—',valor:it.valor,texto:texto});
   });
 
-  function linhaTexto(texto){
-    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border)">'
-      +'<div style="flex:1;font-size:13px;line-height:1.5">'+escHtml(texto)+'</div>'
-      +'<button class="tb-btn" onclick="copyText(this, '+escAttr(JSON.stringify(texto))+')">Copiar</button>'
+  /* ── Helpers de renderizacao (cards modernos) ── */
+  function pill(texto,cor){
+    return '<span style="background:'+cor+'22;color:'+cor+';font-weight:700;font-size:11px;letter-spacing:.3px;padding:3px 10px;border-radius:99px;white-space:nowrap">'+texto+'</span>';
+  }
+  function boxCopiavel(texto){
+    return '<div style="display:flex;align-items:flex-start;gap:10px;margin-top:10px">'
+      +'<div style="flex:1;font-size:12.5px;color:var(--muted);line-height:1.6;background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:10px 12px">'+escHtml(texto)+'</div>'
+      +'<button class="tb-btn" style="flex-shrink:0" onclick="copyText(this, '+escAttr(JSON.stringify(texto))+')">'
+      +'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 8V2a1 1 0 0 1 1-1h6" stroke="currentColor" stroke-width="1.2"/></svg>'
+      +' Copiar</button>'
       +'</div>';
   }
-  function tabelaRend(grupo){
-    var h='<table class="sc-tbl"><thead><tr><th>Ticker</th><th>CNPJ</th><th>Valor Total</th><th></th></tr></thead><tbody>';
-    grupo.itens.forEach(function(it){
-      h+='<tr><td>'+it.tk+'</td><td>'+it.cnpj+'</td><td>'+M(it.valor)+'</td>'
-        +'<td><button class="tb-btn" onclick="copyText(this, '+escAttr(JSON.stringify(it.texto))+')">Copiar</button></td></tr>';
-    });
-    return h+'</tbody></table>';
+  function cardBem(it,cor){
+    var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px">';
+    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+    h+=pill(it.tk,cor);
+    h+='<span style="font-size:12px;color:var(--muted)">CNPJ '+it.cnpj+'</span>';
+    h+='<span style="margin-left:auto;font-weight:700;font-size:14px">'+M(it.custo)+'</span>';
+    h+='</div>';
+    h+=boxCopiavel(it.texto);
+    h+='</div>';
+    return h;
+  }
+  function cardRend(it,cor,selo){
+    var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px">';
+    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+    h+=pill(it.tk,cor);
+    h+=pill(selo,cor);
+    h+='<span style="font-size:12px;color:var(--muted)">CNPJ '+it.cnpj+'</span>';
+    h+='<span style="margin-left:auto;font-weight:700;font-size:14px">'+M(it.valor)+'</span>';
+    h+='</div>';
+    h+=boxCopiavel(it.texto);
+    h+='</div>';
+    return h;
+  }
+  function blocoGrupo(titulo,cor,itensHtml,vazio){
+    var h='<div style="margin-bottom:18px">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +'<span style="width:7px;height:7px;border-radius:99px;background:'+cor+'"></span>'
+      +'<span style="font-size:13px;font-weight:600;color:var(--text)">'+titulo+'</span>'
+      +'</div>';
+    h+=itensHtml||('<p style="color:var(--muted);font-size:13px;padding:8px 4px">'+vazio+'</p>');
+    h+='</div>';
+    return h;
   }
 
+  /* ── Montagem final ── */
   var h='';
-  h+='<div class="sec-head"><h3>Declaracao de Imposto de Renda — Passo a Passo</h3><span class="tag">'+clienteAtivo+' · ano-base '+ano+'</span></div>';
+  h+='<div class="sec-head"><h3>Declaração de Imposto de Renda</h3><span class="tag">'+clienteAtivo+' · ano-base '+ano+'</span></div>';
 
-  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">BENS</div>'
-    +'<div class="sc-kpis">'+ck('Secao','Bens e Direitos','')+ck('Grupos',Object.keys(gruposBens).length,'')+'</div></div>';
+  // Explicação amigável + como usar
+  h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;display:flex;gap:14px;align-items:flex-start">';
+  h+='<div style="font-size:24px;line-height:1">🧾</div>';
+  h+='<div style="font-size:13px;color:var(--muted);line-height:1.7">Este relatório organiza sua carteira e seus rendimentos de <b style="color:var(--text)">'+ano+'</b> do jeito que o programa da Receita Federal pede. Para cada item, clique em <b style="color:var(--text)">Copiar</b> e cole no campo indicado — sem precisar digitar nada.</div>';
+  h+='</div>';
+
+  // Resumo (KPIs)
+  h+='<div class="kpi-row" style="margin-bottom:20px">';
+  h+=kpi('Bens e Direitos em 31/12',M(totBens),'custo total investido','','');
+  h+=kpi('Rendimentos Isentos',M(totIsento),'dividendos, FIIs e Fiagros','','g');
+  h+=kpi('Tributação Exclusiva',M(totExclusiva),'JCP, ETFs e outros','','');
+  h+='</div>';
+
+  // ── Bens e Direitos ──
+  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">📦</div>'
+    +'<div class="sc-kpis">'+ck('Seção','Bens e Direitos','')+ck('Posição em','31/12/'+ano,'')+ck('Total',M(totBens),'')+'</div></div>';
   h+='<div class="sc-body">';
+  h+='<p style="font-size:13px;color:var(--muted);margin-bottom:14px">O que você tinha investido até o fim de '+ano+', agrupado exatamente como pede a Receita Federal.</p>';
   var chaves1=Object.keys(gruposBens).sort();
-  if(!chaves1.length)h+='<p style="color:var(--muted);text-align:center">Nenhum ativo em carteira em 31/12/'+ano+'.</p>';
+  if(!chaves1.length){
+    h+='<p style="color:var(--muted);text-align:center;padding:20px 0">Nenhum ativo em carteira em 31/12/'+ano+'.</p>';
+  }
   chaves1.forEach(function(key){
     var g=gruposBens[key];
-    h+='<div style="margin-bottom:16px">';
-    h+='<p style="font-size:13px;color:var(--muted);margin-bottom:6px">Para declarar, acesse o programa da Receita Federal e siga o caminho: <b style="color:var(--text)">Bens e Direitos → Grupo '+g.grupo+' → Codigo '+g.codigo+'</b> ('+g.label+')</p>';
-    g.itens.forEach(function(it){h+=linhaTexto(it.texto);});
-    h+='</div>';
+    var caminho='Bens e Direitos → Grupo '+g.grupo+' → Código '+g.codigo+' ('+g.label+')';
+    var itensHtml='';
+    g.itens.forEach(function(it){itensHtml+=cardBem(it,corBens);});
+    h+=blocoGrupo(caminho,corBens,itensHtml,'');
   });
   h+='</div></div>';
 
-  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">ISN</div>'
-    +'<div class="sc-kpis">'+ck('Secao','Rend. Isentos','')+'</div></div>';
-  h+='<div class="sc-body"><h4 style="margin-bottom:10px">RENDIMENTOS ISENTOS E NAO TRIBUTAVEIS</h4>';
+  // ── Rendimentos Isentos ──
+  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">🟢</div>'
+    +'<div class="sc-kpis">'+ck('Seção','Rend. Isentos','')+ck('Total',M(totIsento),'')+'</div></div>';
+  h+='<div class="sc-body">';
+  h+='<p style="font-size:13px;color:var(--muted);margin-bottom:14px">Dividendos de ações e rendimentos de FIIs/Fiagros. Não entram no cálculo do imposto, mas precisam ser declarados.</p>';
   var codsI=Object.keys(isentos).sort();
-  if(!codsI.length)h+='<p style="color:var(--muted);text-align:center">Nenhum rendimento isento recebido em '+ano+'.</p>';
+  if(!codsI.length){
+    h+='<p style="color:var(--muted);text-align:center;padding:20px 0">Nenhum rendimento isento recebido em '+ano+'.</p>';
+  }
   codsI.forEach(function(cod){
     var g=isentos[cod];
-    h+='<p style="font-size:13px;color:var(--muted);margin:10px 0 4px">Codigo '+cod+' — '+g.label+'</p>'+tabelaRend(g);
+    var itensHtml='';
+    g.itens.forEach(function(it){itensHtml+=cardRend(it,corBens,'ISENTO');});
+    h+=blocoGrupo('Rendimentos Isentos e Não Tributáveis → Código '+cod+' ('+g.label+')',corBens,itensHtml,'');
   });
   h+='</div></div>';
 
-  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">EXC</div>'
-    +'<div class="sc-kpis">'+ck('Secao','Tributacao Exclusiva','')+'</div></div>';
-  h+='<div class="sc-body"><h4 style="margin-bottom:10px">RENDIMENTOS SUJEITOS A TRIBUTACAO EXCLUSIVA</h4>';
+  // ── Tributação Exclusiva ──
+  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:'+corExclusiva+'">🟠</div>'
+    +'<div class="sc-kpis">'+ck('Seção','Tributação Exclusiva','')+ck('Total',M(totExclusiva),'')+'</div></div>';
+  h+='<div class="sc-body">';
+  h+='<p style="font-size:13px;color:var(--muted);margin-bottom:14px">JCP, ETFs e outros rendimentos com imposto já retido na fonte. Também precisam ser declarados aqui.</p>';
   var codsE=Object.keys(exclusiva).sort();
-  if(!codsE.length)h+='<p style="color:var(--muted);text-align:center">Nenhum rendimento sujeito a tributacao exclusiva em '+ano+'.</p>';
+  if(!codsE.length){
+    h+='<p style="color:var(--muted);text-align:center;padding:20px 0">Nenhum rendimento sujeito a tributação exclusiva em '+ano+'.</p>';
+  }
   codsE.forEach(function(cod){
     var g=exclusiva[cod];
-    h+='<p style="font-size:13px;color:var(--muted);margin:10px 0 4px">Codigo '+cod+' — '+g.label+'</p>'+tabelaRend(g);
+    var itensHtml='';
+    g.itens.forEach(function(it){itensHtml+=cardRend(it,corExclusiva,'TRIBUTADO NA FONTE');});
+    h+=blocoGrupo('Tributação Exclusiva → Código '+cod+' ('+g.label+')',corExclusiva,itensHtml,'');
   });
   h+='</div></div>';
 
@@ -3055,7 +3124,7 @@ function processarEAtualizar(){
     if(tk){
       PRECOS[tk]=n(RAW.at[i][3]);
       var sg2=(RAW.at[i][1]||'').trim();if(sg2)SEGMENTOS[tk]=sg2;
-      INFO_ATIVOS[tk]={cnpj:(RAW.at[i][4]||'').trim()};
+      INFO_ATIVOS[tk]={cnpj:(RAW.at[i][6]||'').trim()};
     }
   }
   var aSet={};
