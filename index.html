@@ -1627,7 +1627,7 @@ function viewAno(c,ano){
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   h+=' Metas</button>';
   h+='<span style="width:1px;align-self:center;height:20px;background:var(--border);margin:0 2px"></span>';
-  h+='<button class="tab-btn" style="color:var(--accent)" onclick="renderDIRPF()" title="Gerar Declaração de Imposto de Renda (IRPF)">';
+  h+='<button class="tab-btn'+(abaAtiva==='dirpf'?' tab-on':'')+'" onclick="switchTab(\'dirpf\')" title="Gerar Declaração de Imposto de Renda (IRPF)">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 1h4.5l2.5 2.5V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M7.5 1v2.5H10" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4 7.5h5M4 9.5h5M4 5.5h1.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>';
   h+=' IRPF</button>';
   h+='</div>';
@@ -1684,6 +1684,7 @@ function viewAno(c,ano){
   var _latestForMeta = getLatestData(c);
   h += buildTabCalc(c, abaAtiva);
   h += buildTabMetas(c, abaAtiva);
+  h += buildTabDIRPF(c, ano, abaAtiva);
 
   document.getElementById('content').innerHTML=h;
   initMetaState(_latestForMeta.mkt, _latestForMeta.rendUlt);
@@ -1757,7 +1758,7 @@ function viewTodos(c){
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   h+=' Metas</button>';
   h+='<span style="width:1px;align-self:center;height:20px;background:var(--border);margin:0 2px"></span>';
-  h+='<button class="tab-btn" style="color:var(--accent)" onclick="renderDIRPF()" title="Gerar Declaração de Imposto de Renda (IRPF)">';
+  h+='<button class="tab-btn'+(abaAtiva==='dirpf'?' tab-on':'')+'" onclick="switchTab(\'dirpf\')" title="Gerar Declaração de Imposto de Renda (IRPF)">';
   h+='<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 1h4.5l2.5 2.5V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M7.5 1v2.5H10" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4 7.5h5M4 9.5h5M4 5.5h1.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>';
   h+=' IRPF</button>';
   h+='</div>';
@@ -1867,6 +1868,7 @@ function viewTodos(c){
   var _latestForMetaT = getLatestData(c);
   h += buildTabCalc(c, abaAtiva);
   h += buildTabMetas(c, abaAtiva);
+  h += buildTabDIRPF(c, 'TODOS', abaAtiva);
 
   document.getElementById('content').innerHTML=h;
   initMetaState(_latestForMetaT.mkt, _latestForMetaT.rendUlt);
@@ -2039,13 +2041,10 @@ window.copyText=function(btn,text){
   });
 };
 
-/* ── renderDIRPF() — versao "Passo a Passo" ── */
-function renderDIRPF(){
-  if(!clienteAtivo){alert('Selecione um cliente para gerar a declaracao.');return;}
-  if(anoSel==='TODOS'){alert('Selecione um ano especifico (nao "Todos os Anos") para gerar a declaracao de IR.');return;}
-
-  var ano=anoSel;
-  var movs=(DADOS[ano]&&DADOS[ano].pat[clienteAtivo])||[];
+/* ── Relatório DIRPF "Passo a Passo" (agora reutilizável como aba) ── */
+/* ── Constroi o HTML do relatorio DIRPF (reutilizavel) ── */
+function buildDIRPFReportHTML(cliente, ano){
+  var movs=(DADOS[ano]&&DADOS[ano].pat[cliente])||[];
   var limite=new Date(ano,11,31,23,59,59);
   var corExclusiva='#e8a54c';
   var corBens='#3ddc84'; // mesmo tom de var(--accent); hex literal p/ permitir alpha no pill()
@@ -2081,7 +2080,7 @@ function renderDIRPF(){
   });
 
   /* ── Rendimentos: isentos vs tributacao exclusiva ── */
-  var rendMap=calcRendimentosPorNatureza(ano,clienteAtivo);
+  var rendMap=calcRendimentosPorNatureza(ano,cliente);
   var isentos={},exclusiva={},totIsento=0,totExclusiva=0;
   Object.keys(rendMap).forEach(function(k){
     var it=rendMap[k];
@@ -2146,7 +2145,7 @@ function renderDIRPF(){
 
   /* ── Montagem final ── */
   var h='';
-  h+='<div class="sec-head"><h3>Declaração de Imposto de Renda</h3><span class="tag">'+clienteAtivo+' · ano-base '+ano+'</span></div>';
+  h+='<div class="sec-head"><h3>Declaração de Imposto de Renda</h3><span class="tag">'+cliente+' · ano-base '+ano+'</span></div>';
 
   // Explicação amigável + como usar
   h+='<div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;display:flex;gap:14px;align-items:flex-start">';
@@ -2213,7 +2212,21 @@ function renderDIRPF(){
   });
   h+='</div></div>';
 
-  document.getElementById('content').innerHTML=h;
+  return h;
+}
+
+/* ── BUILD ABA DIRPF (mesmo padrao de buildTabMetas) ── */
+function buildTabDIRPF(c, ano, abaAtiva){
+  var h='<div id="tab-dirpf" class="tab-pane'+(abaAtiva==='dirpf'?'':' tab-hidden')+'">';
+  if(!c){
+    h+='<p style="color:var(--muted);text-align:center;padding:40px 0">Selecione um cliente para gerar a declaração.</p>';
+  }else if(ano==='TODOS'){
+    h+='<p style="color:var(--muted);text-align:center;padding:40px 0">Selecione um ano específico (não "Todos os Anos") para gerar a declaração de IR.</p>';
+  }else{
+    h+=buildDIRPFReportHTML(c,ano);
+  }
+  h+='</div>';
+  return h;
 }
 
 /* ── CARD HISTÓRICO — para viewTodos ─────── */
@@ -2716,12 +2729,14 @@ function switchTab(aba){
   var pP=document.getElementById('tab-proventos');
   var pK=document.getElementById('tab-calc');
   var pM=document.getElementById('tab-metas');
+  var pD=document.getElementById('tab-dirpf');
   if(pC)pC.classList.toggle('tab-hidden',aba!=='carteira');
   if(pP)pP.classList.toggle('tab-hidden',aba!=='proventos');
   if(pK)pK.classList.toggle('tab-hidden',aba!=='calc');
   if(pM)pM.classList.toggle('tab-hidden',aba!=='metas');
+  if(pD)pD.classList.toggle('tab-hidden',aba!=='dirpf');
   document.querySelectorAll('.tab-btn').forEach(function(btn,i){
-    var abas=['carteira','proventos','calc','metas'];
+    var abas=['carteira','proventos','calc','metas','dirpf'];
     btn.classList.toggle('tab-on',abas[i]===aba);
   });
   setTimeout(function(){
