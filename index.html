@@ -2161,7 +2161,7 @@ function buildDIRPFReportHTML(cliente, ano){
   h+='</div>';
 
   // ── Bens e Direitos ──
-  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">📦</div>'
+  h+='<div class="sc open" style="margin-bottom:24px"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">📦</div>'
     +'<div class="sc-kpis">'+ck('Seção','Bens e Direitos','')+ck('Posição em','31/12/'+ano,'')+ck('Total',M(totBens),'')+'</div></div>';
   h+='<div class="sc-body">';
   h+='<p style="font-size:13px;color:var(--muted);margin-bottom:14px">O que você tinha investido até o fim de '+ano+', agrupado exatamente como pede a Receita Federal.</p>';
@@ -2179,7 +2179,7 @@ function buildDIRPFReportHTML(cliente, ano){
   h+='</div></div>';
 
   // ── Rendimentos Isentos ──
-  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">🟢</div>'
+  h+='<div class="sc open" style="margin-bottom:24px"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">🟢</div>'
     +'<div class="sc-kpis">'+ck('Seção','Rend. Isentos','')+ck('Total',M(totIsento),'')+'</div></div>';
   h+='<div class="sc-body">';
   h+='<p style="font-size:13px;color:var(--muted);margin-bottom:14px">Dividendos de ações e rendimentos de FIIs/Fiagros. Não entram no cálculo do imposto, mas precisam ser declarados.</p>';
@@ -2196,7 +2196,7 @@ function buildDIRPFReportHTML(cliente, ano){
   h+='</div></div>';
 
   // ── Tributação Exclusiva ──
-  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:'+corExclusiva+'">🟠</div>'
+  h+='<div class="sc open" style="margin-bottom:8px"><div class="sc-head"><div class="sc-icon" style="color:'+corExclusiva+'">🟠</div>'
     +'<div class="sc-kpis">'+ck('Seção','Tributação Exclusiva','')+ck('Total',M(totExclusiva),'')+'</div></div>';
   h+='<div class="sc-body">';
   h+='<p style="font-size:13px;color:var(--muted);margin-bottom:14px">JCP, ETFs e outros rendimentos com imposto já retido na fonte. Também precisam ser declarados aqui.</p>';
