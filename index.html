@@ -1923,27 +1923,140 @@ function viewTodos(c){
 }
 
 /* ── DIRPF ────────────────────────────────── */
+
+/* Escapa texto para uso seguro dentro de innerHTML */
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+/* Escapa um JSON.stringify() para ser embutido dentro de um atributo
+   HTML delimitado por aspas duplas (onclick="...") sem quebrar o parser */
+function escAttr(s){
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+/* ── Heuristica: natureza fiscal do provento (Dividendo/JSCP/Outros) ── */
+function classificarTipoProvento(seg, tipo){
+  seg=(seg||'').toUpperCase();
+  tipo=(tipo||'').toUpperCase();
+  if(seg.indexOf('FII')>=0||seg.indexOf('FUNDO IMOBILI')>=0||seg.indexOf('FIAGRO')>=0)return 'RENDIMENTO_ISENTO';
+  if(seg.indexOf('ETF')>=0)return 'ETF';
+  if(tipo.indexOf('JCP')>=0||tipo.indexOf('JSCP')>=0)return 'JSCP';
+  if(tipo.indexOf('DIVIDEND')>=0)return 'DIVIDENDO';
+  return 'OUTROS';
+}
+
+/* ── Bens e Direitos -> Grupo/Codigo da Receita Federal ── */
+function getBensCategory(ticker, segmento){
+  var tk=(ticker||'').toUpperCase();
+  var seg=(segmento||'').toUpperCase();
+  if(/34$/.test(tk)){
+    return {grupo:'04',codigo:'04',label:'BDR — Brazilian Depositary Receipt'};
+  }
+  if(seg.indexOf('FII')>=0||seg.indexOf('FUNDO IMOBILI')>=0){
+    return {grupo:'07',codigo:'03',label:'Fundo de Investimento Imobiliario (FII)'};
+  }
+  if(seg.indexOf('FIAGRO')>=0){
+    return {grupo:'07',codigo:'02',label:'Fiagro'};
+  }
+  if(seg.indexOf('ETF')>=0){
+    return {grupo:'07',codigo:'06',label:'ETF — Fundo de Indice'};
+  }
+  if(/(3|4|5|11)$/.test(tk)){
+    return {grupo:'03',codigo:'01',label:'Acoes'};
+  }
+  return {grupo:'99',codigo:'99',label:'Outros bens e direitos'};
+}
+
+/* ── Rendimentos -> Isentos vs Tributacao Exclusiva ── */
+function getRendimentosCategory(ticker, segmento, tipoProvento){
+  var seg=(segmento||'').toUpperCase();
+  var tipo=(tipoProvento||'').toUpperCase();
+  var isFII=seg.indexOf('FII')>=0||seg.indexOf('FUNDO IMOBILI')>=0||seg.indexOf('FIAGRO')>=0;
+  var isETF=seg.indexOf('ETF')>=0;
+
+  if(isFII){
+    return {secao:'ISENTOS',codigo:'99',label:'Rendimentos isentos e nao tributaveis — Outros'};
+  }
+  if(isETF){
+    return {secao:'EXCLUSIVA',codigo:'11',label:'Tributacao exclusiva — Participacoes nos lucros e resultados'};
+  }
+  if(tipo==='DIVIDENDO'){
+    return {secao:'ISENTOS',codigo:'09',label:'Rendimentos isentos e nao tributaveis — Lucros e dividendos recebidos'};
+  }
+  if(tipo==='JSCP'){
+    return {secao:'EXCLUSIVA',codigo:'10',label:'Tributacao exclusiva — Juros sobre capital proprio'};
+  }
+  return {secao:'EXCLUSIVA',codigo:'99',label:'Tributacao exclusiva — Outros'};
+}
+
+/* ── Recalcula rendimentos do cliente/ano a partir de RAW.di, preservando
+   a NATUREZA do provento (perdida na agregacao de buildProv) ── */
+function calcRendimentosPorNatureza(ano, cliente){
+  var movs=(DADOS[ano]&&DADOS[ano].pat[cliente])||[];
+  var out={};
+  for(var r=1;r<RAW.di.length;r++){
+    var row=RAW.di[r];
+    var tk=(row[0]||'').trim().toUpperCase();
+    var seg=(row[1]||'OUTROS').trim();
+    var dCom=dt(row[2]);
+    var dPag=dt(row[3]);
+    var tipo=(row[4]||'');
+    var vu=n(row[5]);
+    var dRef=dPag||dCom;
+    if(!tk||!dRef||dRef.getFullYear()!==ano)continue;
+
+    var qd=0;
+    movs.forEach(function(mv){
+      if(mv.a!==tk)return;
+      var dm=mv._d||dt(mv.dt);
+      if(dm&&dm<=dCom){var q=n(mv.q);qd+=isCompra(mv.cv)?q:-q;}
+    });
+    if(qd<=0)continue;
+
+    var f=1,segUp=seg.toUpperCase(),tipoUp=tipo.toUpperCase();
+    if(segUp.indexOf('ETF')>=0)f=0.85;
+    else if(segUp.indexOf('BDR')>=0||tipoUp.indexOf('EXTERIOR')>=0)f=0.70;
+    else if(tipoUp.indexOf('JCP')>=0||tipoUp.indexOf('JSCP')>=0)f=0.85;
+
+    var valor=R(qd*vu*f);
+    var classe=classificarTipoProvento(seg,tipo);
+    var key=tk+'|'+classe;
+    if(!out[key])out[key]={tk:tk,seg:seg,classe:classe,valor:0};
+    out[key].valor=R(out[key].valor+valor);
+  }
+  return out;
+}
+
+/* ── Copiar texto para a area de transferencia ── */
+window.copyText=function(btn,text){
+  var original=btn.textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    btn.textContent='Copiado!';
+    setTimeout(function(){btn.textContent=original;},1500);
+  }).catch(function(){
+    btn.textContent='Erro ao copiar';
+    setTimeout(function(){btn.textContent=original;},1500);
+  });
+};
+
+/* ── renderDIRPF() — versao "Passo a Passo" ── */
 function renderDIRPF(){
-  if(!clienteAtivo){alert('Selecione um cliente para gerar a declaração.');return;}
-  if(anoSel==='TODOS'){alert('Selecione um ano específico (não "Todos os Anos") para gerar a declaração de IR.');return;}
+  if(!clienteAtivo){alert('Selecione um cliente para gerar a declaracao.');return;}
+  if(anoSel==='TODOS'){alert('Selecione um ano especifico (nao "Todos os Anos") para gerar a declaracao de IR.');return;}
 
   var ano=anoSel;
-  var d=DADOS[ano]||{pat:{},prov:{}};
-  var movs=d.pat[clienteAtivo]||[];
+  var movs=(DADOS[ano]&&DADOS[ano].pat[clienteAtivo])||[];
   var limite=new Date(ano,11,31,23,59,59);
 
-  /* ── Seção 1: Bens e Direitos (posição em 31/12) ── */
-  var pos={}; // { TICKER: {q, custo} } — mesma lógica de PM de consolidar()
+  var pos={};
   movs.forEach(function(mv){
     var dm=mv._d||dt(mv.dt);
     if(!dm||dm>limite)return;
     var tk=mv.a;
     if(!pos[tk])pos[tk]={q:0,custo:0};
     var p=pos[tk];
-    if(isCompra(mv.cv)){
-      p.custo+=mv.tot;
-      p.q+=mv.q;
-    }else{
+    if(isCompra(mv.cv)){p.custo+=mv.tot;p.q+=mv.q;}
+    else{
       var pm=p.q>0?p.custo/p.q:0;
       p.q-=mv.q;
       p.custo=p.q>0.0001?p.q*pm:0;
@@ -1951,81 +2064,85 @@ function renderDIRPF(){
     }
   });
 
-  var tks1=Object.keys(pos).filter(function(tk){return pos[tk].q>0.0001;}).sort();
-  var totCusto=0;
-  var rows1='';
-  tks1.forEach(function(tk){
+  var gruposBens={};
+  Object.keys(pos).filter(function(tk){return pos[tk].q>0.0001;}).sort().forEach(function(tk){
+    var cat=getBensCategory(tk,SEGMENTOS[tk]);
+    var key=cat.grupo+'|'+cat.codigo;
+    if(!gruposBens[key])gruposBens[key]={grupo:cat.grupo,codigo:cat.codigo,label:cat.label,itens:[]};
     var info=INFO_ATIVOS[tk]||{};
-    totCusto+=pos[tk].custo;
-    rows1+='<tr>'
-      +'<td>'+tk+'</td>'
-      +'<td>'+(info.cnpj||'—')+'</td>'
-      +'<td>'+pos[tk].q.toLocaleString('pt-BR',{maximumFractionDigits:2})+'</td>'
-      +'<td>'+M(pos[tk].custo)+'</td>'
-      +'</tr>';
+    var qtd=pos[tk].q,custo=pos[tk].custo,pm=qtd>0?custo/qtd:0;
+    var texto='Em 31/12/'+ano+', possuia '+qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})+' ativo(s) de '+tk+' (CNPJ: '+(info.cnpj||'nao informado')+'), adquirido(s) a custo medio de R$ '+pm.toFixed(2)+', totalizando R$ '+custo.toFixed(2)+'.';
+    gruposBens[key].itens.push({tk:tk,texto:texto});
   });
-  if(!rows1)rows1='<tr><td colspan="4" style="text-align:center;color:var(--muted)">Nenhum ativo em carteira em 31/12/'+ano+'.</td></tr>';
 
-  /* ── Seção 2: Rendimentos recebidos no ano ── */
-  var pv=d.prov[clienteAtivo]||{segs:{},tot:Array(12).fill(0)};
-  var rendPorTk={};
-  Object.keys(pv.segs).forEach(function(sg){
-    pv.segs[sg].forEach(function(at){
-      var totalAno=at.m.reduce(function(s,m){return s+(m.s||0);},0);
-      if(totalAno>0)rendPorTk[at.tk]=(rendPorTk[at.tk]||0)+totalAno;
+  var rendMap=calcRendimentosPorNatureza(ano,clienteAtivo);
+  var isentos={},exclusiva={};
+  Object.keys(rendMap).forEach(function(k){
+    var it=rendMap[k];
+    if(it.valor<=0)return;
+    var cat=getRendimentosCategory(it.tk,it.seg,it.classe);
+    var bucket=cat.secao==='ISENTOS'?isentos:exclusiva;
+    if(!bucket[cat.codigo])bucket[cat.codigo]={label:cat.label,itens:[]};
+    var info=INFO_ATIVOS[it.tk]||{};
+    var texto=cat.secao==='ISENTOS'
+      ?'Rendimentos recebidos a titulo de Dividendos, pagos por '+it.tk+' (CNPJ: '+(info.cnpj||'nao informado')+'), no ano-calendario de '+ano+'.'
+      :'Rendimentos pagos por '+it.tk+' (CNPJ: '+(info.cnpj||'nao informado')+'), com imposto retido na fonte, no ano-calendario de '+ano+'.';
+    bucket[cat.codigo].itens.push({tk:it.tk,cnpj:info.cnpj||'—',valor:it.valor,texto:texto});
+  });
+
+  function linhaTexto(texto){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border)">'
+      +'<div style="flex:1;font-size:13px;line-height:1.5">'+escHtml(texto)+'</div>'
+      +'<button class="tb-btn" onclick="copyText(this, '+escAttr(JSON.stringify(texto))+')">Copiar</button>'
+      +'</div>';
+  }
+  function tabelaRend(grupo){
+    var h='<table class="sc-tbl"><thead><tr><th>Ticker</th><th>CNPJ</th><th>Valor Total</th><th></th></tr></thead><tbody>';
+    grupo.itens.forEach(function(it){
+      h+='<tr><td>'+it.tk+'</td><td>'+it.cnpj+'</td><td>'+M(it.valor)+'</td>'
+        +'<td><button class="tb-btn" onclick="copyText(this, '+escAttr(JSON.stringify(it.texto))+')">Copiar</button></td></tr>';
     });
-  });
+    return h+'</tbody></table>';
+  }
 
-  var tks2=Object.keys(rendPorTk).sort();
-  var totRend=0;
-  var rows2='';
-  tks2.forEach(function(tk){
-    var info=INFO_ATIVOS[tk]||{};
-    var val=R(rendPorTk[tk]);
-    totRend+=val;
-    rows2+='<tr>'
-      +'<td>'+tk+'</td>'
-      +'<td>'+(info.cnpj||'—')+'</td>'
-      +'<td>'+M(val)+'</td>'
-      +'</tr>';
-  });
-  if(!rows2)rows2='<tr><td colspan="3" style="text-align:center;color:var(--muted)">Nenhum rendimento recebido em '+ano+'.</td></tr>';
-
-  /* ── Montagem do HTML ── */
   var h='';
-  h+='<div class="sec-head"><h3>Declaração de Imposto de Renda</h3><span class="tag">'+clienteAtivo+' · ano-base '+ano+'</span></div>';
+  h+='<div class="sec-head"><h3>Declaracao de Imposto de Renda — Passo a Passo</h3><span class="tag">'+clienteAtivo+' · ano-base '+ano+'</span></div>';
 
-  h+='<div class="sc open">';
-  h+='<div class="sc-head">';
-  h+='<div class="sc-icon" style="color:var(--accent)">BENS</div>';
-  h+='<div class="sc-kpis">'
-    +ck('Posição em','31/12/'+ano,'')
-    +ck('Ativos',tks1.length,'')
-    +ck('Custo Total',M(totCusto),'')
-    +'</div>';
-  h+='</div>';
-  h+='<div class="sc-body"><table class="sc-tbl">';
-  h+='<thead><tr><th>Ticker</th><th>CNPJ</th><th>Qtd. Final</th><th>Custo Total</th></tr></thead>';
-  h+='<tbody>'+rows1+'</tbody>';
-  h+='<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">TOTAL</td><td>'+M(totCusto)+'</td></tr></tfoot>';
-  h+='</table></div>';
-  h+='</div>';
+  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">BENS</div>'
+    +'<div class="sc-kpis">'+ck('Secao','Bens e Direitos','')+ck('Grupos',Object.keys(gruposBens).length,'')+'</div></div>';
+  h+='<div class="sc-body">';
+  var chaves1=Object.keys(gruposBens).sort();
+  if(!chaves1.length)h+='<p style="color:var(--muted);text-align:center">Nenhum ativo em carteira em 31/12/'+ano+'.</p>';
+  chaves1.forEach(function(key){
+    var g=gruposBens[key];
+    h+='<div style="margin-bottom:16px">';
+    h+='<p style="font-size:13px;color:var(--muted);margin-bottom:6px">Para declarar, acesse o programa da Receita Federal e siga o caminho: <b style="color:var(--text)">Bens e Direitos → Grupo '+g.grupo+' → Codigo '+g.codigo+'</b> ('+g.label+')</p>';
+    g.itens.forEach(function(it){h+=linhaTexto(it.texto);});
+    h+='</div>';
+  });
+  h+='</div></div>';
 
-  h+='<div class="sc open">';
-  h+='<div class="sc-head">';
-  h+='<div class="sc-icon" style="color:var(--accent)">REND</div>';
-  h+='<div class="sc-kpis">'
-    +ck('Rendimentos','ano '+ano,'')
-    +ck('Ativos',tks2.length,'')
-    +ck('Total Recebido',M(totRend),'g')
-    +'</div>';
-  h+='</div>';
-  h+='<div class="sc-body"><table class="sc-tbl">';
-  h+='<thead><tr><th>Ticker</th><th>CNPJ</th><th>Valor Total no Ano</th></tr></thead>';
-  h+='<tbody>'+rows2+'</tbody>';
-  h+='<tfoot><tr><td colspan="2" style="text-align:right;font-weight:700">TOTAL</td><td>'+M(totRend)+'</td></tr></tfoot>';
-  h+='</table></div>';
-  h+='</div>';
+  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">ISN</div>'
+    +'<div class="sc-kpis">'+ck('Secao','Rend. Isentos','')+'</div></div>';
+  h+='<div class="sc-body"><h4 style="margin-bottom:10px">RENDIMENTOS ISENTOS E NAO TRIBUTAVEIS</h4>';
+  var codsI=Object.keys(isentos).sort();
+  if(!codsI.length)h+='<p style="color:var(--muted);text-align:center">Nenhum rendimento isento recebido em '+ano+'.</p>';
+  codsI.forEach(function(cod){
+    var g=isentos[cod];
+    h+='<p style="font-size:13px;color:var(--muted);margin:10px 0 4px">Codigo '+cod+' — '+g.label+'</p>'+tabelaRend(g);
+  });
+  h+='</div></div>';
+
+  h+='<div class="sc open"><div class="sc-head"><div class="sc-icon" style="color:var(--accent)">EXC</div>'
+    +'<div class="sc-kpis">'+ck('Secao','Tributacao Exclusiva','')+'</div></div>';
+  h+='<div class="sc-body"><h4 style="margin-bottom:10px">RENDIMENTOS SUJEITOS A TRIBUTACAO EXCLUSIVA</h4>';
+  var codsE=Object.keys(exclusiva).sort();
+  if(!codsE.length)h+='<p style="color:var(--muted);text-align:center">Nenhum rendimento sujeito a tributacao exclusiva em '+ano+'.</p>';
+  codsE.forEach(function(cod){
+    var g=exclusiva[cod];
+    h+='<p style="font-size:13px;color:var(--muted);margin:10px 0 4px">Codigo '+cod+' — '+g.label+'</p>'+tabelaRend(g);
+  });
+  h+='</div></div>';
 
   document.getElementById('content').innerHTML=h;
 }
