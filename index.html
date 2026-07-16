@@ -234,6 +234,7 @@ body.is-mobile .chart-h-bar{height:150px!important;}
 body.is-mobile .chart-h-hist{height:180px!important;}
 body.is-mobile .seg-stack{gap:8px;}
 body.is-mobile .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+body.is-mobile .tab-btn{padding:7px 14px;font-size:.8rem;}
 body.is-mobile table{min-width:480px;}
 /* Trava nome do segmento e do ativo à esquerda no scroll horizontal */
 body.is-mobile .seg-hdr td{
@@ -721,10 +722,17 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
   border:1px solid var(--border);
   border-radius:10px;
   margin-bottom:24px;
-  width:fit-content;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x;
+  scrollbar-width:none;
 }
+.tabs-bar::-webkit-scrollbar{display:none;}
 .tab-btn{
   display:flex;align-items:center;gap:7px;
+  flex-shrink:0;
   padding:8px 18px;
   border:none;border-radius:7px;
   background:transparent;
