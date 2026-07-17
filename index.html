@@ -569,9 +569,20 @@ body.is-mobile .sc-tbl tbody td{padding:0 14px;height:44px;font-size:.8rem;}
   border:1px solid var(--border);
   border-radius:var(--radius);
   overflow:hidden;
+  box-shadow:0 2px 10px rgba(0,0,0,.18);
   transition:border-color .2s,box-shadow .2s;
 }
-.sc:hover{border-color:rgba(255,255,255,.12);box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.sc:hover{border-color:rgba(255,255,255,.12);box-shadow:0 6px 24px rgba(0,0,0,.32)}
+
+/* Copiar (estilo "fantasma", sem borda, para reduzir poluição visual em listas) */
+.copy-ghost{
+  flex-shrink:0;background:transparent;border:none;
+  color:var(--muted);font-family:'Outfit',sans-serif;font-size:.72rem;font-weight:600;
+  display:flex;align-items:center;gap:5px;white-space:nowrap;
+  padding:6px 10px;border-radius:6px;cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.copy-ghost:hover{background:var(--accent-glow);color:var(--accent)}
 
 /* colour stripe at top */
 .sc-stripe{height:2px;width:100%}
@@ -2105,48 +2116,42 @@ function buildDIRPFReportHTML(cliente, ano){
     bucket[cat.codigo].itens.push({tk:it.tk,cnpj:info.cnpj||'—',valor:it.valor,texto:texto});
   });
 
-  /* ── Helpers de renderizacao (cards modernos) ── */
+  /* ── Helpers de renderizacao (visual mais limpo: 1 container por grupo) ── */
   function pill(texto,cor){
-    return '<span style="background:'+cor+'22;color:'+cor+';font-weight:700;font-size:11px;letter-spacing:.3px;padding:3px 10px;border-radius:99px;white-space:nowrap">'+texto+'</span>';
+    return '<span style="background:'+cor+'1a;color:'+cor+';font-weight:700;font-size:11px;letter-spacing:.3px;padding:3px 10px;border-radius:99px;white-space:nowrap">'+texto+'</span>';
   }
-  function boxCopiavel(texto){
-    return '<div style="display:flex;align-items:flex-start;gap:10px;margin-top:10px">'
-      +'<div style="flex:1;font-size:12.5px;color:var(--muted);line-height:1.6;background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:10px 12px">'+escHtml(texto)+'</div>'
-      +'<button class="tb-btn" style="flex-shrink:0" onclick="copyText(this, '+escAttr(JSON.stringify(texto))+')">'
+  function linhaCopiavel(headerHtml,texto,isLast){
+    return '<div style="padding:14px 18px'+(isLast?'':';border-bottom:1px solid var(--border)')+'">'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+headerHtml+'</div>'
+      +'<div style="display:flex;align-items:flex-start;gap:12px">'
+      +'<div style="flex:1;font-size:12.5px;color:var(--muted);line-height:1.6">'+escHtml(texto)+'</div>'
+      +'<button class="copy-ghost" onclick="copyText(this, '+escAttr(JSON.stringify(texto))+')">'
       +'<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 8V2a1 1 0 0 1 1-1h6" stroke="currentColor" stroke-width="1.2"/></svg>'
       +' Copiar</button>'
+      +'</div>'
       +'</div>';
   }
-  function cardBem(it,cor){
-    var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px">';
-    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-    h+=pill(it.tk,cor);
-    h+='<span style="font-size:12px;color:var(--muted)">CNPJ '+it.cnpj+'</span>';
-    h+='<span style="margin-left:auto;font-weight:700;font-size:14px">'+M(it.custo)+'</span>';
-    h+='</div>';
-    h+=boxCopiavel(it.texto);
-    h+='</div>';
-    return h;
+  function headerBem(it,cor){
+    return pill(it.tk,cor)
+      +'<span style="font-size:12px;color:var(--muted)">CNPJ '+it.cnpj+'</span>'
+      +'<span style="margin-left:auto;font-weight:700;font-size:14px">'+M(it.custo)+'</span>';
   }
-  function cardRend(it,cor,selo){
-    var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px">';
-    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-    h+=pill(it.tk,cor);
-    h+=pill(selo,cor);
-    h+='<span style="font-size:12px;color:var(--muted)">CNPJ '+it.cnpj+'</span>';
-    h+='<span style="margin-left:auto;font-weight:700;font-size:14px">'+M(it.valor)+'</span>';
-    h+='</div>';
-    h+=boxCopiavel(it.texto);
-    h+='</div>';
-    return h;
+  function headerRend(it,cor,selo){
+    return pill(it.tk,cor)+pill(selo,cor)
+      +'<span style="font-size:12px;color:var(--muted)">CNPJ '+it.cnpj+'</span>'
+      +'<span style="margin-left:auto;font-weight:700;font-size:14px">'+M(it.valor)+'</span>';
   }
-  function blocoGrupo(titulo,cor,itensHtml,vazio){
-    var h='<div style="margin-bottom:18px">';
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+  function blocoGrupo(titulo,cor,itens,montarHeader,vazio){
+    var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px">';
+    h+='<div style="padding:12px 18px;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.025);border-bottom:1px solid var(--border)">'
       +'<span style="width:7px;height:7px;border-radius:99px;background:'+cor+'"></span>'
       +'<span style="font-size:13px;font-weight:600;color:var(--text)">'+titulo+'</span>'
       +'</div>';
-    h+=itensHtml||('<p style="color:var(--muted);font-size:13px;padding:8px 4px">'+vazio+'</p>');
+    if(!itens||!itens.length){
+      h+='<p style="color:var(--muted);font-size:13px;padding:16px 18px">'+vazio+'</p>';
+    }else{
+      itens.forEach(function(it,i){h+=linhaCopiavel(montarHeader(it),it.texto,i===itens.length-1);});
+    }
     h+='</div>';
     return h;
   }
@@ -2180,9 +2185,7 @@ function buildDIRPFReportHTML(cliente, ano){
   chaves1.forEach(function(key){
     var g=gruposBens[key];
     var caminho='Bens e Direitos → Grupo '+g.grupo+' → Código '+g.codigo+' ('+g.label+')';
-    var itensHtml='';
-    g.itens.forEach(function(it){itensHtml+=cardBem(it,corBens);});
-    h+=blocoGrupo(caminho,corBens,itensHtml,'');
+    h+=blocoGrupo(caminho,corBens,g.itens,function(it){return headerBem(it,corBens);},'');
   });
   h+='</div></div>';
 
@@ -2197,9 +2200,7 @@ function buildDIRPFReportHTML(cliente, ano){
   }
   codsI.forEach(function(cod){
     var g=isentos[cod];
-    var itensHtml='';
-    g.itens.forEach(function(it){itensHtml+=cardRend(it,corBens,'ISENTO');});
-    h+=blocoGrupo('Rendimentos Isentos e Não Tributáveis → Código '+cod+' ('+g.label+')',corBens,itensHtml,'');
+    h+=blocoGrupo('Rendimentos Isentos e Não Tributáveis → Código '+cod+' ('+g.label+')',corBens,g.itens,function(it){return headerRend(it,corBens,'ISENTO');},'');
   });
   h+='</div></div>';
 
@@ -2214,9 +2215,7 @@ function buildDIRPFReportHTML(cliente, ano){
   }
   codsE.forEach(function(cod){
     var g=exclusiva[cod];
-    var itensHtml='';
-    g.itens.forEach(function(it){itensHtml+=cardRend(it,corExclusiva,'TRIBUTADO NA FONTE');});
-    h+=blocoGrupo('Tributação Exclusiva → Código '+cod+' ('+g.label+')',corExclusiva,itensHtml,'');
+    h+=blocoGrupo('Tributação Exclusiva → Código '+cod+' ('+g.label+')',corExclusiva,g.itens,function(it){return headerRend(it,corExclusiva,'TRIBUTADO NA FONTE');},'');
   });
   h+='</div></div>';
 
