@@ -547,6 +547,12 @@ body.is-mobile .sc-tbl tbody td{padding:0 14px;height:44px;font-size:.8rem;}
   border:1px solid rgba(61,220,132,.22);
   text-transform:uppercase;letter-spacing:1px;
 }
+.demo-tag{
+  background:#ffb347;color:#241400;
+  font-family:'DM Mono',monospace;font-size:.55rem;font-weight:800;
+  letter-spacing:.5px;padding:2px 6px;border-radius:99px;
+  vertical-align:middle;display:inline-block;
+}
 
 /* ── CHARTS ─────────────────────────────────── */
 .chart-box{
@@ -857,6 +863,11 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 }
 .modal-msg.ok{background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3);color:var(--accent);}
 .modal-msg.err{background:rgba(242,92,92,.1);border:1px solid rgba(242,92,92,.3);color:var(--red);}
+.modal-demo-warning{
+  display:none;background:rgba(255,179,71,.1);border:1px solid rgba(255,179,71,.35);
+  color:#ffb347;border-radius:8px;padding:10px 14px;
+  font-family:'DM Mono',monospace;font-size:.72rem;text-align:center;
+}
 
 /* ── METAS ──────────────────────────────────── */
 /* Botão de toggle principal */
@@ -1050,6 +1061,7 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
       <button class="modal-close" onclick="fecharModal()">✕</button>
     </div>
     <div class="modal-body">
+      <div id="modal-demo-warning" class="modal-demo-warning">⚠️ Versão demo — este lançamento é simulado e não é gravado na base de dados real.</div>
       <div class="mfield">
         <label>Cliente</label>
         <select id="m-cliente"></select>
@@ -1125,7 +1137,7 @@ function chartColors(){
 }
 
 /* ── STATE ────────────────────────────────── */
-var SES={nome:'',admin:false};
+var SES={nome:'',admin:false,demo:false};
 var RAW={at:[],pa:[],di:[],mt:[]};
 var METAS={}; // { 'NomeCliente': { tipo: 'Patrimônio'|'Renda', valor: Number } }
 var DADOS={};
@@ -1140,6 +1152,10 @@ var _refreshTimer=null;
 var _fontSize=1;
 // Estado persistente de UI — sobrevive a re-renders
 var _UI={cardAberto:null, cardSg:null, cardCor:null, provAberto:null, colsAtivas:{}, abaAtiva:'carteira'};
+
+/* Conta demo: limite de linhas de patrimônio expostas (ver linhasPatrimonioDemo) */
+var DEMO_LIMITE_LINHAS=30;
+var _demoLinhasCache=null;
 
 /* ── UTILS ────────────────────────────────── */
 function n(v){
@@ -1186,6 +1202,44 @@ function isCompra(cv){
   return s==='C'||s==='COMPRA';
 }
 
+/* ── CONTA DEMO ───────────────────────────── */
+/* Restringe as movimentações do cliente de referência ("Zé") ao último
+   ano com dados e a no máximo DEMO_LIMITE_LINHAS linhas, pra não expor
+   o histórico real completo da corretora numa conta de demonstração. */
+function linhasPatrimonioDemo(){
+  if(_demoLinhasCache)return _demoLinhasCache;
+  var linhas=[];
+  for(var r=1;r<RAW.pa.length;r++){
+    var row=RAW.pa[r];
+    if((row[0]||'').trim().toUpperCase()===SES.nome.toUpperCase())linhas.push(row);
+  }
+  var anoMax=0;
+  linhas.forEach(function(row){
+    var d=dt(row[7]);
+    if(d&&d.getFullYear()>anoMax)anoMax=d.getFullYear();
+  });
+  linhas=linhas.filter(function(row){
+    var d=dt(row[7]);
+    return d&&d.getFullYear()===anoMax;
+  }).slice(0,DEMO_LIMITE_LINHAS);
+  _demoLinhasCache=linhas;
+  return linhas;
+}
+
+/* Marca visualmente os botões de lançamento (transação e meta) com um
+   selo "DEMO" quando a sessão ativa for uma conta de demonstração. */
+function aplicarAvisoDemo(){
+  if(!SES.demo)return;
+  var btnL=document.getElementById('btn-lancar');
+  if(btnL&&!btnL.querySelector('.demo-tag')){
+    var span=document.createElement('span');
+    span.className='demo-tag';
+    span.textContent='DEMO';
+    span.style.marginLeft='2px';
+    btnL.appendChild(span);
+  }
+}
+
 /* ── LOGIN ────────────────────────────────── */
 document.getElementById('inp-senha').addEventListener('keypress',function(e){if(e.key==='Enter')doLogin();});
 
@@ -1201,16 +1255,20 @@ function doLogin(){
     var ok=false;
     for(var i=1;i<rows.length;i++){
       if((rows[i][1]||'').trim().toLowerCase()===email&&(rows[i][2]||'').trim()===senha){
-        SES.nome=(rows[i][3]||'').trim();
         var st=(rows[i][5]||'').trim().toUpperCase();
         SES.admin=(st==='ADMIN'||st==='ADMINISTRADOR');
+        SES.demo=(st==='DEMO');
+        // Conta demo: ignora o nome cadastrado na planilha e usa a
+        // carteira de referência "Zé" como se fosse o cliente logado
+        SES.nome=SES.demo?'Zé':(rows[i][3]||'').trim();
         ok=true;break;
       }
     }
     if(!ok)throw new Error('E-mail ou senha incorretos.');
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').classList.add('on');
-    document.getElementById('sb-role').textContent=SES.admin?'Administrador':SES.nome;
+    document.getElementById('sb-role').textContent=SES.admin?'Administrador':(SES.demo?'Conta Demo':SES.nome);
+    aplicarAvisoDemo();
     detectarDispositivo();
     return init();
   }).catch(function(e){
@@ -1220,8 +1278,9 @@ function doLogin(){
 }
 
 function doLogout(){
-  SES={nome:'',admin:false};RAW={at:[],pa:[],di:[],mt:[]};
+  SES={nome:'',admin:false,demo:false};RAW={at:[],pa:[],di:[],mt:[]};
   DADOS={};PRECOS={};CLIENTES=[];clienteAtivo=null;METAS={};
+  _demoLinhasCache=null;
   document.getElementById('app').classList.remove('on');
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('btn-login').disabled=false;
@@ -1289,6 +1348,7 @@ function init(){
   anoSel=sv==='TODOS'?'TODOS':parseInt(sv);
   return Promise.all([csv(URLS.AT),csv(URLS.PA),csv(URLS.DI),csv(URLS.MT)]).then(function(r){
     RAW.at=r[0];RAW.pa=r[1];RAW.di=r[2];RAW.mt=r[3];
+    _demoLinhasCache=null;
     parseMetas();
     PRECOS={};
     SEGMENTOS={};
@@ -1343,8 +1403,9 @@ function reload(){
 /* ── BUILD ANO ────────────────────────────── */
 function buildAno(ano){
   var pat={},evol={},cl=[];
-  for(var r=1;r<RAW.pa.length;r++){
-    var row=RAW.pa[r];
+  var fonte=SES.demo?linhasPatrimonioDemo():RAW.pa.slice(1);
+  for(var r=0;r<fonte.length;r++){
+    var row=fonte[r];
     var cli=(row[0]||'').trim();
     if(!cli||cli.toUpperCase()==='CLIENTE'||cli.length<3)continue;
     if(/[A-Z]{4}[0-9]/.test(cli))continue;
@@ -2941,6 +3002,8 @@ function abrirModal(){
   showMsg('','');
   document.getElementById('btn-submit').disabled=false;
   document.getElementById('btn-submit').textContent='Confirmar Lançamento';
+  var warn=document.getElementById('modal-demo-warning');
+  if(warn)warn.style.display=SES.demo?'block':'none';
   document.getElementById('modal-overlay').classList.add('on');
   setTimeout(function(){document.getElementById('m-ativo').focus();},100);
 }
@@ -2992,6 +3055,15 @@ function enviarLancamento(){
   var dataFmt=p[2]+'/'+p[1]+'/'+p[0];
   var total=Math.round(qtd*preco*100)/100;
   var btn=document.getElementById('btn-submit');
+
+  if(SES.demo){
+    // Conta demo: nunca grava na base real. Simula a confirmação
+    // visualmente e fecha o modal, sem chamar o Apps Script.
+    showMsg('✓ Simulado! Na versão demo, lançamentos não são gravados na base real.','ok');
+    setTimeout(fecharModal,1600);
+    return;
+  }
+
   btn.disabled=true;btn.textContent='Enviando…';showMsg('','');
   var payload={acao:'lancar',cliente:cliente,ativo:ativo,tipo:tipo,cv:_cvSel,qtd:qtd,preco:preco,total:total,data:dataFmt};
   if(APPS_SCRIPT_URL.indexOf('SEU_ID_AQUI')>=0){
@@ -3140,6 +3212,7 @@ function processarEAtualizar(){
     colsAtivas: Object.assign({}, _UI.colsAtivas||{})
   };
 
+  _demoLinhasCache=null;
   PRECOS={};SEGMENTOS={};INFO_ATIVOS={};
   for(var i=1;i<RAW.at.length;i++){
     var tk=(RAW.at[i][2]||'').trim().toUpperCase();
@@ -3592,9 +3665,12 @@ function buildTabMetas(c, abaAtiva){
   h += '<div class="sec-head" style="justify-content:space-between">';
   h += '<div style="display:flex;align-items:center;gap:10px"><h3>Metas</h3>';
   h += '<span class="tag">'+(metasCliente.length?metasCliente.length+' meta'+(metasCliente.length>1?'s':''):'sem meta')+'</span></div>';
-  h += '<button class="btn-lancar-meta" id="btn-toggle-meta" onclick="toggleMetaForm()">🎯 Lançar Nova Meta</button></div>';
+  h += '<button class="btn-lancar-meta" id="btn-toggle-meta" onclick="toggleMetaForm()">🎯 Lançar Nova Meta'+(SES.demo?' <span class="demo-tag">DEMO</span>':'')+'</button></div>';
 
   h += '<div class="meta-form-panel" id="meta-form-panel">';
+  if(SES.demo){
+    h += '<div class="modal-demo-warning" style="display:block">⚠️ Versão demo — metas lançadas aqui são apenas simuladas e não são gravadas na base real.</div>';
+  }
   h += '<div class="meta-form-row">';
   h += '<div class="meta-field"><label>Tipo de Meta</label>';
   h += '<select id="meta-tipo" onchange="onMetaTipoChange()">';
@@ -3781,14 +3857,15 @@ function toggleMetaForm(){
   var panel=document.getElementById('meta-form-panel');
   var btn=document.getElementById('btn-toggle-meta');
   if(!panel||!btn)return;
+  var tagHtml=SES.demo?' <span class="demo-tag">DEMO</span>':'';
   var aberto=panel.classList.contains('aberto');
   if(aberto){
     panel.classList.remove('aberto');
-    btn.textContent='🎯 Lançar Nova Meta';
+    btn.innerHTML='🎯 Lançar Nova Meta'+tagHtml;
     btn.classList.remove('cancelar');
   }else{
     panel.classList.add('aberto');
-    btn.textContent='✕ Cancelar Lançamento';
+    btn.innerHTML='✕ Cancelar Lançamento'+tagHtml;
     btn.classList.add('cancelar');
     calcMetas(); // popula a pré-visualização com os valores padrão do form
     // Foca o campo de valor para UX mais fluida
@@ -3841,13 +3918,31 @@ function salvarMeta(){
   var tipo=tipoEl.value;
   var valor=parseFloat(valorEl.value)||0;
   if(!valor||valor<=0){showMetaMsg('Informe um valor alvo válido.','err');return;}
-  if(APPS_SCRIPT_URL.indexOf('SEU_ID_AQUI')>=0){
-    showMetaMsg('⚠️ Configure APPS_SCRIPT_URL.','err');return;
-  }
+
   var aporteEl=document.getElementById('meta-aporte');
   var rentEl=document.getElementById('meta-rent');
   var aporte=aporteEl?(parseFloat(aporteEl.value)||0):0;
   var rent=rentEl?(parseFloat(rentEl.value)||1):1;
+
+  if(SES.demo){
+    // Conta demo: nunca grava a meta na base real, apenas simula
+    // visualmente na lista local (perdida ao recarregar a página).
+    var chaveDemo=(clienteAtivo||'').toUpperCase();
+    var metaSimulada={id:gerarIdMeta(),tipo:tipo,valor:valor,aporte:aporte,juros:rent,criadoEm:new Date().toISOString()};
+    if(!METAS[chaveDemo])METAS[chaveDemo]=[];
+    METAS[chaveDemo].push(metaSimulada);
+    showMetaMsg('✓ Simulado! Na versão demo, metas não são gravadas na base real.','ok');
+    renderizarListaMetas();
+    valorEl.value=0;
+    if(aporteEl)aporteEl.value=0;
+    if(rentEl)rentEl.value=(1).toFixed(2);
+    calcMetas();
+    return;
+  }
+
+  if(APPS_SCRIPT_URL.indexOf('SEU_ID_AQUI')>=0){
+    showMetaMsg('⚠️ Configure APPS_SCRIPT_URL.','err');return;
+  }
 
   // Cada clique em "Salvar" cria uma meta NOVA e independente — nunca
   // sobrescreve outra, mesmo que seja da mesma categoria (Patrimônio/Renda).
