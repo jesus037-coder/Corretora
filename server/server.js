@@ -302,5 +302,254 @@ app.get('/api/dashboard', auth, async (req, res) => {
   }
 });
 
+/* ── Name normalization (remove accents, case-insensitive, collapse spaces) ── */
+function normalizeName(name) {
+  return (name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/* ── DIRPF helpers (ported from index.html) ── */
+function classificarTipoProvento(seg, tipo) {
+  seg = (seg || '').toUpperCase();
+  tipo = (tipo || '').toUpperCase();
+  if (seg.includes('FII') || seg.includes('FUNDO IMOBILI') || seg.includes('FIAGRO')) return 'RENDIMENTO_ISENTO';
+  if (seg.includes('ETF')) return 'ETF';
+  if (tipo.includes('JCP') || tipo.includes('JSCP')) return 'JSCP';
+  if (tipo.includes('DIVIDEND')) return 'DIVIDENDO';
+  return 'OUTROS';
+}
+
+function getBensCategory(ticker, segmento) {
+  const tk = (ticker || '').toUpperCase();
+  const seg = (segmento || '').toUpperCase();
+  if (/34$/.test(tk)) return { grupo: '04', codigo: '04', label: 'BDR — Brazilian Depositary Receipt' };
+  if (seg.includes('FII') || seg.includes('FUNDO IMOBILI')) return { grupo: '07', codigo: '03', label: 'Fundo de Investimento Imobiliário (FII)' };
+  if (seg.includes('FIAGRO')) return { grupo: '07', codigo: '02', label: 'Fiagro' };
+  if (seg.includes('ETF')) return { grupo: '07', codigo: '06', label: 'ETF — Fundo de Índice' };
+  if (/(3|4|5|11)$/.test(tk)) return { grupo: '03', codigo: '01', label: 'Ações' };
+  return { grupo: '99', codigo: '99', label: 'Outros bens e direitos' };
+}
+
+function getRendimentosCategory(ticker, segmento, tipoProvento) {
+  const seg = (segmento || '').toUpperCase();
+  const tipo = (tipoProvento || '').toUpperCase();
+  const isFII = seg.includes('FII') || seg.includes('FUNDO IMOBILI') || seg.includes('FIAGRO');
+  const isETF = seg.includes('ETF');
+  if (isFII) return { secao: 'ISENTOS', codigo: '99', label: 'Rendimentos isentos e não tributáveis — Outros' };
+  if (isETF) return { secao: 'EXCLUSIVA', codigo: '11', label: 'Tributação exclusiva — Participações nos lucros e resultados' };
+  if (tipo === 'DIVIDENDO') return { secao: 'ISENTOS', codigo: '09', label: 'Rendimentos isentos — Lucros e dividendos' };
+  if (tipo === 'JSCP') return { secao: 'EXCLUSIVA', codigo: '10', label: 'Tributação exclusiva — Juros sobre capital próprio' };
+  return { secao: 'EXCLUSIVA', codigo: '99', label: 'Tributação exclusiva — Outros' };
+}
+
+/* ── GET /api/metas?cliente= ── */
+app.get('/api/metas', auth, async (req, res) => {
+  try {
+    const cliente = req.query.cliente || req.user.nome;
+    const { rows } = await pool.query('SELECT * FROM metas WHERE cliente = $1 ORDER BY data ASC', [cliente]);
+    res.json({ metas: rows.map((r) => ({ ...r, valor: parseFloat(r.valor), aporte: parseFloat(r.aporte), juros: parseFloat(r.juros) })) });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar metas.' });
+  }
+});
+
+/* ── POST /api/metas ── */
+app.post('/api/metas', auth, async (req, res) => {
+  try {
+    const { cliente, tipo, valor, aporte, juros } = req.body;
+    if (!tipo || !valor || valor <= 0) return res.status(400).json({ error: 'Tipo e valor são obrigatórios.' });
+    const cli = cliente || req.user.nome;
+    const { rows } = await pool.query(
+      'INSERT INTO metas (cliente, tipo, valor, aporte, juros) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [cli, tipo, valor, aporte || 0, juros != null ? juros : 1]
+    );
+    res.json({ meta: { ...rows[0], valor: parseFloat(rows[0].valor), aporte: parseFloat(rows[0].aporte), juros: parseFloat(rows[0].juros) } });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao salvar meta.' });
+  }
+});
+
+/* ── GET /api/dirpf?ano=&cliente= ── */
+app.get('/api/dirpf', auth, async (req, res) => {
+  try {
+    const ano = parseInt(req.query.ano) || new Date().getFullYear();
+    let clienteFilter = null;
+    if (req.user.role === 'admin' || req.user.role === 'demo') {
+      clienteFilter = req.query.cliente === '__ZE__' || !req.query.cliente ? null : req.query.cliente;
+    } else {
+      clienteFilter = req.user.nome;
+    }
+
+    // Ativos for CNPJ + segmento mapping
+    const ativosRes = await pool.query('SELECT ticker, segmento, cnpj FROM ativos');
+    const infoAtivos = {};
+    const segMap = {};
+    for (const row of ativosRes.rows) {
+      infoAtivos[row.ticker] = { cnpj: row.cnpj || '—' };
+      if (row.segmento) segMap[row.ticker] = row.segmento;
+    }
+
+    // Movimentações up to 31/12/ano
+    let movsQuery = 'SELECT * FROM movimentacoes WHERE data <= $1';
+    const movsParams = [`${ano}-12-31`];
+    if (clienteFilter) { movsQuery += ' AND cliente = $2'; movsParams.push(clienteFilter); }
+    movsQuery += ' ORDER BY data ASC';
+    const movsRes = await pool.query(movsQuery, movsParams);
+    const movs = movsRes.rows.map((r) => ({ ...r, quantidade: parseFloat(r.quantidade), preco: parseFloat(r.preco), total: parseFloat(r.total) }));
+
+    // Position at 31/12/ano
+    const pos = {};
+    for (const mv of movs) {
+      const tk = mv.ticker;
+      if (!pos[tk]) pos[tk] = { q: 0, custo: 0 };
+      const p = pos[tk];
+      if (isCompra(mv.cv)) { p.custo += mv.total; p.q += mv.quantidade; }
+      else { const pm = p.q > 0 ? p.custo / p.q : 0; p.q -= mv.quantidade; p.custo = p.q > 0.0001 ? p.q * pm : 0; if (p.q < 0.0001) { p.q = 0; p.custo = 0; } }
+    }
+
+    // Bens agrupados por código Receita
+    const gruposBens = {};
+    let totBens = 0;
+    for (const tk of Object.keys(pos).filter((t) => pos[t].q > 0.0001).sort()) {
+      const cat = getBensCategory(tk, segMap[tk]);
+      const key = cat.grupo + '|' + cat.codigo;
+      if (!gruposBens[key]) gruposBens[key] = { grupo: cat.grupo, codigo: cat.codigo, label: cat.label, itens: [] };
+      const info = infoAtivos[tk] || {};
+      const qtd = pos[tk].q, custo = pos[tk].custo, pm = qtd > 0 ? custo / qtd : 0;
+      totBens += custo;
+      gruposBens[key].itens.push({
+        tk, cnpj: info.cnpj || '—', custo, qtd, pm,
+        texto: `Em 31/12/${ano}, possuía ${qtd.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ativo(s) de ${tk} (CNPJ: ${info.cnpj || 'não informado'}), adquirido(s) a custo médio de R$ ${pm.toFixed(2)}, totalizando R$ ${custo.toFixed(2)}.`,
+      });
+    }
+
+    // Rendimentos por natureza
+    const provRes = await pool.query('SELECT * FROM proventos WHERE EXTRACT(YEAR FROM COALESCE(data_pag, data_com)) = $1', [ano]);
+    const rendMap = {};
+    for (const row of provRes.rows) {
+      const tk = row.ticker;
+      const seg = row.segmento || 'OUTROS';
+      const dCom = row.data_com ? new Date(row.data_com) : null;
+      if (!dCom) continue;
+      let qd = 0;
+      for (const mv of movs) {
+        if (mv.ticker !== tk) continue;
+        const dm = new Date(mv.data);
+        if (dm <= dCom) { qd += isCompra(mv.cv) ? mv.quantidade : -mv.quantidade; }
+      }
+      if (qd <= 0) continue;
+      const vu = parseFloat(row.valor_unit) || 0;
+      const segUp = seg.toUpperCase(), tipoUp = (row.tipo || '').toUpperCase();
+      let f = 1;
+      if (segUp.includes('ETF')) f = 0.85;
+      else if (segUp.includes('BDR') || tipoUp.includes('EXTERIOR')) f = 0.70;
+      else if (tipoUp.includes('JCP') || tipoUp.includes('JSCP')) f = 0.85;
+      const valor = Math.round(qd * vu * f * 100) / 100;
+      const classe = classificarTipoProvento(seg, row.tipo);
+      const key = tk + '|' + classe;
+      if (!rendMap[key]) rendMap[key] = { tk, seg, classe, valor: 0 };
+      rendMap[key].valor = Math.round((rendMap[key].valor + valor) * 100) / 100;
+    }
+
+    const isentos = {}, exclusiva = {};
+    let totIsento = 0, totExclusiva = 0;
+    for (const k of Object.keys(rendMap)) {
+      const it = rendMap[k];
+      if (it.valor <= 0) continue;
+      const cat = getRendimentosCategory(it.tk, it.seg, it.classe);
+      const isI = cat.secao === 'ISENTOS';
+      const bucket = isI ? isentos : exclusiva;
+      if (!bucket[cat.codigo]) bucket[cat.codigo] = { label: cat.label, itens: [] };
+      if (isI) totIsento += it.valor; else totExclusiva += it.valor;
+      const info = infoAtivos[it.tk] || {};
+      const texto = isI
+        ? `Rendimentos recebidos a título de Dividendos, pagos por ${it.tk} (CNPJ: ${info.cnpj || 'não informado'}), no ano-calendário de ${ano}.`
+        : `Rendimentos pagos por ${it.tk} (CNPJ: ${info.cnpj || 'não informado'}), com imposto retido na fonte, no ano-calendário de ${ano}.`;
+      bucket[cat.codigo].itens.push({ tk: it.tk, cnpj: info.cnpj || '—', valor: it.valor, texto });
+    }
+
+    res.json({
+      bens: Object.values(gruposBens),
+      rendimentos: { isentos: Object.values(isentos), exclusiva: Object.values(exclusiva) },
+      totais: { bens: totBens, isentos: totIsento, exclusiva: totExclusiva },
+    });
+  } catch (e) {
+    console.error('DIRPF error:', e);
+    res.status(500).json({ error: 'Erro ao gerar DIRPF.' });
+  }
+});
+
+/* ── GET /api/compras-vendas?ano=&cliente= ── */
+app.get('/api/compras-vendas', auth, async (req, res) => {
+  try {
+    const ano = parseInt(req.query.ano) || new Date().getFullYear();
+    let clienteFilter = null;
+    if (req.user.role === 'admin' || req.user.role === 'demo') {
+      clienteFilter = req.query.cliente === '__ZE__' || !req.query.cliente ? null : req.query.cliente;
+    } else {
+      clienteFilter = req.user.nome;
+    }
+
+    let movsQuery = 'SELECT * FROM movimentacoes WHERE EXTRACT(YEAR FROM data) = $1';
+    const movsParams = [ano];
+    if (clienteFilter) { movsQuery += ' AND cliente = $2'; movsParams.push(clienteFilter); }
+    movsQuery += ' ORDER BY data DESC';
+    const movsRes = await pool.query(movsQuery, movsParams);
+    const movs = movsRes.rows.map((r) => ({ ...r, quantidade: parseFloat(r.quantidade), preco: parseFloat(r.preco), total: parseFloat(r.total) }));
+
+    const investido = Array(12).fill(0), vendido = Array(12).fill(0);
+    let totInv = 0, totVen = 0;
+    for (const mv of movs) {
+      const m = new Date(mv.data).getMonth();
+      if (isCompra(mv.cv)) { investido[m] += mv.total; totInv += mv.total; }
+      else { vendido[m] += mv.total; totVen += mv.total; }
+    }
+
+    res.json({
+      investido, vendido,
+      kpis: { totalInvestido: totInv, totalVendido: totVen, saldo: totInv - totVen },
+      lancamentos: movs.map((mv) => ({
+        id: mv.id, data: mv.data, cliente: mv.cliente, ticker: mv.ticker,
+        segmento: mv.segmento, cv: mv.cv, quantidade: mv.quantidade,
+        preco: mv.preco, total: mv.total,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar compras e vendas.' });
+  }
+});
+
+/* ── POST /api/movimentacoes ── */
+app.post('/api/movimentacoes', auth, async (req, res) => {
+  try {
+    const { cliente, ticker, segmento, cv, quantidade, preco, total, data } = req.body;
+    if (!ticker || !quantidade || !data) return res.status(400).json({ error: 'Ticker, quantidade e data são obrigatórios.' });
+    const cli = cliente || req.user.nome;
+    const tot = total || (quantidade * preco);
+    const { rows } = await pool.query(
+      'INSERT INTO movimentacoes (cliente, ticker, segmento, cv, quantidade, preco, total, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [cli, ticker.toUpperCase(), segmento || 'Outros', cv || 'Compra', quantidade, preco, tot, data]
+    );
+    res.json({ movimentacao: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao criar movimentação.' });
+  }
+});
+
+/* ── PUT /api/movimentacoes/:id ── */
+app.put('/api/movimentacoes/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ticker, segmento, cv, quantidade, preco, total, data } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE movimentacoes SET ticker=$1, segmento=$2, cv=$3, quantidade=$4, preco=$5, total=$6, data=$7 WHERE id=$8 RETURNING *',
+      [ticker?.toUpperCase() || null, segmento, cv, quantidade, preco, total || (quantidade * preco), data, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Lançamento não encontrado.' });
+    res.json({ movimentacao: rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao editar movimentação.' });
+  }
+});
+
 const PORT = 8000;
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 API rodando em :${PORT}`));

@@ -35,3 +35,33 @@ export function fetchDashboard(ano, cliente) {
   if (cliente) params.set('cliente', cliente);
   return request('/api/dashboard?' + params);
 }
+
+export function fetchMetas(cliente) {
+  const params = new URLSearchParams();
+  if (cliente) params.set('cliente', cliente);
+  return request('/api/metas?' + params);
+}
+
+export function createMeta(data) {
+  return request('/api/metas', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function fetchDirpf(ano, cliente) {
+  const params = new URLSearchParams({ ano });
+  if (cliente) params.set('cliente', cliente);
+  return request('/api/dirpf?' + params);
+}
+
+export function fetchComprasVendas(ano, cliente) {
+  const params = new URLSearchParams({ ano });
+  if (cliente) params.set('cliente', cliente);
+  return request('/api/compras-vendas?' + params);
+}
+
+export function createMovimentacao(data) {
+  return request('/api/movimentacoes', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateMovimentacao(id, data) {
+  return request('/api/movimentacoes/' + id, { method: 'PUT', body: JSON.stringify(data) });
+}

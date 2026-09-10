@@ -105,14 +105,14 @@ async function main() {
       tipo TEXT NOT NULL,
       valor NUMERIC NOT NULL,
       aporte NUMERIC DEFAULT 0,
-      ativo BOOLEAN DEFAULT true,
+      juros NUMERIC DEFAULT 1,
       ref_id TEXT,
       data TIMESTAMPTZ DEFAULT now()
     );
   `);
 
-  console.log('🧹 Truncating tables…');
-  await pool.query('TRUNCATE users, ativos, movimentacoes, proventos, metas RESTART IDENTITY CASCADE');
+  console.log('🧹 Truncating tables (preserving metas)…');
+  await pool.query('TRUNCATE users, ativos, movimentacoes, proventos RESTART IDENTITY CASCADE');
 
   /* ── Users (from CL) ── */
   console.log('👥 Seeding users…');
@@ -191,22 +191,27 @@ async function main() {
   }
   console.log(`   ${provCount} proventos inseridos`);
 
-  /* ── Metas (from MT) ── */
-  console.log('🎯 Seeding metas…');
-  for (let i = 1; i < mt.length; i++) {
-    const row = mt[i];
-    const cliente = (row[0] || '').trim();
-    const tipo = (row[1] || '').trim();
-    const valor = n(row[2]);
-    const aporte = n(row[3]);
-    const ativo = (row[4] || '1').trim() === '1';
-    const refId = (row[5] || '').trim();
-    const d = dt(row[6]);
-    if (!cliente || !tipo) continue;
-    await pool.query(
-      'INSERT INTO metas (cliente, tipo, valor, aporte, ativo, ref_id, data) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [cliente, tipo, valor, aporte, ativo, refId, d]
-    );
+  /* ── Metas (from MT) — only seed if table is empty (preserve user-added) ── */
+  const { rows: existingMetas } = await pool.query('SELECT COUNT(*) FROM metas');
+  if (parseInt(existingMetas[0].count) > 0) {
+    console.log('🎯 Metas já existem no banco — preservando.');
+  } else {
+    console.log('🎯 Seeding metas…');
+    for (let i = 1; i < mt.length; i++) {
+      const row = mt[i];
+      const cliente = (row[0] || '').trim();
+      const tipo = (row[1] || '').trim();
+      const valor = n(row[2]);
+      const aporte = n(row[3]);
+      const juros = parseFloat((row[4] || '1').toString().replace(',', '.')) || 1;
+      const refId = (row[5] || '').trim();
+      const d = dt(row[6]);
+      if (!cliente || !tipo) continue;
+      await pool.query(
+        'INSERT INTO metas (cliente, tipo, valor, aporte, juros, ref_id, data) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [cliente, tipo, valor, aporte, juros, refId, d]
+      );
+    }
   }
 
   console.log('✅ Seed completo!');
