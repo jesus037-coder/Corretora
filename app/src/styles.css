@@ -141,6 +141,21 @@ em{font-style:italic}
 .empty .ico{font-size:3rem;margin-bottom:16px;opacity:.25}
 .empty p{color:var(--muted);font-size:.9rem}
 
+/* ── SORTABLE TABLE HEADERS ── */
+.sc-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sc-tbl th.th-sort{cursor:pointer;user-select:none;white-space:nowrap;transition:color .15s}
+.sc-tbl th.th-sort:hover{color:var(--accent)}
+.sc-tbl th.sort-active{color:var(--accent)}
+.sort-ico{font-size:.6rem;opacity:.4;margin-left:2px}
+.sc-tbl th.th-sort:hover .sort-ico,.sc-tbl th.sort-active .sort-ico{opacity:1}
+
+/* ── MONTH HEADER (proventos table) ── */
+th.month-hdr{cursor:pointer;user-select:none;transition:color .15s}
+th.month-hdr:hover{color:var(--accent)}
+
+/* ── SEGMENT CHART (carteira) ── */
+.sc-chart{padding:0 4px}
+
 /* ── TABS ── */
 .tabs-bar{display:flex;gap:4px;padding:4px;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:24px;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:none}
 .tabs-bar::-webkit-scrollbar{display:none}
@@ -166,7 +181,7 @@ tfoot td{background:var(--panel)!important;color:var(--accent)!important;font-we
 tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text-align:left!important}
 .pc{line-height:1.3}
 .pu{font-size:.8rem}
-.pe,.pt{display:none;font-size:.65rem;margin-top:2px}
+.pe,.pt{font-size:.65rem;margin-top:2px}
 .pe{color:var(--muted)}
 .pt{color:var(--accent)}
 

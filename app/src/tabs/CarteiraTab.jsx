@@ -1,10 +1,57 @@
-import React, { useState } from 'react';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import React, { useState, useMemo } from 'react';
+import { Line } from 'react-chartjs-2';
 import { M, PAL, KpiCard } from '../shared.jsx';
 
-function SegmentCard({ seg, idx }) {
+const COLS = [
+  { key: 'ticker',   label: 'Ativo',       type: 'text' },
+  { key: 'qtd',      label: 'QTD',         type: 'num'  },
+  { key: 'pm',       label: 'PM',          type: 'num'  },
+  { key: 'aplicado', label: 'Vl Aplicado', type: 'num'  },
+  { key: 'preco',    label: 'Preço',       type: 'num',  colored: true },
+  { key: 'variacao', label: 'VAR%',       type: 'var'  },
+  { key: 'lp',       label: 'L/P',         type: 'num'  },
+  { key: 'pctCart',  label: '% Cart.',    type: 'num'  },
+  { key: 'ideal',    label: 'Ideal',       type: 'num'  },
+];
+
+function sortVal(a, col) {
+  if (col === 'variacao') return parseFloat(String(a.variacao || '0').replace(/[^\d.-]/g, '')) || 0;
+  if (col === 'pctCart')  return a.pctCart;
+  return a[col];
+}
+
+function SegmentCard({ seg, idx, totMkt, evolLabels, evolSegData, chartColors }) {
   const [open, setOpen] = useState(false);
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
   const color = PAL[idx % PAL.length];
+  const { gc, tc } = chartColors;
+
+  const sortedAtivos = useMemo(() => {
+    const withPct = seg.ativos.map(a => ({ ...a, pctCart: totMkt > 0 ? (a.mercado / totMkt) * 100 : 0 }));
+    if (!sortCol) return withPct;
+    return [...withPct].sort((a, b) => {
+      const va = sortVal(a, sortCol), vb = sortVal(b, sortCol);
+      if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+  }, [seg.ativos, sortCol, sortDir, totMkt]);
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const segEvol = evolSegData?.[seg.nome] || [];
+  const evolChart = {
+    labels: evolLabels || [],
+    datasets: [{
+      label: seg.nome, data: segEvol,
+      borderColor: color, backgroundColor: color + '15',
+      fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: color, borderWidth: 2,
+    }],
+  };
+
   return (
     <div className={`sc${open ? ' open' : ''}`}>
       <div className="sc-stripe" style={{ background: color }} />
@@ -20,19 +67,45 @@ function SegmentCard({ seg, idx }) {
       </div>
       {open && (
         <div className="sc-body">
-          <table className="sc-tbl">
-            <thead><tr><th>Ativo</th><th>Qtd</th><th>PM</th><th>Preço</th><th>Aplicado</th><th>Mercado</th><th>L/P</th><th>%</th></tr></thead>
-            <tbody>
-              {seg.ativos.map((a) => (
-                <tr key={a.ticker}>
-                  <td>{a.ticker}</td><td>{a.qtd}</td><td>{M(a.pm)}</td><td>{M(a.preco)}</td>
-                  <td>{M(a.aplicado)}</td><td>{M(a.mercado)}</td>
-                  <td className={a.lp >= 0 ? 'g' : 'r'}>{M(a.lp)}</td>
-                  <td className={a.lpPct >= 0 ? 'g' : 'r'}>{a.lpPct.toFixed(1)}%</td>
+          <div className="sc-chart" style={{ height: 150, marginBottom: 14 }}>
+            <div className="chart-ttl" style={{ marginBottom: 6, fontSize: '.72rem' }}>Evolução — {seg.nome}</div>
+            <Line data={evolChart} options={{
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y) } } },
+              scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: 9 } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 9 }, callback: (v) => M(v) } } },
+            }} />
+          </div>
+          <div className="sc-tbl-wrap">
+            <table className="sc-tbl">
+              <thead>
+                <tr>
+                  {COLS.map(c => (
+                    <th key={c.key} onClick={() => toggleSort(c.key)} className={`th-sort${sortCol === c.key ? ' sort-active' : ''}`}>
+                      {c.label}<span className="sort-ico">{sortCol === c.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}</span>
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedAtivos.map(a => {
+                  const varNum = parseFloat(String(a.variacao || '0').replace(/[^\d.-]/g, '')) || 0;
+                  return (
+                    <tr key={a.ticker}>
+                      <td className="td-l">{a.ticker}</td>
+                      <td>{a.qtd}</td>
+                      <td>{M(a.pm)}</td>
+                      <td>{M(a.aplicado)}</td>
+                      <td style={{ color, fontWeight: 600 }}>{M(a.preco)}</td>
+                      <td className={varNum >= 0 ? 'g' : 'r'}>{a.variacao || '—'}</td>
+                      <td className={a.lp >= 0 ? 'g' : 'r'}>{M(a.lp)}</td>
+                      <td>{a.pctCart.toFixed(1)}%</td>
+                      <td>{a.ideal > 0 ? M(a.ideal) : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -42,6 +115,7 @@ function SegmentCard({ seg, idx }) {
 export default function CarteiraTab({ data, ano, chartColors }) {
   const { gc, tc } = chartColors;
   const kpis = data?.kpis || {};
+  const totMkt = kpis.valorMercado || 0;
 
   const evolChart = {
     labels: data?.evolucao?.labels || [],
@@ -52,23 +126,11 @@ export default function CarteiraTab({ data, ano, chartColors }) {
     }],
   };
 
-  const barChart = {
-    labels: data?.proventosMensais?.labels || [],
-    datasets: [{ label: 'Proventos', data: data?.proventosMensais?.data || [], backgroundColor: 'rgba(61,220,132,.65)', borderRadius: 4 }],
-  };
-
-  const provSeg = data?.proventosPorSegmento || { labels: [], data: [] };
-  const doughnutChart = {
-    labels: provSeg.labels,
-    datasets: [{ data: provSeg.data, backgroundColor: PAL.slice(0, provSeg.labels.length), borderColor: 'transparent', hoverOffset: 5 }],
-  };
-
-  const chartOpts = (extra = {}) => ({
+  const chartOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y ?? c.parsed) } } },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y) } } },
     scales: { x: { grid: { color: gc }, ticks: { color: tc } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
-    ...extra,
-  });
+  };
 
   return (
     <>
@@ -82,26 +144,16 @@ export default function CarteiraTab({ data, ano, chartColors }) {
       <div className="sec-head"><h3>Evolução do Patrimônio</h3><span className="tag">mensal {ano}</span></div>
       <div className="chart-box">
         <div className="chart-ttl">Patrimônio Total Investido — {ano}</div>
-        <div style={{ height: 220 }}><Line data={evolChart} options={chartOpts()} /></div>
-      </div>
-      <div className="sec-head"><h3>Proventos Recebidos</h3><span className="tag">ano {ano}</span></div>
-      <div className="chart-duo">
-        <div className="chart-box" style={{ marginBottom: 0 }}>
-          <div className="chart-ttl">Distribuição Mensal (R$)</div>
-          <div style={{ height: 190 }}><Bar data={barChart} options={chartOpts()} /></div>
-        </div>
-        <div className="chart-box" style={{ marginBottom: 0 }}>
-          <div className="chart-ttl">Por Segmento</div>
-          <div style={{ height: 190 }}>
-            {provSeg.labels.length > 0 ? (
-              <Doughnut data={doughnutChart} options={{ responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'right', labels: { color: tc, font: { size: 11 }, boxWidth: 10 } }, tooltip: { callbacks: { label: (c) => `${c.label}: ${M(c.parsed)}` } } } }} />
-            ) : <div className="empty" style={{ padding: 40 }}><p>Sem proventos.</p></div>}
-          </div>
-        </div>
+        <div style={{ height: 220 }}><Line data={evolChart} options={chartOpts} /></div>
       </div>
       <div className="sec-head"><h3>Consolidação de Carteira</h3><span className="tag">{data?.nAtivos || 0} ativos · {data?.nSegmentos || 0} segmentos</span></div>
       <div className="seg-stack">
-        {(data?.segmentos || []).map((seg, i) => <SegmentCard key={seg.nome} seg={seg} idx={i} />)}
+        {(data?.segmentos || []).map((seg, i) => (
+          <SegmentCard key={seg.nome} seg={seg} idx={i} totMkt={totMkt}
+            evolLabels={data?.evolucaoPorSegmento?.labels}
+            evolSegData={data?.evolucaoPorSegmento?.data}
+            chartColors={chartColors} />
+        ))}
       </div>
     </>
   );

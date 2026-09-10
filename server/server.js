@@ -168,12 +168,14 @@ app.get('/api/dashboard', auth, async (req, res) => {
     }
 
     // Fetch ativos (for current prices)
-    const ativosRes = await pool.query('SELECT ticker, segmento, valor FROM ativos');
+    const ativosRes = await pool.query('SELECT ticker, segmento, valor, preco_justo, variacao FROM ativos');
     const precos = {};
     const segMap = {};
+    const ativoInfo = {};
     for (const row of ativosRes.rows) {
       precos[row.ticker] = parseFloat(row.valor) || 0;
       if (row.segmento) segMap[row.ticker] = row.segmento;
+      ativoInfo[row.ticker] = { ideal: parseFloat(row.preco_justo) || 0, variacao: row.variacao || '' };
     }
 
     // Fetch movimentações for this client (up to and including the year)
@@ -214,6 +216,7 @@ app.get('/api/dashboard', auth, async (req, res) => {
           totApl += it.apl;
           totMkt += mkt;
           nAt++;
+          const info = ativoInfo[tk] || {};
           ativos.push({
             ticker: tk,
             qtd: Math.round(it.q * 100) / 100,
@@ -223,6 +226,8 @@ app.get('/api/dashboard', auth, async (req, res) => {
             preco: precos[tk] || 0,
             lp: mkt - it.apl,
             lpPct: it.apl > 0 ? ((mkt - it.apl) / it.apl) * 100 : 0,
+            ideal: info.ideal || 0,
+            variacao: info.variacao || '',
           });
         }
       }
@@ -262,6 +267,22 @@ app.get('/api/dashboard', auth, async (req, res) => {
     const hoje = new Date();
     const ml = ano < hoje.getFullYear() ? 11 : hoje.getMonth();
 
+    // Evolução por segmento (cumulative applied value per segment per month)
+    const evolPorSeg = {};
+    for (const mv of movs) {
+      const d = new Date(mv.data);
+      if (d.getFullYear() > ano) continue;
+      const aj = isCompra(mv.cv) ? mv.total : -mv.total;
+      const yr = d.getFullYear();
+      const ms = d.getMonth();
+      const s = mv.segmento || 'OUTROS';
+      if (!evolPorSeg[s]) evolPorSeg[s] = Array(12).fill(0);
+      const mStart = yr < ano ? 0 : ms;
+      for (let m = mStart; m < 12; m++) evolPorSeg[s][m] += aj;
+    }
+    const evolPorSegTrimmed = {};
+    for (const s of Object.keys(evolPorSeg)) evolPorSegTrimmed[s] = evolPorSeg[s].slice(0, ml + 1);
+
     // Proventos por segmento (for doughnut)
     const segLabels = Object.keys(pv.segs);
     const segValues = segLabels.map((s) =>
@@ -295,6 +316,10 @@ app.get('/api/dashboard', auth, async (req, res) => {
       nAtivos: nAt,
       nSegmentos: segmentos.length,
       proventosDetalhe: pv.segs,
+      evolucaoPorSegmento: {
+        labels: MES.slice(0, ml + 1),
+        data: evolPorSegTrimmed,
+      },
     });
   } catch (e) {
     console.error('Dashboard error:', e);
