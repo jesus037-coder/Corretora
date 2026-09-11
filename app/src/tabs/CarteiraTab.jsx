@@ -25,11 +25,18 @@ function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors, onLimite
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [limiteVal, setLimiteVal] = useState(seg.limite || '');
+  const [showLimitePopup, setShowLimitePopup] = useState(false);
+  const [idealTooltip, setIdealTooltip] = useState(null);
   useEffect(() => { setLimiteVal(seg.limite || ''); }, [seg.limite]);
   const color = PAL[idx % PAL.length];
 
+  const currentPct = totMkt > 0 ? (seg.mercado / totMkt) * 100 : 0;
+  const limiteNum = seg.limite || 0;
+  const idealPct = seg.ativos.length > 0 ? limiteNum / seg.ativos.length : 0;
+
   const handleSaveLimite = async () => {
     const pct = parseFloat(limiteVal) || 0;
+    setShowLimitePopup(false);
     if (pct === (seg.limite || 0)) return;
     try { await saveLimite(seg.nome, pct); onLimiteSaved(); }
     catch (e) { /* ignore */ }
@@ -63,19 +70,35 @@ function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors, onLimite
           <div className="sc-kpi"><span className="sc-kpi-lbl">ATIVOS</span><span className="sc-kpi-val m">{seg.ativos.length}</span></div>
           <div className="sc-kpi sc-kpi-limite">
             <span className="sc-kpi-lbl">LIMITE</span>
-            <span className="sc-kpi-limite-input">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={limiteVal}
-                onChange={(e) => setLimiteVal(e.target.value)}
-                onBlur={handleSaveLimite}
-                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
-                onClick={(e) => e.stopPropagation()}
-              />%
+            <span className="sc-kpi-limite-display">
+              <span className={`limite-val ${currentPct <= limiteNum ? 'g' : 'r'}`}>
+                {currentPct.toFixed(0)}/{limiteNum || 0}
+              </span>
+              <button
+                className="limite-edit-btn"
+                title="Editar limite"
+                onClick={(e) => { e.stopPropagation(); setLimiteVal(seg.limite || ''); setShowLimitePopup(true); }}
+              >✎</button>
             </span>
+            {showLimitePopup && (
+              <div className="limite-popup" onClick={(e) => e.stopPropagation()}>
+                <label>Limite do segmento (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={limiteVal}
+                  onChange={(e) => setLimiteVal(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveLimite(); if (e.key === 'Escape') setShowLimitePopup(false); }}
+                  autoFocus
+                />
+                <div className="limite-popup-actions">
+                  <button className="limite-popup-cancel" onClick={() => setShowLimitePopup(false)}>Cancelar</button>
+                  <button className="limite-popup-save" onClick={handleSaveLimite}>Salvar</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="sc-arr">›</div>
@@ -106,7 +129,18 @@ function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors, onLimite
                       <td className={varNum >= 0 ? 'g' : 'r'}>{a.variacao || '—'}</td>
                       <td className={a.lp >= 0 ? 'g' : 'r'}>{M(a.lp)}</td>
                       <td>{a.pctCart.toFixed(1)}%</td>
-                      <td>{a.ideal > 0 ? M(a.ideal) : '—'}</td>
+                      <td
+                        className={`td-ideal${idealPct > 0 ? ' clickable' : ''}`}
+                        onClick={idealPct > 0 ? (e) => { e.stopPropagation(); setIdealTooltip(idealTooltip === a.ticker ? null : a.ticker); } : undefined}
+                      >
+                        {idealPct > 0 ? (
+                          <span className="ideal-cell">
+                            {idealTooltip === a.ticker
+                              ? <>{M(a.ideal)} <span className="ideal-pct-hint">({idealPct.toFixed(1)}%)</span></>
+                              : `${idealPct.toFixed(1)}%`}
+                          </span>
+                        ) : '—'}
+                      </td>
                     </tr>
                   );
                 })}

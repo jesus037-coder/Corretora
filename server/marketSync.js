@@ -3,6 +3,7 @@ import pool from './db.js';
 const BRAPI_BASE = 'https://brapi.dev/api/quote';
 const BATCH_SIZE = 1; // free plan allows 1 ticker per request
 const MARKET_SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const BINANCE_BASE = 'https://data-api.binance.vision/api/v3/ticker/price';
 
 let syncing = false;
 
@@ -14,37 +15,73 @@ async function fetchBatch(tickers, token) {
   return json.results || [];
 }
 
+async function fetchCryptoFromBinance(tickers) {
+  // Binance uses pairs like BTCUSDT, ETHUSDT, etc.
+  const symbols = tickers.map((t) => `${t}USDT`);
+  const url = `${BINANCE_BASE}?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
+  const json = await res.json();
+  // Binance returns [{ symbol: "BTCUSDT", price: "67000.00" }, ...]
+  return json.map((item) => ({
+    symbol: item.symbol.replace('USDT', ''),
+    regularMarketPrice: parseFloat(item.price),
+  }));
+}
+
 export async function syncMarketData() {
   const token = process.env.BRAPI_API_KEY;
-  if (!token) {
-    console.log('📈 [MarketSync] BRAPI_API_KEY not set, skipping.');
-    return;
-  }
   if (syncing) { console.log('📈 [MarketSync] Already running, skipping…'); return; }
   syncing = true;
   try {
-    const { rows } = await pool.query('SELECT id, ticker FROM ativos ORDER BY ticker');
+    const { rows } = await pool.query('SELECT id, ticker, segmento FROM ativos ORDER BY ticker');
     if (!rows.length) { console.log('📈 [MarketSync] No ativos to update.'); return; }
 
-    console.log(`📈 [MarketSync] Updating ${rows.length} ativos from Brapi…`);
+    // Split crypto vs non-crypto
+    const cryptoRows = rows.filter((r) => (r.segmento || '').toUpperCase().includes('CRIPTO'));
+    const brapiRows = rows.filter((r) => !cryptoRows.includes(r));
+
     let updated = 0, failed = 0;
 
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE);
-      const tickers = batch.map(r => r.ticker);
+    // ── Fetch crypto from Binance ──
+    if (cryptoRows.length) {
+      console.log(`📈 [MarketSync] Updating ${cryptoRows.length} crypto from Binance…`);
       try {
-        const results = await fetchBatch(tickers, token);
+        const cryptoTickers = cryptoRows.map((r) => r.ticker);
+        const results = await fetchCryptoFromBinance(cryptoTickers);
         for (const r of results) {
-          const price = r.regularMarketPrice;
-          if (price == null) continue;
-          await pool.query(
-            'UPDATE ativos SET valor=$1 WHERE ticker=$2',
-            [price, r.symbol]
-          );
+          if (r.regularMarketPrice == null) continue;
+          await pool.query('UPDATE ativos SET valor=$1 WHERE ticker=$2', [r.regularMarketPrice, r.symbol]);
           updated++;
         }
       } catch (e) {
-        failed += batch.length;
+        console.error(`📈 [MarketSync] Binance error: ${e.message}`);
+        failed += cryptoRows.length;
+      }
+    }
+
+    // ── Fetch non-crypto from Brapi ──
+    if (brapiRows.length) {
+      console.log(`📈 [MarketSync] Updating ${brapiRows.length} ativos from Brapi…`);
+      if (!token) {
+        console.log('📈 [MarketSync] BRAPI_API_KEY not set, skipping Brapi.');
+        failed += brapiRows.length;
+      } else {
+        for (let i = 0; i < brapiRows.length; i += BATCH_SIZE) {
+          const batch = brapiRows.slice(i, i + BATCH_SIZE);
+          const tickers = batch.map((r) => r.ticker);
+          try {
+            const results = await fetchBatch(tickers, token);
+            for (const r of results) {
+              const price = r.regularMarketPrice;
+              if (price == null) continue;
+              await pool.query('UPDATE ativos SET valor=$1 WHERE ticker=$2', [price, r.symbol]);
+              updated++;
+            }
+          } catch (e) {
+            failed += batch.length;
+          }
+        }
       }
     }
 
