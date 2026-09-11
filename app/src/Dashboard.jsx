@@ -79,11 +79,20 @@ export default function Dashboard({ user, onLogout }) {
         return yr === lastYear ? sum + val : sum;
       }, 0);
     } else {
-      // Specific year: DY of the last non-zero month (current month)
-      for (let i = provData.length - 1; i >= 0; i--) { if (provData[i] > 0) { rendUlt = provData[i]; break; } }
+      // Specific year: current year → DY of current month; past year → DY of December
+      const selAno = data?.ano;
+      const now = new Date();
+      if (selAno === now.getFullYear()) {
+        rendUlt = provData[now.getMonth()] || 0;
+      } else {
+        rendUlt = provData[11] || 0;
+      }
     }
     const dy = mercado > 0 ? (rendUlt / mercado) * 100 : 0;
-    return { mercado, rendUlt, dy, isTodos };
+    let dyLabel = 'mês atual';
+    if (isTodos) dyLabel = 'último ano';
+    else if (data?.ano !== new Date().getFullYear()) dyLabel = 'dezembro';
+    return { mercado, rendUlt, dy, isTodos, dyLabel };
   }, [data]);
 
   const roleLabel = user.role === 'admin' ? 'Administrador' : user.role === 'demo' ? 'Conta Demo' : user.nome;

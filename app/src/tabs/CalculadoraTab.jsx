@@ -87,7 +87,7 @@ export default function CalculadoraTab({ latest, chartColors }) {
               <div className="calc-field">
                 <label>Taxa de Juros (%)</label>
                 <input type="number" min="0" step="0.01" value={taxa} onChange={(e) => setTaxa(parseFloat(e.target.value) || 0)} />
-                {latest?.dy > 0 && <span className="calc-hint">DY {latest?.isTodos ? 'último ano' : 'mês atual'} real: {latest.dy.toFixed(2)}%</span>}
+                {latest?.dy > 0 && <span className="calc-hint">DY {latest?.dyLabel || 'mês atual'} real: {latest.dy.toFixed(2)}%</span>}
               </div>
               <div className="calc-field">
                 <label>Período (meses)</label>
