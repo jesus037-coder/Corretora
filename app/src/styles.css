@@ -284,3 +284,41 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 .anim{animation:up .35s ease both}
 .val{transition:filter .3s,opacity .3s}
+
+/* ── VIEW TOGGLE (meses / anos / por ano) ── */
+.view-toggle{display:inline-flex;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0}
+.view-toggle button{padding:5px 12px;background:transparent;border:none;font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;text-transform:uppercase;letter-spacing:1px}
+.view-toggle button:hover{color:var(--text)}
+.view-toggle button.on{background:var(--accent-glow);color:var(--accent)}
+
+/* ── MOVIMENTAÇÃO MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.4);animation:up .25s ease both}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.modal-head h3{font-family:'DM Serif Display',serif;font-size:1.3rem;font-weight:400}
+.modal-close{background:transparent;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;transition:color .15s;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;line-height:1}
+.modal-close:hover{color:var(--red);background:rgba(242,92,92,.08)}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.modal-field{display:flex;flex-direction:column}
+.modal-field.full{grid-column:1/-1}
+.modal-field label{display:block;font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px}
+.modal-field input,.modal-field select{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:.88rem;outline:none;transition:border-color .2s,box-shadow .2s}
+.modal-field input:focus,.modal-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.modal-field input:disabled{opacity:.5;cursor:not-allowed}
+.modal-field select option{background:var(--panel)}
+.modal-actions{display:flex;gap:10px;margin-top:22px}
+.modal-btn{flex:1;padding:12px;border:none;border-radius:8px;font-family:'DM Mono',monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;cursor:pointer;transition:opacity .18s;font-weight:700}
+.modal-btn.save{background:var(--accent);color:#09110e}
+.modal-btn.save:hover{opacity:.88}
+.modal-btn.save:disabled{opacity:.4;cursor:not-allowed}
+.modal-btn.cancel{background:var(--panel);border:1px solid var(--border);color:var(--muted)}
+.modal-btn.cancel:hover{color:var(--red);border-color:var(--red)}
+.modal-err{margin-bottom:14px;padding:10px 14px;background:rgba(242,92,92,.08);border:1px solid rgba(242,92,92,.2);border-radius:8px;color:var(--red);font-family:'DM Mono',monospace;font-size:.75rem;text-align:center;display:none}
+.modal-err.show{display:block}
+
+/* ── EDIT BUTTON (compras e vendas) ── */
+.btn-edit{background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.65rem;cursor:pointer;padding:4px 10px;transition:color .15s,border-color .15s;white-space:nowrap}
+.btn-edit:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ── TOTAL COLUMN (proventos table by year) ── */
+.total-col{font-weight:700!important;color:var(--accent)!important;background:var(--panel)!important}

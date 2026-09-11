@@ -3,6 +3,7 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import pool from './db.js';
+import { syncData, SYNC_INTERVAL } from './sync.js';
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -639,5 +640,18 @@ app.put('/api/movimentacoes/:id', auth, async (req, res) => {
   }
 });
 
+/* ── POST /api/sync (manual trigger) ── */
+app.post('/api/sync', auth, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'demo') return res.status(403).json({ error: 'Apenas administradores.' });
+  try { await syncData(); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: 'Erro ao sincronizar.' }); }
+});
+
 const PORT = 8000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 API rodando em :${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 API rodando em :${PORT}`);
+  // Auto-sync from Google Sheets on startup (delayed) and periodically
+  setTimeout(() => syncData(), 10000);
+  setInterval(() => syncData(), SYNC_INTERVAL);
+  console.log(`🔄 Auto-sync every ${SYNC_INTERVAL / 60000} min`);
+});

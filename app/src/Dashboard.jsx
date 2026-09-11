@@ -11,6 +11,7 @@ import MetasTab from './tabs/MetasTab.jsx';
 import CalculadoraTab from './tabs/CalculadoraTab.jsx';
 import DirpfTab from './tabs/DirpfTab.jsx';
 import ComprasVendasTab from './tabs/ComprasVendasTab.jsx';
+import MovimentacaoModal from './components/MovimentacaoModal.jsx';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler);
 
@@ -34,6 +35,8 @@ export default function Dashboard({ user, onLogout }) {
   const [theme, setTheme] = useState('dark');
   const [sidebarOff, setSidebarOff] = useState(false);
   const [aba, setAba] = useState('carteira');
+  const [movModal, setMovModal] = useState(null); // null | { mode: 'create'|'edit', mov: null|{...} }
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const isAdmin = user.role === 'admin' || user.role === 'demo';
 
@@ -51,7 +54,7 @@ export default function Dashboard({ user, onLogout }) {
     setLoading(true); setError('');
     fetchDashboard(ano, clienteSel)
       .then(setData).catch((e) => setError(e.message)).finally(() => setLoading(false));
-  }, [ano, clienteSel]);
+  }, [ano, clienteSel, refreshKey]);
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
 
@@ -117,6 +120,9 @@ export default function Dashboard({ user, onLogout }) {
           <div className="topbar-title">{clienteSel === '__ZE__' ? '⭐ Corretora — Zé' : clienteSel || 'Dashboard'}</div>
           <div className="topbar-actions">
             <div className="topbar-meta">{ano === 0 ? 'Todos os anos' : 'Ano ' + ano}</div>
+            <button className="tb-btn" title="Novo lançamento" onClick={() => setMovModal({ mode: 'create', mov: null })}>
+              + Lançamento
+            </button>
             <button className="tb-btn icon-btn" title="Tema claro / escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? '☀' : '☾'}
             </button>
@@ -139,9 +145,19 @@ export default function Dashboard({ user, onLogout }) {
           {!loading && !error && aba === 'metas' && <MetasTab cliente={clienteForTabs} latest={latest} isDemo={user.role === 'demo'} />}
           {!loading && !error && aba === 'calc' && <CalculadoraTab latest={latest} chartColors={chartColors} />}
           {!loading && !error && aba === 'dirpf' && <DirpfTab ano={ano === 0 ? (anos.length > 0 ? Math.max(...anos) : new Date().getFullYear()) : ano} cliente={clienteForTabs} theme={theme} />}
-          {!loading && !error && aba === 'comprasvendas' && <ComprasVendasTab ano={ano} cliente={clienteForTabs} chartColors={chartColors} />}
+          {!loading && !error && aba === 'comprasvendas' && <ComprasVendasTab ano={ano} cliente={clienteForTabs} chartColors={chartColors} refreshKey={refreshKey} onEditMov={(mv) => setMovModal({ mode: 'edit', mov: mv })} />}
         </div>
       </div>
+      {movModal && (
+        <MovimentacaoModal
+          mode={movModal.mode}
+          movimentacao={movModal.mov}
+          cliente={clienteSel}
+          isAdmin={isAdmin}
+          onClose={() => setMovModal(null)}
+          onSaved={() => { setMovModal(null); setRefreshKey(k => k + 1); }}
+        />
+      )}
     </div>
   );
 }

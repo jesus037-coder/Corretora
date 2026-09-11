@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
-import { M, PAL, KpiCard } from '../shared.jsx';
+import { M, MES, PAL, KpiCard } from '../shared.jsx';
 
 const COLS = [
   { key: 'ticker',   label: 'Ativo',       type: 'text' },
@@ -95,32 +95,69 @@ function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors }) {
 
 export default function CarteiraTab({ data, ano, chartColors }) {
   const [openSegIdx, setOpenSegIdx] = useState(null);
+  const [viewMode, setViewMode] = useState('meses');
   const { gc, tc } = chartColors;
   const kpis = data?.kpis || {};
   const totMkt = kpis.valorMercado || 0;
   const segs = data?.segmentos || [];
+  const isTodos = ano === 0;
 
-  const evolLabels = data?.evolucaoPorSegmento?.labels || data?.evolucao?.labels || [];
   const evolSegData = data?.evolucaoPorSegmento?.data || {};
-
-  // Main chart: total or selected segment
   const selectedSeg = openSegIdx !== null ? segs[openSegIdx] : null;
   const segColor = openSegIdx !== null ? PAL[openSegIdx % PAL.length] : '#3ddc84';
-  const chartData = selectedSeg ? (evolSegData[selectedSeg.nome] || []) : (data?.evolucao?.data || []);
-  const chartTitle = selectedSeg ? `${selectedSeg.nome} — Evolução` : `Patrimônio Total Investido — ${ano === 0 ? 'Todos' : ano}`;
 
-  const evolChart = {
-    labels: evolLabels,
-    datasets: [{
-      label: selectedSeg ? selectedSeg.nome : 'Patrimônio Total', data: chartData,
+  const rawLabels = selectedSeg ? (data?.evolucaoPorSegmento?.labels || []) : (data?.evolucao?.labels || []);
+  const rawData = selectedSeg ? (evolSegData[selectedSeg.nome] || []) : (data?.evolucao?.data || []);
+
+  // Parse labels for year/month info (only for "Todos")
+  const labelInfo = isTodos ? rawLabels.map(l => {
+    const parts = l.split('/');
+    if (parts.length === 2) return { year: 2000 + parseInt(parts[1]), month: MES.indexOf(parts[0]) };
+    return { year: 0, month: 0 };
+  }) : null;
+
+  // Compute chart based on view mode
+  let chartLabels = rawLabels;
+  let chartDatasets;
+
+  if (isTodos && viewMode === 'anos') {
+    const years = [...new Set(labelInfo.map(e => e.year))].sort();
+    chartLabels = years.map(String);
+    const anosData = years.map(yr => {
+      let lastVal = 0;
+      labelInfo.forEach((e, i) => { if (e.year === yr) lastVal = rawData[i]; });
+      return lastVal;
+    });
+    chartDatasets = [{
+      label: selectedSeg ? selectedSeg.nome : 'Patrimônio Total', data: anosData,
       borderColor: segColor, backgroundColor: segColor + '15',
       fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor: segColor, borderWidth: 2,
-    }],
-  };
+    }];
+  } else if (isTodos && viewMode === 'ano') {
+    chartLabels = MES;
+    const years = [...new Set(labelInfo.map(e => e.year))].sort();
+    chartDatasets = years.map((yr, yi) => {
+      const color = PAL[yi % PAL.length];
+      const monthlyData = Array(12).fill(null);
+      labelInfo.forEach((e, i) => { if (e.year === yr) monthlyData[e.month] = rawData[i]; });
+      return { label: String(yr), data: monthlyData, borderColor: color, backgroundColor: color + '15', fill: false, tension: 0.35, pointRadius: 3, pointBackgroundColor: color, borderWidth: 2 };
+    });
+  } else {
+    chartDatasets = [{
+      label: selectedSeg ? selectedSeg.nome : 'Patrimônio Total', data: rawData,
+      borderColor: segColor, backgroundColor: segColor + '15',
+      fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor: segColor, borderWidth: 2,
+    }];
+  }
+
+  const evolChart = { labels: chartLabels, datasets: chartDatasets };
 
   const chartOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y) } } },
+    plugins: {
+      legend: { display: isTodos && viewMode === 'ano', labels: { color: tc, font: { size: 11 } } },
+      tooltip: { callbacks: { label: (c) => M(c.parsed.y) } }
+    },
     scales: { x: { grid: { color: gc }, ticks: { color: tc } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
   };
 
@@ -132,12 +169,22 @@ export default function CarteiraTab({ data, ano, chartColors }) {
         <KpiCard label="Valor Aplicado" value={M(kpis.valorAplicado)} />
         <KpiCard label="Valor de Mercado" value={M(kpis.valorMercado)} valCls="g" />
         <KpiCard label="L / P Total" value={M(kpis.lp)} valCls={kpis.lp >= 0 ? 'g' : 'r'} />
-        <KpiCard label={`Proventos ${ano}`} value={M(kpis.proventos)} valCls="g" />
+        <KpiCard label={`Proventos ${ano === 0 ? 'Total' : ano}`} value={M(kpis.proventos)} valCls="g" />
         <KpiCard label="Rentabilidade" value={M(kpis.lpT)} hint={`${kpis.rentabilidade >= 0 ? '▲' : '▼'} ${Math.abs(kpis.rentabilidade || 0).toFixed(2)}%`} bad={kpis.lpT < 0} valCls={kpis.lpT >= 0 ? 'g' : 'r'} />
       </div>
-      <div className="sec-head"><h3>Evolução do Patrimônio</h3><span className="tag">{selectedSeg ? selectedSeg.nome : (ano === 0 ? 'série histórica' : 'mensal ' + ano)}</span></div>
+      <div className="sec-head">
+        <h3>Evolução do Patrimônio</h3>
+        <span className="tag">{selectedSeg ? selectedSeg.nome : (isTodos ? 'série histórica' : 'mensal ' + ano)}</span>
+        {isTodos && (
+          <div className="view-toggle" style={{ marginLeft: 'auto' }}>
+            <button className={viewMode === 'meses' ? 'on' : ''} onClick={() => setViewMode('meses')}>Meses</button>
+            <button className={viewMode === 'anos' ? 'on' : ''} onClick={() => setViewMode('anos')}>Anos</button>
+            <button className={viewMode === 'ano' ? 'on' : ''} onClick={() => setViewMode('ano')}>Por ano</button>
+          </div>
+        )}
+      </div>
       <div className="chart-box">
-        <div className="chart-ttl">{chartTitle}</div>
+        <div className="chart-ttl">{selectedSeg ? `${selectedSeg.nome} — Evolução` : `Patrimônio Total Investido — ${isTodos ? 'Todos' : ano}`}</div>
         <div style={{ height: 220 }}><Line data={evolChart} options={chartOpts} /></div>
       </div>
       <div className="sec-head"><h3>Consolidação de Carteira</h3><span className="tag">{data?.nAtivos || 0} ativos · {data?.nSegmentos || 0} segmentos</span></div>

@@ -3,7 +3,7 @@ import { Bar } from 'react-chartjs-2';
 import { MES, M, KpiCard } from '../shared.jsx';
 import { fetchComprasVendas } from '../api.js';
 
-export default function ComprasVendasTab({ ano, cliente, chartColors }) {
+export default function ComprasVendasTab({ ano, cliente, chartColors, refreshKey, onEditMov }) {
   const { gc, tc } = chartColors;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ export default function ComprasVendasTab({ ano, cliente, chartColors }) {
     setLoading(true);
     setError('');
     fetchComprasVendas(ano, cliente).then(setData).catch((e) => setError(e.message)).finally(() => setLoading(false));
-  }, [ano, cliente]);
+  }, [ano, cliente, refreshKey]);
 
   if (loading) return <div className="empty"><div className="ico">⏳</div><p>Carregando…</p></div>;
   if (error) return <div className="empty"><div className="ico">⚠️</div><p>{error}</p></div>;
@@ -58,11 +58,11 @@ export default function ComprasVendasTab({ ano, cliente, chartColors }) {
               <tr>
                 <th style={{ textAlign: 'left' }}>Data</th><th style={{ textAlign: 'left' }}>Cliente</th>
                 <th style={{ textAlign: 'left' }}>Ativo</th><th style={{ textAlign: 'left' }}>Segmento/Tipo</th>
-                <th>Operação</th><th>Quantidade</th><th>Preço Unit.</th><th>Total</th><th>Ações</th>
+                <th>Operação</th><th>Quantidade</th><th>Preço Unit.</th><th>Total</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {lancs.length === 0 && <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>Nenhum lançamento encontrado.</td></tr>}
+              {lancs.length === 0 && <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>Nenhum lançamento encontrado. Use "+ Lançamento" na barra superior para adicionar.</td></tr>}
               {lancs.map((mv) => {
                 const d = new Date(mv.data);
                 const dataFmt = ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();
@@ -77,7 +77,7 @@ export default function ComprasVendasTab({ ano, cliente, chartColors }) {
                     <td>{(mv.quantidade || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</td>
                     <td>{M(mv.preco || 0)}</td>
                     <td style={{ fontWeight: 600 }}>{M(mv.total || 0)}</td>
-                    <td><span style={{ color: 'var(--muted)', fontSize: '.65rem' }}>—</span></td>
+                    <td><button className="btn-edit" onClick={() => onEditMov(mv)}>Editar</button></td>
                   </tr>
                 );
               })}

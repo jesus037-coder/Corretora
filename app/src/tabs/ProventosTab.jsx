@@ -11,6 +11,8 @@ export default function ProventosTab({ data, ano, chartColors }) {
   const detalhe = data?.proventosDetalhe || {};
   const segNames = Object.keys(detalhe);
   const nMonths = provLabels.length;
+  const isTodos = ano === 0;
+  const [viewMode, setViewMode] = useState('meses');
 
   const [selectedSeg, setSelectedSeg] = useState(null);
   const [openSegs, setOpenSegs] = useState({});
@@ -18,7 +20,6 @@ export default function ProventosTab({ data, ano, chartColors }) {
 
   // KPIs
   const hoje = new Date();
-  const isTodos = ano === 0;
   const mesAtual = isTodos ? nMonths - 1 : (ano < hoje.getFullYear() ? nMonths - 1 : hoje.getMonth());
   let provUltMes = 0, mesUlt = mesAtual;
   for (let i = mesAtual; i >= 0; i--) { if (provData[i] > 0) { provUltMes = provData[i]; mesUlt = i; break; } }
@@ -50,18 +51,73 @@ export default function ProventosTab({ data, ano, chartColors }) {
     return map;
   }, [detalhe, segNames]);
 
-  // Bar chart: selected segment or total
+  // Yearly table data for "Todos"
+  const yearlyData = useMemo(() => {
+    if (!isTodos) return null;
+    const years = [...new Set(provLabels.map(l => {
+      const parts = l.split('/');
+      return parts.length === 2 ? 2000 + parseInt(parts[1]) : null;
+    }).filter(Boolean))].sort();
+
+    const segYearly = {};
+    for (const sg of segNames) {
+      segYearly[sg] = detalhe[sg].map(at => {
+        const yearly = years.map(() => 0);
+        at.m.forEach((m, i) => {
+          const parts = provLabels[i].split('/');
+          if (parts.length !== 2) return;
+          const yi = years.indexOf(2000 + parseInt(parts[1]));
+          if (yi >= 0) yearly[yi] = Math.round((yearly[yi] + m.s) * 100) / 100;
+        });
+        return { tk: at.tk, yearly, total: Math.round(yearly.reduce((s, v) => s + v, 0) * 100) / 100 };
+      }).filter(a => a.total > 0);
+    }
+
+    const yearTotals = years.map(() => 0);
+    for (const sg of segNames) {
+      for (const at of segYearly[sg]) {
+        at.yearly.forEach((v, yi) => { yearTotals[yi] = Math.round((yearTotals[yi] + v) * 100) / 100; });
+      }
+    }
+    const grandTotal = Math.round(yearTotals.reduce((s, v) => s + v, 0) * 100) / 100;
+    return { years, segYearly, yearTotals, grandTotal };
+  }, [isTodos, provLabels, detalhe, segNames]);
+
+  // Parse labels for year/month info (for chart view modes)
+  const provInfo = isTodos ? provLabels.map(l => {
+    const parts = l.split('/');
+    if (parts.length === 2) return { year: 2000 + parseInt(parts[1]), month: MES.indexOf(parts[0]) };
+    return null;
+  }) : null;
+
+  // Bar chart: selected segment or total, with view mode
   const segIdx = selectedSeg ? segNames.indexOf(selectedSeg) : -1;
   const barColor = segIdx >= 0 ? PAL[segIdx % PAL.length] : null;
-  const barChart = {
-    labels: provLabels,
-    datasets: [{
-      label: selectedSeg || 'Proventos',
-      data: selectedSeg ? (segMensal[selectedSeg] || Array(nMonths).fill(0)) : provData,
-      backgroundColor: barColor ? barColor + 'aa' : 'rgba(61,220,132,.65)',
-      borderRadius: 4,
-    }],
-  };
+  const rawBarData = selectedSeg ? (segMensal[selectedSeg] || Array(nMonths).fill(0)) : provData;
+
+  let barLabels, barDatasets;
+  if (isTodos && viewMode === 'anos') {
+    const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
+    barLabels = years.map(String);
+    const anosData = years.map(yr => Math.round(provInfo.reduce((s, e, i) => e && e.year === yr ? s + rawBarData[i] : s, 0) * 100) / 100);
+    barDatasets = [{ label: selectedSeg || 'Proventos', data: anosData, backgroundColor: barColor ? barColor + 'aa' : 'rgba(61,220,132,.65)', borderRadius: 4 }];
+  } else if (isTodos && viewMode === 'ano') {
+    barLabels = MES;
+    const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
+    barDatasets = years.map((yr, yi) => {
+      const color = PAL[yi % PAL.length];
+      const monthlyData = Array(12).fill(0);
+      provInfo.forEach((e, i) => {
+        if (e && e.year === yr) monthlyData[e.month] = Math.round((monthlyData[e.month] + rawBarData[i]) * 100) / 100;
+      });
+      return { label: String(yr), data: monthlyData, backgroundColor: color + 'aa', borderRadius: 4 };
+    });
+  } else {
+    barLabels = provLabels;
+    barDatasets = [{ label: selectedSeg || 'Proventos', data: rawBarData, backgroundColor: barColor ? barColor + 'aa' : 'rgba(61,220,132,.65)', borderRadius: 4 }];
+  }
+
+  const barChart = { labels: barLabels, datasets: barDatasets };
 
   // Doughnut: expanded segment → per-ativo; else → per-segment totals
   const expandedSeg = segNames.find(s => openSegs['pv-' + s.replace(/\W+/g, '-')]);
@@ -77,10 +133,11 @@ export default function ProventosTab({ data, ano, chartColors }) {
   }
   const doughnutChart = { labels: dLabels, datasets: [{ data: dData, backgroundColor: dColors, borderColor: 'transparent', hoverOffset: 5 }] };
 
+  const showLegend = isTodos && viewMode === 'ano';
   const chartOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y ?? c.parsed) } } },
-    scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: nMonths > 12 ? 9 : 11 } } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
+    plugins: { legend: { display: showLegend, labels: { color: tc, font: { size: 11 } } }, tooltip: { callbacks: { label: (c) => M(c.parsed.y ?? c.parsed) } } },
+    scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: (!isTodos || viewMode === 'meses') && nMonths > 12 ? 9 : 11 } } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
   };
   const doughnutOpts = {
     responsive: true, maintainAspectRatio: false, cutout: '65%',
@@ -94,8 +151,6 @@ export default function ProventosTab({ data, ano, chartColors }) {
     setSelectedSeg(isNowOpen ? sg : null);
   };
 
-  const colSpan = nMonths + 1;
-
   return (
     <>
       <div className="kpi-row">
@@ -108,6 +163,13 @@ export default function ProventosTab({ data, ano, chartColors }) {
       <div className="sec-head">
         <h3>Proventos Recebidos</h3>
         <span className="tag">{selectedSeg ? selectedSeg : 'todos os segmentos'} · {periodoLabel}</span>
+        {isTodos && (
+          <div className="view-toggle" style={{ marginLeft: 'auto' }}>
+            <button className={viewMode === 'meses' ? 'on' : ''} onClick={() => setViewMode('meses')}>Meses</button>
+            <button className={viewMode === 'anos' ? 'on' : ''} onClick={() => setViewMode('anos')}>Anos</button>
+            <button className={viewMode === 'ano' ? 'on' : ''} onClick={() => setViewMode('ano')}>Por ano</button>
+          </div>
+        )}
       </div>
       <div className="chart-duo">
         <div className="chart-box" style={{ marginBottom: 0 }}>
@@ -127,54 +189,99 @@ export default function ProventosTab({ data, ano, chartColors }) {
       <div className="tbl-wrap">
         <div className="tbl-scroll">
           <table>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left' }}></th>
-                {provLabels.map((m, i) => (
-                  <th key={i} className="month-hdr" onClick={() => setDetailMonth(detailMonth === i ? null : i)}>
-                    {m}{detailMonth === i ? ' ▾' : ''}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {segNames.map((sg) => {
-                const sid = 'pv-' + sg.replace(/\W+/g, '-');
-                const isOpen = openSegs[sid];
-                const segIdx2 = segNames.indexOf(sg);
-                const segColor = PAL[segIdx2 % PAL.length];
-                return (
-                  <React.Fragment key={sg}>
-                    <tr className="seg-hdr" onClick={() => toggleSeg(sg)}>
-                      <td colSpan={colSpan} style={{ borderLeft: `3px solid ${segColor}` }}>
-                        {isOpen ? '▾' : '▸'} {sg}
-                      </td>
-                    </tr>
-                    {detalhe[sg].map((at) => (
-                      <tr key={at.tk} className={isOpen ? '' : 'hide'}>
-                        <td className="td-l" style={{ paddingLeft: 28 }}>{at.tk}</td>
-                        {at.m.map((m, i) => (
-                          <td key={i}>
-                            {m.s > 0 ? (
-                              <div className="pc">
-                                <div className="pu">R$ {m.u}</div>
-                                {detailMonth === i && <>
-                                  <div className="pe">{m.q} cotas</div>
-                                  <div className="pt">{M(m.s)}</div>
-                                </>}
-                              </div>
-                            ) : '—'}
+            {isTodos && yearlyData ? (
+              <>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}></th>
+                    {yearlyData.years.map(yr => <th key={yr}>{yr}</th>)}
+                    <th className="total-col">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {segNames.map((sg) => {
+                    const sid = 'pv-' + sg.replace(/\W+/g, '-');
+                    const isOpen = openSegs[sid];
+                    const segIdx2 = segNames.indexOf(sg);
+                    const segColor = PAL[segIdx2 % PAL.length];
+                    return (
+                      <React.Fragment key={sg}>
+                        <tr className="seg-hdr" onClick={() => toggleSeg(sg)}>
+                          <td colSpan={yearlyData.years.length + 2} style={{ borderLeft: `3px solid ${segColor}` }}>
+                            {isOpen ? '▾' : '▸'} {sg}
                           </td>
+                        </tr>
+                        {yearlyData.segYearly[sg].map((at) => (
+                          <tr key={at.tk} className={isOpen ? '' : 'hide'}>
+                            <td className="td-l" style={{ paddingLeft: 28 }}>{at.tk}</td>
+                            {at.yearly.map((v, yi) => <td key={yi}>{v > 0 ? M(v) : '—'}</td>)}
+                            <td className="total-col">{M(at.total)}</td>
+                          </tr>
                         ))}
-                      </tr>
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="td-l">TOTAL</td>
+                    {yearlyData.yearTotals.map((t, i) => <td key={i}>{M(t)}</td>)}
+                    <td className="total-col">{M(yearlyData.grandTotal)}</td>
+                  </tr>
+                </tfoot>
+              </>
+            ) : (
+              <>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}></th>
+                    {provLabels.map((m, i) => (
+                      <th key={i} className="month-hdr" onClick={() => setDetailMonth(detailMonth === i ? null : i)}>
+                        {m}{detailMonth === i ? ' ▾' : ''}
+                      </th>
                     ))}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr><td className="td-l">TOTAL</td>{provData.map((t, i) => <td key={i}>{M(t)}</td>)}</tr>
-            </tfoot>
+                  </tr>
+                </thead>
+                <tbody>
+                  {segNames.map((sg) => {
+                    const sid = 'pv-' + sg.replace(/\W+/g, '-');
+                    const isOpen = openSegs[sid];
+                    const segIdx2 = segNames.indexOf(sg);
+                    const segColor = PAL[segIdx2 % PAL.length];
+                    return (
+                      <React.Fragment key={sg}>
+                        <tr className="seg-hdr" onClick={() => toggleSeg(sg)}>
+                          <td colSpan={nMonths + 1} style={{ borderLeft: `3px solid ${segColor}` }}>
+                            {isOpen ? '▾' : '▸'} {sg}
+                          </td>
+                        </tr>
+                        {detalhe[sg].map((at) => (
+                          <tr key={at.tk} className={isOpen ? '' : 'hide'}>
+                            <td className="td-l" style={{ paddingLeft: 28 }}>{at.tk}</td>
+                            {at.m.map((m, i) => (
+                              <td key={i}>
+                                {m.s > 0 ? (
+                                  <div className="pc">
+                                    <div className="pu">R$ {m.u}</div>
+                                    {detailMonth === i && <>
+                                      <div className="pe">{m.q} cotas</div>
+                                      <div className="pt">{M(m.s)}</div>
+                                    </>}
+                                  </div>
+                                ) : '—'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr><td className="td-l">TOTAL</td>{provData.map((t, i) => <td key={i}>{M(t)}</td>)}</tr>
+                </tfoot>
+              </>
+            )}
           </table>
         </div>
       </div>
