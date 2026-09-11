@@ -15,6 +15,14 @@ async function fetchBatch(tickers, token) {
   return json.results || [];
 }
 
+// Ticker → CoinGecko coin ID mapping (fallback when Binance is geo-blocked)
+const COINGECKO_IDS = {
+  BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', XRP: 'ripple',
+  ADA: 'cardano', DOT: 'polkadot', LINK: 'chainlink', AVAX: 'avalanche-2',
+  MATIC: 'matic-network', BNB: 'binancecoin', DOGE: 'dogecoin',
+  USDT: 'tether', USDC: 'usd-coin', LTC: 'litecoin', ATOM: 'cosmos',
+};
+
 async function fetchCryptoFromBinance(tickers) {
   // Binance uses pairs like BTCUSDT, ETHUSDT, etc.
   const symbols = tickers.map((t) => `${t}USDT`);
@@ -22,10 +30,25 @@ async function fetchCryptoFromBinance(tickers) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
   const json = await res.json();
-  // Binance returns [{ symbol: "BTCUSDT", price: "67000.00" }, ...]
   return json.map((item) => ({
     symbol: item.symbol.replace('USDT', ''),
     regularMarketPrice: parseFloat(item.price),
+  }));
+}
+
+async function fetchCryptoFromCoinGecko(tickers) {
+  const ids = tickers.map((t) => COINGECKO_IDS[t] || t.toLowerCase()).filter(Boolean);
+  if (!ids.length) return [];
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+  const json = await res.json();
+  // Reverse map: coin ID → ticker
+  const idToTicker = {};
+  for (const t of tickers) { const id = COINGECKO_IDS[t] || t.toLowerCase(); idToTicker[id] = t; }
+  return Object.entries(json).map(([id, data]) => ({
+    symbol: idToTicker[id] || id.toUpperCase(),
+    regularMarketPrice: data.usd,
   }));
 }
 
@@ -43,11 +66,11 @@ export async function syncMarketData() {
 
     let updated = 0, failed = 0;
 
-    // ── Fetch crypto from Binance ──
+    // ── Fetch crypto from Binance (fallback: CoinGecko) ──
     if (cryptoRows.length) {
+      const cryptoTickers = cryptoRows.map((r) => r.ticker);
       console.log(`📈 [MarketSync] Updating ${cryptoRows.length} crypto from Binance…`);
       try {
-        const cryptoTickers = cryptoRows.map((r) => r.ticker);
         const results = await fetchCryptoFromBinance(cryptoTickers);
         for (const r of results) {
           if (r.regularMarketPrice == null) continue;
@@ -55,8 +78,18 @@ export async function syncMarketData() {
           updated++;
         }
       } catch (e) {
-        console.error(`📈 [MarketSync] Binance error: ${e.message}`);
-        failed += cryptoRows.length;
+        console.log(`📈 [MarketSync] Binance failed (${e.message}), falling back to CoinGecko…`);
+        try {
+          const results = await fetchCryptoFromCoinGecko(cryptoTickers);
+          for (const r of results) {
+            if (r.regularMarketPrice == null) continue;
+            await pool.query('UPDATE ativos SET valor=$1 WHERE ticker=$2', [r.regularMarketPrice, r.symbol]);
+            updated++;
+          }
+        } catch (e2) {
+          console.error(`📈 [MarketSync] CoinGecko error: ${e2.message}`);
+          failed += cryptoRows.length;
+        }
       }
     }
 
