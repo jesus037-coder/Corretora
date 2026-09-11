@@ -107,7 +107,7 @@ export default function CarteiraTab({ data, ano, chartColors }) {
   const selectedSeg = openSegIdx !== null ? segs[openSegIdx] : null;
   const segColor = openSegIdx !== null ? PAL[openSegIdx % PAL.length] : '#3ddc84';
   const chartData = selectedSeg ? (evolSegData[selectedSeg.nome] || []) : (data?.evolucao?.data || []);
-  const chartTitle = selectedSeg ? `${selectedSeg.nome} — Evolução` : `Patrimônio Total Investido — ${ano}`;
+  const chartTitle = selectedSeg ? `${selectedSeg.nome} — Evolução` : `Patrimônio Total Investido — ${ano === 0 ? 'Todos' : ano}`;
 
   const evolChart = {
     labels: evolLabels,
@@ -135,7 +135,7 @@ export default function CarteiraTab({ data, ano, chartColors }) {
         <KpiCard label={`Proventos ${ano}`} value={M(kpis.proventos)} valCls="g" />
         <KpiCard label="Rentabilidade" value={M(kpis.lpT)} hint={`${kpis.rentabilidade >= 0 ? '▲' : '▼'} ${Math.abs(kpis.rentabilidade || 0).toFixed(2)}%`} bad={kpis.lpT < 0} valCls={kpis.lpT >= 0 ? 'g' : 'r'} />
       </div>
-      <div className="sec-head"><h3>Evolução do Patrimônio</h3><span className="tag">{selectedSeg ? selectedSeg.nome : 'mensal ' + ano}</span></div>
+      <div className="sec-head"><h3>Evolução do Patrimônio</h3><span className="tag">{selectedSeg ? selectedSeg.nome : (ano === 0 ? 'série histórica' : 'mensal ' + ano)}</span></div>
       <div className="chart-box">
         <div className="chart-ttl">{chartTitle}</div>
         <div style={{ height: 220 }}><Line data={evolChart} options={chartOpts} /></div>

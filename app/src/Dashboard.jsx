@@ -83,6 +83,7 @@ export default function Dashboard({ user, onLogout }) {
         <div className="sb-ano">
           <label>Ano de referência</label>
           <select value={ano} onChange={(e) => setAno(parseInt(e.target.value))}>
+            <option value={0}>Todos os anos</option>
             {anos.length === 0 && <option value={new Date().getFullYear()}>{new Date().getFullYear()}</option>}
             {anos.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
@@ -115,7 +116,7 @@ export default function Dashboard({ user, onLogout }) {
           <button className="btn-hamburger" onClick={() => setSidebarOff(!sidebarOff)}>☰</button>
           <div className="topbar-title">{clienteSel === '__ZE__' ? '⭐ Corretora — Zé' : clienteSel || 'Dashboard'}</div>
           <div className="topbar-actions">
-            <div className="topbar-meta">Ano {ano}</div>
+            <div className="topbar-meta">{ano === 0 ? 'Todos os anos' : 'Ano ' + ano}</div>
             <button className="tb-btn icon-btn" title="Tema claro / escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? '☀' : '☾'}
             </button>
@@ -137,7 +138,7 @@ export default function Dashboard({ user, onLogout }) {
           {!loading && !error && data && aba === 'proventos' && <ProventosTab data={data} ano={ano} chartColors={chartColors} />}
           {!loading && !error && aba === 'metas' && <MetasTab cliente={clienteForTabs} latest={latest} isDemo={user.role === 'demo'} />}
           {!loading && !error && aba === 'calc' && <CalculadoraTab latest={latest} chartColors={chartColors} />}
-          {!loading && !error && aba === 'dirpf' && <DirpfTab ano={ano} cliente={clienteForTabs} theme={theme} />}
+          {!loading && !error && aba === 'dirpf' && <DirpfTab ano={ano === 0 ? (anos.length > 0 ? Math.max(...anos) : new Date().getFullYear()) : ano} cliente={clienteForTabs} theme={theme} />}
           {!loading && !error && aba === 'comprasvendas' && <ComprasVendasTab ano={ano} cliente={clienteForTabs} chartColors={chartColors} />}
         </div>
       </div>

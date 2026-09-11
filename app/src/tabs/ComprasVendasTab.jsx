@@ -22,8 +22,9 @@ export default function ComprasVendasTab({ ano, cliente, chartColors }) {
 
   const kpis = data.kpis || {};
 
+  const chartLabels = data.labels || MES;
   const chartData = {
-    labels: MES,
+    labels: chartLabels,
     datasets: [
       { label: 'Investido', data: data.investido, backgroundColor: 'rgba(61,220,132,.65)', borderRadius: 5 },
       { label: 'Vendido', data: data.vendido, backgroundColor: 'rgba(242,92,92,.65)', borderRadius: 5 },
@@ -39,7 +40,7 @@ export default function ComprasVendasTab({ ano, cliente, chartColors }) {
         <KpiCard label="Total Vendido" value={M(kpis.totalVendido)} hint="vendas no período" valCls="r" />
         <KpiCard label="Saldo (Investido − Vendido)" value={M(kpis.saldo)} />
       </div>
-      <div className="sec-head"><h3>Investido × Vendido</h3><span className="tag">mensal {ano}</span></div>
+      <div className="sec-head"><h3>Investido × Vendido</h3><span className="tag">{ano === 0 ? 'todos os anos' : 'mensal ' + ano}</span></div>
       <div className="chart-box">
         <div style={{ height: 240 }}>
           <Bar data={chartData} options={{

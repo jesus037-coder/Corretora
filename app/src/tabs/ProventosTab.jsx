@@ -5,10 +5,12 @@ import { MES, M, PAL, KpiCard } from '../shared.jsx';
 export default function ProventosTab({ data, ano, chartColors }) {
   const { gc, tc } = chartColors;
   const kpis = data?.kpis || {};
-  const provData = data?.proventosMensais?.data || Array(12).fill(0);
+  const provLabels = data?.proventosMensais?.labels || MES;
+  const provData = data?.proventosMensais?.data || Array(provLabels.length).fill(0);
   const provSeg = data?.proventosPorSegmento || { labels: [], data: [] };
   const detalhe = data?.proventosDetalhe || {};
   const segNames = Object.keys(detalhe);
+  const nMonths = provLabels.length;
 
   const [selectedSeg, setSelectedSeg] = useState(null);
   const [openSegs, setOpenSegs] = useState({});
@@ -16,25 +18,27 @@ export default function ProventosTab({ data, ano, chartColors }) {
 
   // KPIs
   const hoje = new Date();
-  const mesAtual = ano < hoje.getFullYear() ? 11 : hoje.getMonth();
+  const isTodos = ano === 0;
+  const mesAtual = isTodos ? nMonths - 1 : (ano < hoje.getFullYear() ? nMonths - 1 : hoje.getMonth());
   let provUltMes = 0, mesUlt = mesAtual;
   for (let i = mesAtual; i >= 0; i--) { if (provData[i] > 0) { provUltMes = provData[i]; mesUlt = i; break; } }
   const dyUltMes = kpis.valorMercado > 0 ? (provUltMes / kpis.valorMercado) * 100 : 0;
   const dyAno = kpis.valorMercado > 0 ? (kpis.proventos / kpis.valorMercado) * 100 : 0;
   const roi = kpis.valorAplicado > 0 ? (kpis.lpT / kpis.valorAplicado) * 100 : 0;
+  const periodoLabel = isTodos ? 'Todos' : ano;
 
   // Monthly proventos per segment
   const segMensal = useMemo(() => {
     const map = {};
     for (const sg of segNames) {
-      const monthly = Array(12).fill(0);
+      const monthly = Array(nMonths).fill(0);
       detalhe[sg].forEach(at => at.m.forEach((m, i) => { monthly[i] = Math.round((monthly[i] + m.s) * 100) / 100; }));
       map[sg] = monthly;
     }
     return map;
-  }, [detalhe, segNames]);
+  }, [detalhe, segNames, nMonths]);
 
-  // Per-ativo annual totals within a segment
+  // Per-ativo totals within a segment
   const segAtivosTotals = useMemo(() => {
     const map = {};
     for (const sg of segNames) {
@@ -50,10 +54,10 @@ export default function ProventosTab({ data, ano, chartColors }) {
   const segIdx = selectedSeg ? segNames.indexOf(selectedSeg) : -1;
   const barColor = segIdx >= 0 ? PAL[segIdx % PAL.length] : null;
   const barChart = {
-    labels: MES,
+    labels: provLabels,
     datasets: [{
       label: selectedSeg || 'Proventos',
-      data: selectedSeg ? (segMensal[selectedSeg] || Array(12).fill(0)) : provData,
+      data: selectedSeg ? (segMensal[selectedSeg] || Array(nMonths).fill(0)) : provData,
       backgroundColor: barColor ? barColor + 'aa' : 'rgba(61,220,132,.65)',
       borderRadius: 4,
     }],
@@ -76,7 +80,7 @@ export default function ProventosTab({ data, ano, chartColors }) {
   const chartOpts = {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y ?? c.parsed) } } },
-    scales: { x: { grid: { color: gc }, ticks: { color: tc } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
+    scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: nMonths > 12 ? 9 : 11 } } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
   };
   const doughnutOpts = {
     responsive: true, maintainAspectRatio: false, cutout: '65%',
@@ -90,18 +94,20 @@ export default function ProventosTab({ data, ano, chartColors }) {
     setSelectedSeg(isNowOpen ? sg : null);
   };
 
+  const colSpan = nMonths + 1;
+
   return (
     <>
       <div className="kpi-row">
-        <KpiCard label={`Proventos ${MES[mesUlt]}`} value={M(provUltMes)} hint="último mês com rendimento" valCls="g" />
-        <KpiCard label={`Proventos ${ano}`} value={M(kpis.proventos)} hint="acumulado no ano" valCls="g" />
-        <KpiCard label={`DY Mês (${MES[mesUlt]})`} value={dyUltMes.toFixed(2) + '%'} hint="dividend yield mensal" valCls={dyUltMes > 0 ? 'g' : ''} />
-        <KpiCard label={`DY Ano ${ano}`} value={dyAno.toFixed(2) + '%'} hint="dividend yield anual" valCls={dyAno > 0 ? 'g' : ''} />
+        <KpiCard label={`Proventos ${provLabels[mesUlt] || ''}`} value={M(provUltMes)} hint="último mês com rendimento" valCls="g" />
+        <KpiCard label={`Proventos ${periodoLabel}`} value={M(kpis.proventos)} hint={isTodos ? "acumulado total" : "acumulado no ano"} valCls="g" />
+        <KpiCard label={`DY Mês (${provLabels[mesUlt] || ''})`} value={dyUltMes.toFixed(2) + '%'} hint="dividend yield mensal" valCls={dyUltMes > 0 ? 'g' : ''} />
+        <KpiCard label={`DY ${periodoLabel}`} value={dyAno.toFixed(2) + '%'} hint={isTodos ? "dividend yield total" : "dividend yield anual"} valCls={dyAno > 0 ? 'g' : ''} />
         <KpiCard label="ROI Carteira" value={roi.toFixed(2) + '%'} hint={M(kpis.lpT)} bad={roi < 0} valCls={roi >= 0 ? 'g' : 'r'} />
       </div>
       <div className="sec-head">
         <h3>Proventos Recebidos</h3>
-        <span className="tag">{selectedSeg ? selectedSeg : 'todos os segmentos'} · {ano}</span>
+        <span className="tag">{selectedSeg ? selectedSeg : 'todos os segmentos'} · {periodoLabel}</span>
       </div>
       <div className="chart-duo">
         <div className="chart-box" style={{ marginBottom: 0 }}>
@@ -124,8 +130,8 @@ export default function ProventosTab({ data, ano, chartColors }) {
             <thead>
               <tr>
                 <th style={{ textAlign: 'left' }}></th>
-                {MES.map((m, i) => (
-                  <th key={m} className="month-hdr" onClick={() => setDetailMonth(detailMonth === i ? null : i)}>
+                {provLabels.map((m, i) => (
+                  <th key={i} className="month-hdr" onClick={() => setDetailMonth(detailMonth === i ? null : i)}>
                     {m}{detailMonth === i ? ' ▾' : ''}
                   </th>
                 ))}
@@ -140,7 +146,7 @@ export default function ProventosTab({ data, ano, chartColors }) {
                 return (
                   <React.Fragment key={sg}>
                     <tr className="seg-hdr" onClick={() => toggleSeg(sg)}>
-                      <td colSpan={13} style={{ borderLeft: `3px solid ${segColor}` }}>
+                      <td colSpan={colSpan} style={{ borderLeft: `3px solid ${segColor}` }}>
                         {isOpen ? '▾' : '▸'} {sg}
                       </td>
                     </tr>

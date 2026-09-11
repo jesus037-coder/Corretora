@@ -88,9 +88,35 @@ function consolidar(movs, precos) {
   return seg;
 }
 
+/* ── Build month list (12 months for a year, all months for "Todos") ── */
+function buildMonthList(movs, provRows, ano) {
+  if (ano !== 0) return MES.map((m, i) => ({ year: ano, month: i, label: m }));
+  let minYr = Infinity, minMo = Infinity, maxYr = -Infinity, maxMo = -Infinity;
+  for (const mv of movs) {
+    const d = new Date(mv.data), yr = d.getFullYear(), mo = d.getMonth();
+    if (yr < minYr || (yr === minYr && mo < minMo)) { minYr = yr; minMo = mo; }
+    if (yr > maxYr || (yr === maxYr && mo > maxMo)) { maxYr = yr; maxMo = mo; }
+  }
+  for (const row of provRows) {
+    const dRef = row.data_pag ? new Date(row.data_pag) : (row.data_com ? new Date(row.data_com) : null);
+    if (!dRef) continue;
+    const yr = dRef.getFullYear(), mo = dRef.getMonth();
+    if (yr < minYr || (yr === minYr && mo < minMo)) { minYr = yr; minMo = mo; }
+    if (yr > maxYr || (yr === maxYr && mo > maxMo)) { maxYr = yr; maxMo = mo; }
+  }
+  if (minYr === Infinity) return MES.map((m, i) => ({ year: new Date().getFullYear(), month: i, label: m }));
+  const months = [];
+  let yr = minYr, mo = minMo;
+  while (yr < maxYr || (yr === maxYr && mo <= maxMo)) {
+    months.push({ year: yr, month: mo, label: MES[mo] + '/' + String(yr).slice(2) });
+    mo++; if (mo > 11) { mo = 0; yr++; }
+  }
+  return months;
+}
+
 /* ── Build proventos por cliente/ano (ported from buildProv) ── */
-function buildProv(movs, provRows, ano) {
-  // ann: { ticker: { mes: { v, dCom, seg } } }
+function buildProv(movs, provRows, ano, monthList) {
+  // ann: { ticker: { monthIndex: { v, dCom, seg } } }
   const ann = {};
   for (const row of provRows) {
     const dCom = row.data_com;
@@ -98,7 +124,9 @@ function buildProv(movs, provRows, ano) {
     const dRef = dPag || dCom;
     if (!dRef) continue;
     const dRefDate = new Date(dRef);
-    if (dRefDate.getFullYear() !== ano) continue;
+    const yr = dRefDate.getFullYear(), mo = dRefDate.getMonth();
+    const mi = monthList.findIndex(m => m.year === yr && m.month === mo);
+    if (mi < 0) continue;
     const seg = (row.segmento || 'OUTROS').toUpperCase();
     const tipo = (row.tipo || '').toUpperCase();
     const vu = parseFloat(row.valor_unit) || 0;
@@ -108,20 +136,19 @@ function buildProv(movs, provRows, ano) {
     else if (segUp.includes('BDR') || tipo.includes('EXTERIOR')) f = 0.70;
     else if (tipo.includes('JCP') || tipo.includes('JSCP')) f = 0.85;
     const vl = Math.round(vu * f * 100) / 100;
-    const mes = dRefDate.getMonth();
     if (!ann[row.ticker]) ann[row.ticker] = {};
-    if (!ann[row.ticker][mes]) ann[row.ticker][mes] = { v: 0, dCom: dCom ? new Date(dCom) : null, seg };
-    ann[row.ticker][mes].v = Math.round((ann[row.ticker][mes].v + vl) * 100) / 100;
+    if (!ann[row.ticker][mi]) ann[row.ticker][mi] = { v: 0, dCom: dCom ? new Date(dCom) : null, seg };
+    ann[row.ticker][mi].v = Math.round((ann[row.ticker][mi].v + vl) * 100) / 100;
   }
 
   const tks = [...new Set(movs.map((m) => m.ticker))];
   const segs = {};
-  const tot = Array(12).fill(0);
+  const tot = Array(monthList.length).fill(0);
 
   for (const tk of tks) {
     const meses = [];
     let segA = '';
-    for (let m = 0; m < 12; m++) {
+    for (let m = 0; m < monthList.length; m++) {
       const info = ann[tk] && ann[tk][m] ? ann[tk][m] : null;
       let qd = 0, sub = 0;
       if (info) {
@@ -154,7 +181,9 @@ function buildProv(movs, provRows, ano) {
 /* ── GET /api/dashboard?ano=&cliente= ── */
 app.get('/api/dashboard', auth, async (req, res) => {
   try {
-    const ano = parseInt(req.query.ano) || new Date().getFullYear();
+    const anoRaw = parseInt(req.query.ano);
+    const ano = isNaN(anoRaw) ? new Date().getFullYear() : anoRaw;
+    const isTodos = ano === 0;
     const requestedCliente = req.query.cliente;
 
     // Determine which client's data to show
@@ -178,13 +207,11 @@ app.get('/api/dashboard', auth, async (req, res) => {
       ativoInfo[row.ticker] = { ideal: parseFloat(row.preco_justo) || 0, variacao: row.variacao || '' };
     }
 
-    // Fetch movimentações for this client (up to and including the year)
-    let movsQuery = 'SELECT cliente, ticker, segmento, cv, quantidade, preco, total, data FROM movimentacoes WHERE EXTRACT(YEAR FROM data) <= $1';
-    const movsParams = [ano];
-    if (clienteFilter) {
-      movsQuery += ' AND cliente = $2';
-      movsParams.push(clienteFilter);
-    }
+    // Fetch movimentações for this client
+    let movsQuery = 'SELECT cliente, ticker, segmento, cv, quantidade, preco, total, data FROM movimentacoes WHERE 1=1';
+    const movsParams = [];
+    if (!isTodos) { movsQuery += ' AND EXTRACT(YEAR FROM data) <= $' + (movsParams.length + 1); movsParams.push(ano); }
+    if (clienteFilter) { movsQuery += ' AND cliente = $' + (movsParams.length + 1); movsParams.push(clienteFilter); }
     movsQuery += ' ORDER BY data ASC';
     const movsRes = await pool.query(movsQuery, movsParams);
     const movs = movsRes.rows.map((r) => ({
@@ -194,12 +221,23 @@ app.get('/api/dashboard', auth, async (req, res) => {
       total: parseFloat(r.total),
     }));
 
-    // Fetch proventos for this year
-    const provRes = await pool.query('SELECT ticker, segmento, data_com, data_pag, tipo, valor_unit FROM proventos WHERE EXTRACT(YEAR FROM COALESCE(data_pag, data_com)) = $1', [ano]);
+    // Fetch proventos
+    let provQuery, provParams;
+    if (isTodos) {
+      provQuery = 'SELECT ticker, segmento, data_com, data_pag, tipo, valor_unit FROM proventos';
+      provParams = [];
+    } else {
+      provQuery = 'SELECT ticker, segmento, data_com, data_pag, tipo, valor_unit FROM proventos WHERE EXTRACT(YEAR FROM COALESCE(data_pag, data_com)) = $1';
+      provParams = [ano];
+    }
+    const provRes = await pool.query(provQuery, provParams);
     const provRows = provRes.rows.map((r) => ({
       ...r,
       valor_unit: parseFloat(r.valor_unit),
     }));
+
+    // Build month list (12 months for a specific year, all months for "Todos")
+    const monthList = buildMonthList(movs, provRows, ano);
 
     // Consolidar carteira
     const seg = consolidar(movs, precos);
@@ -245,40 +283,49 @@ app.get('/api/dashboard', auth, async (req, res) => {
     }
     segmentos.sort((a, b) => b.mercado - a.mercado);
 
-    const pv = buildProv(movs, provRows, ano);
+    const pv = buildProv(movs, provRows, ano, monthList);
     const totProv = pv.tot.reduce((a, b) => a + b, 0);
     const lp = totMkt - totApl;
     const lpT = lp + totProv;
     const rent = totApl > 0 ? (lpT / totApl) * 100 : 0;
 
     // Evolução mensal
-    const evolArr = Array(12).fill(0);
+    const nMonths = monthList.length;
+    const evolArr = Array(nMonths).fill(0);
     for (const mv of movs) {
       const d = new Date(mv.data);
-      if (d.getFullYear() > ano) continue;
+      if (!isTodos && d.getFullYear() > ano) continue;
       const aj = isCompra(mv.cv) ? mv.total : -mv.total;
-      const yr = d.getFullYear();
-      const ms = d.getMonth();
-      const mStart = yr < ano ? 0 : ms;
-      for (let m = mStart; m < 12; m++) evolArr[m] += aj;
+      const yr = d.getFullYear(), ms = d.getMonth();
+      let mi = monthList.findIndex(m => m.year === yr && m.month === ms);
+      if (mi < 0) {
+        const first = monthList[0];
+        if (yr < first.year || (yr === first.year && ms < first.month)) mi = 0;
+        else continue;
+      }
+      for (let m = mi; m < nMonths; m++) evolArr[m] += aj;
     }
 
     // Trim evolution to current month
     const hoje = new Date();
-    const ml = ano < hoje.getFullYear() ? 11 : hoje.getMonth();
+    const ml = isTodos ? nMonths - 1 : (ano < hoje.getFullYear() ? 11 : hoje.getMonth());
 
     // Evolução por segmento (cumulative applied value per segment per month)
     const evolPorSeg = {};
     for (const mv of movs) {
       const d = new Date(mv.data);
-      if (d.getFullYear() > ano) continue;
+      if (!isTodos && d.getFullYear() > ano) continue;
       const aj = isCompra(mv.cv) ? mv.total : -mv.total;
-      const yr = d.getFullYear();
-      const ms = d.getMonth();
+      const yr = d.getFullYear(), ms = d.getMonth();
       const s = mv.segmento || 'OUTROS';
-      if (!evolPorSeg[s]) evolPorSeg[s] = Array(12).fill(0);
-      const mStart = yr < ano ? 0 : ms;
-      for (let m = mStart; m < 12; m++) evolPorSeg[s][m] += aj;
+      if (!evolPorSeg[s]) evolPorSeg[s] = Array(nMonths).fill(0);
+      let mi = monthList.findIndex(m => m.year === yr && m.month === ms);
+      if (mi < 0) {
+        const first = monthList[0];
+        if (yr < first.year || (yr === first.year && ms < first.month)) mi = 0;
+        else continue;
+      }
+      for (let m = mi; m < nMonths; m++) evolPorSeg[s][m] += aj;
     }
     const evolPorSegTrimmed = {};
     for (const s of Object.keys(evolPorSeg)) evolPorSegTrimmed[s] = evolPorSeg[s].slice(0, ml + 1);
@@ -301,11 +348,11 @@ app.get('/api/dashboard', auth, async (req, res) => {
         rentabilidade: rent,
       },
       evolucao: {
-        labels: MES.slice(0, ml + 1),
+        labels: monthList.slice(0, ml + 1).map(m => m.label),
         data: evolArr.slice(0, ml + 1),
       },
       proventosMensais: {
-        labels: MES,
+        labels: monthList.map(m => m.label),
         data: pv.tot,
       },
       proventosPorSegmento: {
@@ -317,7 +364,7 @@ app.get('/api/dashboard', auth, async (req, res) => {
       nSegmentos: segmentos.length,
       proventosDetalhe: pv.segs,
       evolucaoPorSegmento: {
-        labels: MES.slice(0, ml + 1),
+        labels: monthList.slice(0, ml + 1).map(m => m.label),
         data: evolPorSegTrimmed,
       },
     });
@@ -506,7 +553,9 @@ app.get('/api/dirpf', auth, async (req, res) => {
 /* ── GET /api/compras-vendas?ano=&cliente= ── */
 app.get('/api/compras-vendas', auth, async (req, res) => {
   try {
-    const ano = parseInt(req.query.ano) || new Date().getFullYear();
+    const anoRaw = parseInt(req.query.ano);
+    const ano = isNaN(anoRaw) ? new Date().getFullYear() : anoRaw;
+    const isTodos = ano === 0;
     let clienteFilter = null;
     if (req.user.role === 'admin' || req.user.role === 'demo') {
       clienteFilter = req.query.cliente === '__ZE__' || !req.query.cliente ? null : req.query.cliente;
@@ -514,23 +563,37 @@ app.get('/api/compras-vendas', auth, async (req, res) => {
       clienteFilter = req.user.nome;
     }
 
-    let movsQuery = 'SELECT * FROM movimentacoes WHERE EXTRACT(YEAR FROM data) = $1';
-    const movsParams = [ano];
-    if (clienteFilter) { movsQuery += ' AND cliente = $2'; movsParams.push(clienteFilter); }
+    let movsQuery = 'SELECT * FROM movimentacoes WHERE 1=1';
+    const movsParams = [];
+    if (!isTodos) { movsQuery += ' AND EXTRACT(YEAR FROM data) = $' + (movsParams.length + 1); movsParams.push(ano); }
+    if (clienteFilter) { movsQuery += ' AND cliente = $' + (movsParams.length + 1); movsParams.push(clienteFilter); }
     movsQuery += ' ORDER BY data DESC';
     const movsRes = await pool.query(movsQuery, movsParams);
     const movs = movsRes.rows.map((r) => ({ ...r, quantidade: parseFloat(r.quantidade), preco: parseFloat(r.preco), total: parseFloat(r.total) }));
 
-    const investido = Array(12).fill(0), vendido = Array(12).fill(0);
+    let labels, investido, vendido;
     let totInv = 0, totVen = 0;
-    for (const mv of movs) {
-      const m = new Date(mv.data).getMonth();
-      if (isCompra(mv.cv)) { investido[m] += mv.total; totInv += mv.total; }
-      else { vendido[m] += mv.total; totVen += mv.total; }
+    if (isTodos) {
+      const years = [...new Set(movs.map(mv => new Date(mv.data).getFullYear()))].sort();
+      labels = years.map(String);
+      investido = years.map(() => 0); vendido = years.map(() => 0);
+      for (const mv of movs) {
+        const yi = years.indexOf(new Date(mv.data).getFullYear());
+        if (isCompra(mv.cv)) { investido[yi] += mv.total; totInv += mv.total; }
+        else { vendido[yi] += mv.total; totVen += mv.total; }
+      }
+    } else {
+      labels = MES;
+      investido = Array(12).fill(0); vendido = Array(12).fill(0);
+      for (const mv of movs) {
+        const m = new Date(mv.data).getMonth();
+        if (isCompra(mv.cv)) { investido[m] += mv.total; totInv += mv.total; }
+        else { vendido[m] += mv.total; totVen += mv.total; }
+      }
     }
 
     res.json({
-      investido, vendido,
+      labels, investido, vendido,
       kpis: { totalInvestido: totInv, totalVendido: totVen, saldo: totInv - totVen },
       lancamentos: movs.map((mv) => ({
         id: mv.id, data: mv.data, cliente: mv.cliente, ticker: mv.ticker,
