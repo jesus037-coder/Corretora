@@ -691,6 +691,13 @@ app.post('/api/sync', auth, async (req, res) => {
   catch (e) { res.status(500).json({ error: 'Erro ao sincronizar.' }); }
 });
 
+// Ensure limites_segmento table exists (survives nodemon restarts without re-seeding)
+pool.query(`CREATE TABLE IF NOT EXISTS limites_segmento (
+  id SERIAL PRIMARY KEY,
+  segmento TEXT UNIQUE NOT NULL,
+  pct NUMERIC NOT NULL DEFAULT 0
+)`).catch((e) => console.error('Failed to create limites_segmento:', e.message));
+
 const PORT = 8000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API rodando em :${PORT}`);
