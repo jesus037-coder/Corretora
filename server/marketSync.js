@@ -2,7 +2,17 @@ import pool from './db.js';
 
 const BRAPI_BASE = 'https://brapi.dev/api/quote';
 const BATCH_SIZE = 1; // free plan allows 1 ticker per request
-const MARKET_SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const MARKET_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes
+
+// B3 (Bolsa de São Paulo) operates Mon-Fri, 10:00–17:00 BRT
+function isMarketOpen() {
+  const now = new Date();
+  // B3 is in America/Sao_Paulo (UTC-3)
+  const brtHour = parseInt(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false }));
+  const brtDay = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }));
+  const day = brtDay.getDay(); // 0=Sun, 6=Sat
+  return day >= 1 && day <= 5 && brtHour >= 10 && brtHour < 17;
+}
 const BINANCE_BASE = 'https://data-api.binance.vision/api/v3/ticker/price';
 
 let syncing = false;
@@ -93,8 +103,8 @@ export async function syncMarketData() {
       }
     }
 
-    // ── Fetch non-crypto from Brapi ──
-    if (brapiRows.length) {
+    // ── Fetch non-crypto from Brapi (only during B3 market hours 10h–17h, Mon–Fri) ──
+    if (brapiRows.length && isMarketOpen()) {
       console.log(`📈 [MarketSync] Updating ${brapiRows.length} ativos from Brapi…`);
       if (!token) {
         console.log('📈 [MarketSync] BRAPI_API_KEY not set, skipping Brapi.');
@@ -116,6 +126,8 @@ export async function syncMarketData() {
           }
         }
       }
+    } else if (brapiRows.length) {
+      console.log('📈 [MarketSync] B3 closed — skipping Brapi (non-crypto) update.');
     }
 
     console.log(`✅ [MarketSync] Done — ${updated} updated, ${failed} failed.`);
