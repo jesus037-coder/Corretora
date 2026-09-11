@@ -24,14 +24,14 @@ const COINGECKO_IDS = {
 };
 
 async function fetchCryptoFromBinance(tickers) {
-  // Binance uses pairs like BTCUSDT, ETHUSDT, etc.
-  const symbols = tickers.map((t) => `${t}USDT`);
+  // Binance BRL pairs: BTCBRL, ETHBRL, SOLBRL, etc. (prices already in reais)
+  const symbols = tickers.map((t) => `${t}BRL`);
   const url = `${BINANCE_BASE}?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
   const json = await res.json();
   return json.map((item) => ({
-    symbol: item.symbol.replace('USDT', ''),
+    symbol: item.symbol.replace('BRL', ''),
     regularMarketPrice: parseFloat(item.price),
   }));
 }
@@ -39,7 +39,7 @@ async function fetchCryptoFromBinance(tickers) {
 async function fetchCryptoFromCoinGecko(tickers) {
   const ids = tickers.map((t) => COINGECKO_IDS[t] || t.toLowerCase()).filter(Boolean);
   if (!ids.length) return [];
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd`;
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=brl`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
   const json = await res.json();
@@ -48,7 +48,7 @@ async function fetchCryptoFromCoinGecko(tickers) {
   for (const t of tickers) { const id = COINGECKO_IDS[t] || t.toLowerCase(); idToTicker[id] = t; }
   return Object.entries(json).map(([id, data]) => ({
     symbol: idToTicker[id] || id.toUpperCase(),
-    regularMarketPrice: data.usd,
+    regularMarketPrice: data.brl,
   }));
 }
 
