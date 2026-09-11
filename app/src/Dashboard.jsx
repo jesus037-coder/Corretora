@@ -65,12 +65,25 @@ export default function Dashboard({ user, onLogout }) {
 
   // Compute latest data for metas/calculadora
   const latest = useMemo(() => {
-    const provData = data?.proventosMensais?.data || Array(12).fill(0);
-    const mercado = data?.kpis?.valorMercado || 0;
+    const provData = data?.proventosMensais?.data || [];
+    const provLabels = data?.proventosMensais?.labels || [];
+    const mercado = Math.round((data?.kpis?.valorMercado || 0) * 100) / 100;
+    const isTodos = data?.ano === 0;
+
     let rendUlt = 0;
-    for (let i = provData.length - 1; i >= 0; i--) { if (provData[i] > 0) { rendUlt = provData[i]; break; } }
+    if (isTodos && provLabels.length) {
+      // "Todos os anos": sum proventos of the last year for annual DY
+      const lastYear = provLabels[provLabels.length - 1].split('/')[1];
+      rendUlt = provData.reduce((sum, val, i) => {
+        const yr = provLabels[i]?.split('/')[1];
+        return yr === lastYear ? sum + val : sum;
+      }, 0);
+    } else {
+      // Specific year: DY of the last non-zero month (current month)
+      for (let i = provData.length - 1; i >= 0; i--) { if (provData[i] > 0) { rendUlt = provData[i]; break; } }
+    }
     const dy = mercado > 0 ? (rendUlt / mercado) * 100 : 0;
-    return { mercado, rendUlt, dy };
+    return { mercado, rendUlt, dy, isTodos };
   }, [data]);
 
   const roleLabel = user.role === 'admin' ? 'Administrador' : user.role === 'demo' ? 'Conta Demo' : user.nome;

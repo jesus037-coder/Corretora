@@ -1,14 +1,19 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import { M } from '../shared.jsx';
 
 export default function CalculadoraTab({ latest, chartColors }) {
   const { gc, tc } = chartColors;
-  const [capital, setCapital] = useState(latest?.mercado || 0);
+  const [capital, setCapital] = useState(Math.round((latest?.mercado || 0) * 100) / 100);
   const [aporte, setAporte] = useState(0);
-  const [taxa, setTaxa] = useState(latest?.dy || 0);
+  const [taxa, setTaxa] = useState(Math.round((latest?.dy || 0) * 100) / 100);
   const [meses, setMeses] = useState(120);
   const [tipoTaxa, setTipoTaxa] = useState('anual');
+
+  useEffect(() => {
+    setCapital(Math.round((latest?.mercado || 0) * 100) / 100);
+    setTaxa(Math.round((latest?.dy || 0) * 100) / 100);
+  }, [latest?.mercado, latest?.dy]);
 
   const calc = useMemo(() => {
     const tMes = tipoTaxa === 'anual' ? Math.pow(1 + taxa / 100, 1 / 12) - 1 : taxa / 100;
@@ -82,7 +87,7 @@ export default function CalculadoraTab({ latest, chartColors }) {
               <div className="calc-field">
                 <label>Taxa de Juros (%)</label>
                 <input type="number" min="0" step="0.01" value={taxa} onChange={(e) => setTaxa(parseFloat(e.target.value) || 0)} />
-                {latest?.dy > 0 && <span className="calc-hint">DY último mês real: {latest.dy.toFixed(4)}%</span>}
+                {latest?.dy > 0 && <span className="calc-hint">DY {latest?.isTodos ? 'último ano' : 'mês atual'} real: {latest.dy.toFixed(2)}%</span>}
               </div>
               <div className="calc-field">
                 <label>Período (meses)</label>
