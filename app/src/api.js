@@ -65,3 +65,7 @@ export function createMovimentacao(data) {
 export function updateMovimentacao(id, data) {
   return request('/api/movimentacoes/' + id, { method: 'PUT', body: JSON.stringify(data) });
 }
+
+export function saveLimite(segmento, pct) {
+  return request('/api/limites', { method: 'PUT', body: JSON.stringify({ segmento, pct }) });
+}

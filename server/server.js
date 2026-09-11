@@ -202,12 +202,15 @@ app.get('/api/dashboard', auth, async (req, res) => {
     const ativosRes = await pool.query('SELECT ticker, segmento, valor, preco_justo, variacao FROM ativos');
     const precos = {};
     const segMap = {};
-    const ativoInfo = {};
     for (const row of ativosRes.rows) {
       precos[row.ticker] = parseFloat(row.valor) || 0;
       if (row.segmento) segMap[row.ticker] = row.segmento;
-      ativoInfo[row.ticker] = { ideal: parseFloat(row.preco_justo) || 0, variacao: row.variacao || '' };
     }
+
+    // Fetch segment limits (user-defined target %)
+    const limitesRes = await pool.query('SELECT segmento, pct FROM limites_segmento');
+    const limites = {};
+    for (const r of limitesRes.rows) limites[r.segmento] = parseFloat(r.pct);
 
     // Fetch movimentações for this client
     let movsQuery = 'SELECT cliente, ticker, segmento, cv, quantidade, preco, total, data FROM movimentacoes WHERE 1=1';
@@ -256,18 +259,20 @@ app.get('/api/dashboard', auth, async (req, res) => {
           totApl += it.apl;
           totMkt += mkt;
           nAt++;
-          const info = ativoInfo[tk] || {};
+          const pm = it.q > 0 ? it.apl / it.q : 0;
+          const precoAtual = precos[tk] || 0;
+          const varPct = pm > 0 ? ((precoAtual - pm) / pm) * 100 : 0;
           ativos.push({
             ticker: tk,
             qtd: Math.round(it.q * 100) / 100,
             aplicado: it.apl,
             mercado: mkt,
-            pm: it.q > 0 ? it.apl / it.q : 0,
-            preco: precos[tk] || 0,
+            pm,
+            preco: precoAtual,
             lp: mkt - it.apl,
             lpPct: it.apl > 0 ? ((mkt - it.apl) / it.apl) * 100 : 0,
-            ideal: info.ideal || 0,
-            variacao: info.variacao || '',
+            ideal: 0,
+            variacao: pm > 0 ? `${varPct >= 0 ? '+' : ''}${varPct.toFixed(2)}%` : '',
           });
         }
       }
@@ -280,10 +285,20 @@ app.get('/api/dashboard', auth, async (req, res) => {
           aplicado: segApl,
           mercado: segMkt,
           lp: segMkt - segApl,
+          limite: limites[s] || 0,
         });
       }
     }
     segmentos.sort((a, b) => b.mercado - a.mercado);
+
+    // Calculate ideal per asset: (total_market_value * segment_limit%) / n_assets_in_segment
+    for (const segObj of segmentos) {
+      const limitePct = limites[segObj.nome] || 0;
+      const idealPerAsset = limitePct > 0 && segObj.ativos.length > 0
+        ? (totMkt * limitePct / 100) / segObj.ativos.length
+        : 0;
+      for (const a of segObj.ativos) a.ideal = idealPerAsset;
+    }
 
     const pv = buildProv(movs, provRows, ano, monthList);
     const totProv = pv.tot.reduce((a, b) => a + b, 0);
@@ -369,6 +384,7 @@ app.get('/api/dashboard', auth, async (req, res) => {
         labels: monthList.slice(0, ml + 1).map(m => m.label),
         data: evolPorSegTrimmed,
       },
+      limites,
     });
   } catch (e) {
     console.error('Dashboard error:', e);
@@ -638,6 +654,33 @@ app.put('/api/movimentacoes/:id', auth, async (req, res) => {
     res.json({ movimentacao: rows[0] });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao editar movimentação.' });
+  }
+});
+
+/* ── GET /api/limites ── */
+app.get('/api/limites', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT segmento, pct FROM limites_segmento');
+    const limites = {};
+    for (const r of rows) limites[r.segmento] = parseFloat(r.pct);
+    res.json({ limites });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar limites.' });
+  }
+});
+
+/* ── PUT /api/limites ── */
+app.put('/api/limites', auth, async (req, res) => {
+  try {
+    const { segmento, pct } = req.body;
+    if (!segmento) return res.status(400).json({ error: 'Segmento é obrigatório.' });
+    await pool.query(
+      'INSERT INTO limites_segmento (segmento, pct) VALUES ($1, $2) ON CONFLICT (segmento) DO UPDATE SET pct = $2',
+      [segmento, parseFloat(pct) || 0]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao salvar limite.' });
   }
 });
 

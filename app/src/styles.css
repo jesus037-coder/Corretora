@@ -123,6 +123,10 @@ em{font-style:italic}
 .sc-kpi-val.g{color:var(--accent)}
 .sc-kpi-val.r{color:var(--red)}
 .sc-kpi-val.m{color:var(--muted)}
+.sc-kpi-limite-input{display:flex;align-items:baseline;gap:2px;font-family:'DM Mono',monospace;font-size:.88rem;color:var(--accent)}
+.sc-kpi-limite-input input{width:38px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--accent);font-family:'DM Mono',monospace;font-size:.82rem;text-align:center;padding:2px 4px;outline:none;-moz-appearance:textfield}
+.sc-kpi-limite-input input::-webkit-outer-spin-button,.sc-kpi-limite-input input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.sc-kpi-limite-input input:focus{border-color:var(--accent)}
 .sc-arr{flex-shrink:0;width:40px;display:flex;align-items:center;justify-content:center;border-left:1px solid var(--border);color:var(--muted);transition:transform .25s cubic-bezier(.4,0,.2,1)}
 .sc.open .sc-arr{transform:rotate(90deg)}
 .sc-body{overflow-x:auto}

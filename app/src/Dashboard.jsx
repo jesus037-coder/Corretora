@@ -140,7 +140,7 @@ export default function Dashboard({ user, onLogout }) {
 
           {loading && <div className="empty"><div className="ico">⏳</div><p>Carregando…</p></div>}
           {error && <div className="empty"><div className="ico">⚠️</div><p>{error}</p></div>}
-          {!loading && !error && data && aba === 'carteira' && <CarteiraTab data={data} ano={ano} chartColors={chartColors} />}
+          {!loading && !error && data && aba === 'carteira' && <CarteiraTab data={data} ano={ano} chartColors={chartColors} onRefresh={() => setRefreshKey(k => k + 1)} />}
           {!loading && !error && data && aba === 'proventos' && <ProventosTab data={data} ano={ano} chartColors={chartColors} />}
           {!loading && !error && aba === 'metas' && <MetasTab cliente={clienteForTabs} latest={latest} isDemo={user.role === 'demo'} />}
           {!loading && !error && aba === 'calc' && <CalculadoraTab latest={latest} chartColors={chartColors} />}

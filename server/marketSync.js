@@ -37,13 +37,9 @@ export async function syncMarketData() {
         for (const r of results) {
           const price = r.regularMarketPrice;
           if (price == null) continue;
-          const pct = r.regularMarketChangePercent;
-          const variacao = pct != null
-            ? `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
-            : null;
           await pool.query(
-            'UPDATE ativos SET valor=$1, variacao=COALESCE($2, variacao) WHERE ticker=$3',
-            [price, variacao, r.symbol]
+            'UPDATE ativos SET valor=$1 WHERE ticker=$2',
+            [price, r.symbol]
           );
           updated++;
         }

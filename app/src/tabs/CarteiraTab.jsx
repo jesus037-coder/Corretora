@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import { M, MES, PAL, KpiCard } from '../shared.jsx';
+import { saveLimite } from '../api.js';
 
 const COLS = [
   { key: 'ticker',   label: 'Ativo',       type: 'text' },
@@ -20,10 +21,19 @@ function sortVal(a, col) {
   return a[col];
 }
 
-function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors }) {
+function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors, onLimiteSaved }) {
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
+  const [limiteVal, setLimiteVal] = useState(seg.limite || '');
+  useEffect(() => { setLimiteVal(seg.limite || ''); }, [seg.limite]);
   const color = PAL[idx % PAL.length];
+
+  const handleSaveLimite = async () => {
+    const pct = parseFloat(limiteVal) || 0;
+    if (pct === (seg.limite || 0)) return;
+    try { await saveLimite(seg.nome, pct); onLimiteSaved(); }
+    catch (e) { /* ignore */ }
+  };
   const { gc, tc } = chartColors;
 
   const sortedAtivos = useMemo(() => {
@@ -51,6 +61,22 @@ function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors }) {
           <div className="sc-kpi"><span className="sc-kpi-lbl">MERCADO</span><span className="sc-kpi-val g">{M(seg.mercado)}</span></div>
           <div className="sc-kpi"><span className="sc-kpi-lbl">L / P</span><span className={`sc-kpi-val ${seg.lp >= 0 ? 'g' : 'r'}`}>{M(seg.lp)}</span></div>
           <div className="sc-kpi"><span className="sc-kpi-lbl">ATIVOS</span><span className="sc-kpi-val m">{seg.ativos.length}</span></div>
+          <div className="sc-kpi sc-kpi-limite">
+            <span className="sc-kpi-lbl">LIMITE</span>
+            <span className="sc-kpi-limite-input">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={limiteVal}
+                onChange={(e) => setLimiteVal(e.target.value)}
+                onBlur={handleSaveLimite}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                onClick={(e) => e.stopPropagation()}
+              />%
+            </span>
+          </div>
         </div>
         <div className="sc-arr">›</div>
       </div>
@@ -93,7 +119,7 @@ function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors }) {
   );
 }
 
-export default function CarteiraTab({ data, ano, chartColors }) {
+export default function CarteiraTab({ data, ano, chartColors, onRefresh }) {
   const [openSegIdx, setOpenSegIdx] = useState(null);
   const [viewMode, setViewMode] = useState('meses');
   const { gc, tc } = chartColors;
@@ -190,7 +216,7 @@ export default function CarteiraTab({ data, ano, chartColors }) {
       <div className="sec-head"><h3>Consolidação de Carteira</h3><span className="tag">{data?.nAtivos || 0} ativos · {data?.nSegmentos || 0} segmentos</span></div>
       <div className="seg-stack">
         {segs.map((seg, i) => (
-          <SegmentCard key={seg.nome} seg={seg} idx={i} isOpen={openSegIdx === i} onToggle={() => toggleSeg(i)} totMkt={totMkt} chartColors={chartColors} />
+          <SegmentCard key={seg.nome} seg={seg} idx={i} isOpen={openSegIdx === i} onToggle={() => toggleSeg(i)} totMkt={totMkt} chartColors={chartColors} onLimiteSaved={onRefresh} />
         ))}
       </div>
     </>

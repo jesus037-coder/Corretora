@@ -109,6 +109,11 @@ async function main() {
       ref_id TEXT,
       data TIMESTAMPTZ DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS limites_segmento (
+      id SERIAL PRIMARY KEY,
+      segmento TEXT UNIQUE NOT NULL,
+      pct NUMERIC NOT NULL DEFAULT 0
+    );
   `);
 
   console.log('🧹 Truncating tables (preserving metas)…');
