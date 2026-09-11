@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import pool from './db.js';
 import { syncData, SYNC_INTERVAL } from './sync.js';
+import { syncMarketData, MARKET_SYNC_INTERVAL } from './marketSync.js';
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -653,5 +654,8 @@ app.listen(PORT, '0.0.0.0', () => {
   // Auto-sync from Google Sheets on startup (delayed) and periodically
   setTimeout(() => syncData(), 10000);
   setInterval(() => syncData(), SYNC_INTERVAL);
-  console.log(`🔄 Auto-sync every ${SYNC_INTERVAL / 60000} min`);
+  // Auto-sync market prices from Brapi on startup (delayed) and periodically
+  setTimeout(() => syncMarketData(), 15000);
+  setInterval(() => syncMarketData(), MARKET_SYNC_INTERVAL);
+  console.log(`🔄 Sheet sync every ${SYNC_INTERVAL / 60000} min | Market sync every ${MARKET_SYNC_INTERVAL / 60000} min`);
 });

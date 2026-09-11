@@ -18,6 +18,8 @@ services:
     working_dir: /app
     volumes:
       - ./server:/app
+    env_file:
+      - /run/base44/app.env
     environment:
       - DATABASE_URL=postgresql://ze:zecorretora2026@db:5432/corretora
       - JWT_SECRET=corretora-do-ze-dev-jwt-2026
