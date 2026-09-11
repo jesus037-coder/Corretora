@@ -20,8 +20,7 @@ function sortVal(a, col) {
   return a[col];
 }
 
-function SegmentCard({ seg, idx, totMkt, evolLabels, evolSegData, chartColors }) {
-  const [open, setOpen] = useState(false);
+function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors }) {
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const color = PAL[idx % PAL.length];
@@ -42,20 +41,10 @@ function SegmentCard({ seg, idx, totMkt, evolLabels, evolSegData, chartColors })
     else { setSortCol(col); setSortDir('asc'); }
   };
 
-  const segEvol = evolSegData?.[seg.nome] || [];
-  const evolChart = {
-    labels: evolLabels || [],
-    datasets: [{
-      label: seg.nome, data: segEvol,
-      borderColor: color, backgroundColor: color + '15',
-      fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: color, borderWidth: 2,
-    }],
-  };
-
   return (
-    <div className={`sc${open ? ' open' : ''}`}>
+    <div className={`sc${isOpen ? ' open' : ''}`}>
       <div className="sc-stripe" style={{ background: color }} />
-      <div className="sc-head" onClick={() => setOpen(!open)}>
+      <div className="sc-head" onClick={onToggle}>
         <div className="sc-icon" style={{ color }}>{seg.nome.slice(0, 4).toUpperCase()}</div>
         <div className="sc-kpis">
           <div className="sc-kpi"><span className="sc-kpi-lbl">APLICADO</span><span className="sc-kpi-val">{M(seg.aplicado)}</span></div>
@@ -65,16 +54,8 @@ function SegmentCard({ seg, idx, totMkt, evolLabels, evolSegData, chartColors })
         </div>
         <div className="sc-arr">›</div>
       </div>
-      {open && (
+      {isOpen && (
         <div className="sc-body">
-          <div className="sc-chart" style={{ height: 150, marginBottom: 14 }}>
-            <div className="chart-ttl" style={{ marginBottom: 6, fontSize: '.72rem' }}>Evolução — {seg.nome}</div>
-            <Line data={evolChart} options={{
-              responsive: true, maintainAspectRatio: false,
-              plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y) } } },
-              scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: 9 } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 9 }, callback: (v) => M(v) } } },
-            }} />
-          </div>
           <div className="sc-tbl-wrap">
             <table className="sc-tbl">
               <thead>
@@ -113,16 +94,27 @@ function SegmentCard({ seg, idx, totMkt, evolLabels, evolSegData, chartColors })
 }
 
 export default function CarteiraTab({ data, ano, chartColors }) {
+  const [openSegIdx, setOpenSegIdx] = useState(null);
   const { gc, tc } = chartColors;
   const kpis = data?.kpis || {};
   const totMkt = kpis.valorMercado || 0;
+  const segs = data?.segmentos || [];
+
+  const evolLabels = data?.evolucaoPorSegmento?.labels || data?.evolucao?.labels || [];
+  const evolSegData = data?.evolucaoPorSegmento?.data || {};
+
+  // Main chart: total or selected segment
+  const selectedSeg = openSegIdx !== null ? segs[openSegIdx] : null;
+  const segColor = openSegIdx !== null ? PAL[openSegIdx % PAL.length] : '#3ddc84';
+  const chartData = selectedSeg ? (evolSegData[selectedSeg.nome] || []) : (data?.evolucao?.data || []);
+  const chartTitle = selectedSeg ? `${selectedSeg.nome} — Evolução` : `Patrimônio Total Investido — ${ano}`;
 
   const evolChart = {
-    labels: data?.evolucao?.labels || [],
+    labels: evolLabels,
     datasets: [{
-      label: 'Patrimônio Total', data: data?.evolucao?.data || [],
-      borderColor: '#3ddc84', backgroundColor: 'rgba(61,220,132,.07)',
-      fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor: '#3ddc84', borderWidth: 2,
+      label: selectedSeg ? selectedSeg.nome : 'Patrimônio Total', data: chartData,
+      borderColor: segColor, backgroundColor: segColor + '15',
+      fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor: segColor, borderWidth: 2,
     }],
   };
 
@@ -131,6 +123,8 @@ export default function CarteiraTab({ data, ano, chartColors }) {
     plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => M(c.parsed.y) } } },
     scales: { x: { grid: { color: gc }, ticks: { color: tc } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
   };
+
+  const toggleSeg = (idx) => setOpenSegIdx(openSegIdx === idx ? null : idx);
 
   return (
     <>
@@ -141,18 +135,15 @@ export default function CarteiraTab({ data, ano, chartColors }) {
         <KpiCard label={`Proventos ${ano}`} value={M(kpis.proventos)} valCls="g" />
         <KpiCard label="Rentabilidade" value={M(kpis.lpT)} hint={`${kpis.rentabilidade >= 0 ? '▲' : '▼'} ${Math.abs(kpis.rentabilidade || 0).toFixed(2)}%`} bad={kpis.lpT < 0} valCls={kpis.lpT >= 0 ? 'g' : 'r'} />
       </div>
-      <div className="sec-head"><h3>Evolução do Patrimônio</h3><span className="tag">mensal {ano}</span></div>
+      <div className="sec-head"><h3>Evolução do Patrimônio</h3><span className="tag">{selectedSeg ? selectedSeg.nome : 'mensal ' + ano}</span></div>
       <div className="chart-box">
-        <div className="chart-ttl">Patrimônio Total Investido — {ano}</div>
+        <div className="chart-ttl">{chartTitle}</div>
         <div style={{ height: 220 }}><Line data={evolChart} options={chartOpts} /></div>
       </div>
       <div className="sec-head"><h3>Consolidação de Carteira</h3><span className="tag">{data?.nAtivos || 0} ativos · {data?.nSegmentos || 0} segmentos</span></div>
       <div className="seg-stack">
-        {(data?.segmentos || []).map((seg, i) => (
-          <SegmentCard key={seg.nome} seg={seg} idx={i} totMkt={totMkt}
-            evolLabels={data?.evolucaoPorSegmento?.labels}
-            evolSegData={data?.evolucaoPorSegmento?.data}
-            chartColors={chartColors} />
+        {segs.map((seg, i) => (
+          <SegmentCard key={seg.nome} seg={seg} idx={i} isOpen={openSegIdx === i} onToggle={() => toggleSeg(i)} totMkt={totMkt} chartColors={chartColors} />
         ))}
       </div>
     </>
