@@ -9,6 +9,7 @@ const COLS = [
   { key: 'pm',       label: 'PM',          type: 'num'  },
   { key: 'aplicado', label: 'Vl Aplicado', type: 'num'  },
   { key: 'preco',    label: 'Preço',       type: 'num',  colored: true },
+  { key: 'mercado',  label: 'Vl Atual',    type: 'num'  },
   { key: 'variacao', label: 'VAR%',       type: 'var'  },
   { key: 'lp',       label: 'L/P',         type: 'num'  },
   { key: 'pctCart',  label: '% Cart.',    type: 'num'  },
@@ -126,6 +127,7 @@ function SegmentCard({ seg, idx, isOpen, onToggle, totMkt, chartColors, onLimite
                       <td>{M(a.pm)}</td>
                       <td>{M(a.aplicado)}</td>
                       <td style={{ color, fontWeight: 600 }}>{M(a.preco)}</td>
+                      <td>{M(a.mercado)}</td>
                       <td className={varNum >= 0 ? 'g' : 'r'}>{a.variacao || '—'}</td>
                       <td className={a.lp >= 0 ? 'g' : 'r'}>{M(a.lp)}</td>
                       <td>{a.pctCart.toFixed(1)}%</td>
