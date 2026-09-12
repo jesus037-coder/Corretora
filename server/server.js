@@ -138,23 +138,48 @@ app.get('/api/anos', auth, async (req, res) => {
   }
 });
 
-/* ── Consolidar carteira (PM correto, ordenado por data) ── */
+/* ── Consolidar carteira (PM correto, por cliente, ordenado por data) ── */
+/* Agrupa movimentações por cliente, consolida cada um separadamente, depois soma posições positivas.
+   Isso evita que vendas de um cliente cancelem compras de outro na visão consolidada da corretora. */
 function consolidar(movs, precos) {
-  const seg = {};
+  // Agrupar por cliente preservando ordem de data
+  const byClient = {};
   for (const mv of movs) {
-    const s = mv.segmento || 'OUTROS';
-    const tk = mv.ticker;
-    if (!seg[s]) seg[s] = {};
-    if (!seg[s][tk]) seg[s][tk] = { q: 0, apl: 0 };
-    const p = seg[s][tk];
-    if (isCompra(mv.cv)) {
-      p.apl += mv.total;
-      p.q += mv.quantidade;
-    } else {
-      const pm = p.q > 0 ? p.apl / p.q : 0;
-      p.q -= mv.quantidade;
-      p.apl = p.q > 0.0001 ? p.q * pm : 0;
-      if (p.q < 0.0001) { p.q = 0; p.apl = 0; }
+    const c = mv.cliente || '__ZE__';
+    if (!byClient[c]) byClient[c] = [];
+    byClient[c].push(mv);
+  }
+
+  const seg = {};
+  for (const cliente of Object.keys(byClient)) {
+    const clientSeg = {};
+    for (const mv of byClient[cliente]) {
+      const s = mv.segmento || 'OUTROS';
+      const tk = mv.ticker;
+      if (!clientSeg[s]) clientSeg[s] = {};
+      if (!clientSeg[s][tk]) clientSeg[s][tk] = { q: 0, apl: 0 };
+      const p = clientSeg[s][tk];
+      if (isCompra(mv.cv)) {
+        p.apl += mv.total;
+        p.q += mv.quantidade;
+      } else {
+        const pm = p.q > 0 ? p.apl / p.q : 0;
+        p.q -= mv.quantidade;
+        p.apl = p.q > 0.0001 ? p.q * pm : 0;
+        if (p.q < 0.0001) { p.q = 0; p.apl = 0; }
+      }
+    }
+    // Somar posições positivas no consolidado
+    for (const s of Object.keys(clientSeg)) {
+      if (!seg[s]) seg[s] = {};
+      for (const tk of Object.keys(clientSeg[s])) {
+        const cp = clientSeg[s][tk];
+        if (cp.q > 0.0001) {
+          if (!seg[s][tk]) seg[s][tk] = { q: 0, apl: 0 };
+          seg[s][tk].q += cp.q;
+          seg[s][tk].apl += cp.apl;
+        }
+      }
     }
   }
   return seg;
@@ -225,15 +250,21 @@ function buildProv(movs, provRows, ano, monthList) {
       let qd = 0, sub = 0;
       if (info) {
         segA = info.seg;
+        // Quantidade por cliente na data com (evita que venda de um cliente cancele compra de outro)
+        const qdByClient = {};
         for (const mv of movs) {
           if (mv.ticker !== tk) continue;
           const dm = new Date(mv.data);
           if (info.dCom && dm <= info.dCom) {
+            const c = mv.cliente || '__ZE__';
+            if (!qdByClient[c]) qdByClient[c] = 0;
             const q = parseFloat(mv.quantidade) || 0;
-            qd += isCompra(mv.cv) ? q : -q;
+            qdByClient[c] += isCompra(mv.cv) ? q : -q;
           }
         }
-        if (qd < 0) qd = 0;
+        for (const c of Object.keys(qdByClient)) {
+          if (qdByClient[c] > 0) qd += qdByClient[c];
+        }
         if (qd > 0) {
           sub = Math.round(qd * info.v * 100) / 100;
           tot[m] = Math.round((tot[m] + sub) * 100) / 100;
@@ -556,14 +587,27 @@ app.get('/api/dirpf', auth, async (req, res) => {
     const movsRes = await pool.query(movsQuery, movsParams);
     const movs = movsRes.rows.map((r) => ({ ...r, quantidade: parseFloat(r.quantidade), preco: parseFloat(r.preco), total: parseFloat(r.total) }));
 
-    // Position at 31/12/ano
-    const pos = {};
+    // Position at 31/12/ano (consolidado por cliente, depois somado)
+    const posByClient = {};
     for (const mv of movs) {
+      const c = mv.cliente || '__ZE__';
       const tk = mv.ticker;
-      if (!pos[tk]) pos[tk] = { q: 0, custo: 0 };
-      const p = pos[tk];
+      if (!posByClient[c]) posByClient[c] = {};
+      if (!posByClient[c][tk]) posByClient[c][tk] = { q: 0, custo: 0 };
+      const p = posByClient[c][tk];
       if (isCompra(mv.cv)) { p.custo += mv.total; p.q += mv.quantidade; }
       else { const pm = p.q > 0 ? p.custo / p.q : 0; p.q -= mv.quantidade; p.custo = p.q > 0.0001 ? p.q * pm : 0; if (p.q < 0.0001) { p.q = 0; p.custo = 0; } }
+    }
+    const pos = {};
+    for (const c of Object.keys(posByClient)) {
+      for (const tk of Object.keys(posByClient[c])) {
+        const cp = posByClient[c][tk];
+        if (cp.q > 0.0001) {
+          if (!pos[tk]) pos[tk] = { q: 0, custo: 0 };
+          pos[tk].q += cp.q;
+          pos[tk].custo += cp.custo;
+        }
+      }
     }
 
     // Bens agrupados por código Receita
@@ -591,10 +635,18 @@ app.get('/api/dirpf', auth, async (req, res) => {
       const dCom = row.data_com ? new Date(row.data_com) : null;
       if (!dCom) continue;
       let qd = 0;
+      const qdByClient = {};
       for (const mv of movs) {
         if (mv.ticker !== tk) continue;
         const dm = new Date(mv.data);
-        if (dm <= dCom) { qd += isCompra(mv.cv) ? mv.quantidade : -mv.quantidade; }
+        if (dm <= dCom) {
+          const c = mv.cliente || '__ZE__';
+          if (!qdByClient[c]) qdByClient[c] = 0;
+          qdByClient[c] += isCompra(mv.cv) ? mv.quantidade : -mv.quantidade;
+        }
+      }
+      for (const c of Object.keys(qdByClient)) {
+        if (qdByClient[c] > 0) qd += qdByClient[c];
       }
       if (qd <= 0) continue;
       const vu = parseFloat(row.valor_unit) || 0;
