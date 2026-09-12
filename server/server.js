@@ -732,18 +732,20 @@ async function ensureSchema() {
 }
 
 const PORT = 8000;
-ensureSchema().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 API rodando em :${PORT}`);
-  // Auto-sync from Google Sheets on startup (delayed) and periodically
-  setTimeout(() => syncData(), 10000);
-  setInterval(() => syncData(), SYNC_INTERVAL);
-  // Auto-sync market prices from Brapi on startup (delayed) and periodically
-  setTimeout(() => syncMarketData(), 15000);
-  setInterval(() => syncMarketData(), MARKET_SYNC_INTERVAL);
-  console.log(`🔄 Sheet sync every ${SYNC_INTERVAL / 60000} min | Market sync every ${MARKET_SYNC_INTERVAL / 60000} min`);
+ensureSchema()
+  .then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 API rodando em :${PORT}`);
+      // Auto-sync from Google Sheets on startup (delayed) and periodically
+      setTimeout(() => syncData(), 10000);
+      setInterval(() => syncData(), SYNC_INTERVAL);
+      // Auto-sync market prices from Brapi on startup (delayed) and periodically
+      setTimeout(() => syncMarketData(), 15000);
+      setInterval(() => syncMarketData(), MARKET_SYNC_INTERVAL);
+      console.log(`🔄 Sheet sync every ${SYNC_INTERVAL / 60000} min | Market sync every ${MARKET_SYNC_INTERVAL / 60000} min`);
+    });
+  })
+  .catch((e) => {
+    console.error('Failed to ensure schema:', e.message);
+    process.exit(1);
   });
-}).catch((e) => {
-  console.error('Failed to ensure schema:', e.message);
-  process.exit(1);
-});
