@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { login } from './api.js';
 
-export default function Login({ onLogin, onGoRegister }) {
+export default function Login({ onLogin, onGoRegister, onForgotPassword }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [error, setError] = useState('');
@@ -44,6 +44,7 @@ export default function Login({ onLogin, onGoRegister }) {
             {loading ? 'Verificando…' : 'Entrar'}
           </button>
           {error && <div className="login-err">{error}</div>}
+          <button type="button" className="btn-link-esqueci" onClick={onForgotPassword}>Esqueci minha senha</button>
           <button type="button" className="btn-voltar" onClick={onGoRegister}>Não tem conta? Cadastre-se</button>
         </form>
       </div>

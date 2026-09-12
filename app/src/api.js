@@ -29,6 +29,20 @@ export function register(data) {
   });
 }
 
+export function forgotPassword(email) {
+  return request('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(email, code, novaSenha) {
+  return request('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, code, novaSenha }),
+  });
+}
+
 export function fetchClientes() {
   return request('/api/clientes');
 }

@@ -71,6 +71,52 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+/* ── POST /api/auth/forgot-password ── */
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Informe seu e-mail.' });
+  try {
+    const { rows } = await pool.query('SELECT id, nome, telefone FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+    if (!rows.length) return res.json({ ok: true }); // não revelar se o e-mail existe
+    const user = rows[0];
+    // Gerar código de 6 dígitos
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+    await pool.query('DELETE FROM reset_tokens WHERE user_id = $1', [user.id]);
+    await pool.query('INSERT INTO reset_tokens (user_id, code, expires_at) VALUES ($1, $2, $3)', [user.id, code, expires]);
+    // Em produção, enviar por WhatsApp/e-mail. Por ora, retornar o código para o frontend.
+    res.json({ ok: true, code, message: 'Código de recuperação gerado.' });
+  } catch (e) {
+    console.error('Forgot password error:', e.message);
+    res.status(500).json({ error: 'Erro ao gerar código de recuperação.' });
+  }
+});
+
+/* ── POST /api/auth/reset-password ── */
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { email, code, novaSenha } = req.body;
+  if (!email || !code || !novaSenha) return res.status(400).json({ error: 'Preencha todos os campos.' });
+  if (novaSenha.length < 4) return res.status(400).json({ error: 'A senha deve ter ao menos 4 caracteres.' });
+  try {
+    const userRes = await pool.query('SELECT id FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+    if (!userRes.rows.length) return res.status(400).json({ error: 'E-mail ou código inválido.' });
+    const userId = userRes.rows[0].id;
+    const tokenRes = await pool.query('SELECT * FROM reset_tokens WHERE user_id = $1 AND code = $2', [userId, code.trim()]);
+    if (!tokenRes.rows.length) return res.status(400).json({ error: 'Código inválido.' });
+    if (new Date(tokenRes.rows[0].expires_at) < new Date()) {
+      await pool.query('DELETE FROM reset_tokens WHERE user_id = $1', [userId]);
+      return res.status(400).json({ error: 'Código expirado. Solicite um novo.' });
+    }
+    const hash = await bcrypt.hash(novaSenha, 10);
+    await pool.query('UPDATE users SET senha = $1 WHERE id = $2', [hash, userId]);
+    await pool.query('DELETE FROM reset_tokens WHERE user_id = $1', [userId]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Reset password error:', e.message);
+    res.status(500).json({ error: 'Erro ao redefinir senha.' });
+  }
+});
+
 /* ── GET /api/clientes ── (list clients for sidebar) ── */
 app.get('/api/clientes', auth, async (req, res) => {
   try {
@@ -729,6 +775,13 @@ async function ensureSchema() {
     addCol('tipo_usuario', "TEXT DEFAULT 'autonomo'"),
     addCol('interesse_assessoria', 'BOOLEAN DEFAULT false'),
   ]);
+  await pool.query(`CREATE TABLE IF NOT EXISTS reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
 }
 
 const PORT = 8000;

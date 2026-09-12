@@ -359,6 +359,9 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 .wpp-check input{margin-top:2px;flex-shrink:0;accent-color:var(--accent);width:16px;height:16px}
 .btn-voltar{display:block;width:100%;margin-top:14px;background:transparent;border:none;color:var(--muted);font-family:'Outfit',sans-serif;font-size:.82rem;cursor:pointer;transition:color .15s;padding:8px}
 .btn-voltar:hover{color:var(--accent)}
+.btn-link-esqueci{display:block;width:100%;margin-top:10px;background:transparent;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;cursor:pointer;transition:color .15s;padding:4px}
+.btn-link-esqueci:hover{color:var(--accent)}
+.login-info{margin-top:14px;padding:10px 14px;background:rgba(61,220,132,.08);border:1px solid rgba(61,220,132,.22);border-radius:8px;color:var(--accent);font-family:'DM Mono',monospace;font-size:.72rem;text-align:center;line-height:1.5}
 
 /* ── HELP ICON ── */
 .help-ico{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--accent-dim);color:var(--accent);font-size:.6rem;font-weight:700;cursor:pointer;position:relative;vertical-align:middle;margin-left:4px;flex-shrink:0;transition:background .15s}
