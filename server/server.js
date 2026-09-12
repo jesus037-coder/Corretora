@@ -715,24 +715,25 @@ app.post('/api/sync', auth, async (req, res) => {
   catch (e) { res.status(500).json({ error: 'Erro ao sincronizar.' }); }
 });
 
-// Ensure limites_segmento table exists (survives nodemon restarts without re-seeding)
-pool.query(`CREATE TABLE IF NOT EXISTS limites_segmento (
-  id SERIAL PRIMARY KEY,
-  segmento TEXT UNIQUE NOT NULL,
-  pct NUMERIC NOT NULL DEFAULT 0
-)`).catch((e) => console.error('Failed to create limites_segmento:', e.message));
-
-// Add new user columns (safe for existing DBs)
-const addCol = (col, def) => pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col} ${def}`).catch(() => {});
-Promise.all([
-  addCol('telefone', 'TEXT'),
-  addCol('autorizacao_whatsapp', 'BOOLEAN DEFAULT false'),
-  addCol('tipo_usuario', "TEXT DEFAULT 'autonomo'"),
-  addCol('interesse_assessoria', 'BOOLEAN DEFAULT false'),
-]).catch((e) => console.error('Failed to add user columns:', e.message));
+// Ensure tables/columns exist before accepting requests (avoids race on nodemon restarts)
+async function ensureSchema() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS limites_segmento (
+    id SERIAL PRIMARY KEY,
+    segmento TEXT UNIQUE NOT NULL,
+    pct NUMERIC NOT NULL DEFAULT 0
+  )`);
+  const addCol = (col, def) => pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col} ${def}`);
+  await Promise.all([
+    addCol('telefone', 'TEXT'),
+    addCol('autorizacao_whatsapp', 'BOOLEAN DEFAULT false'),
+    addCol('tipo_usuario', "TEXT DEFAULT 'autonomo'"),
+    addCol('interesse_assessoria', 'BOOLEAN DEFAULT false'),
+  ]);
+}
 
 const PORT = 8000;
-app.listen(PORT, '0.0.0.0', () => {
+ensureSchema().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API rodando em :${PORT}`);
   // Auto-sync from Google Sheets on startup (delayed) and periodically
   setTimeout(() => syncData(), 10000);
@@ -741,4 +742,8 @@ app.listen(PORT, '0.0.0.0', () => {
   setTimeout(() => syncMarketData(), 15000);
   setInterval(() => syncMarketData(), MARKET_SYNC_INTERVAL);
   console.log(`🔄 Sheet sync every ${SYNC_INTERVAL / 60000} min | Market sync every ${MARKET_SYNC_INTERVAL / 60000} min`);
+  });
+}).catch((e) => {
+  console.error('Failed to ensure schema:', e.message);
+  process.exit(1);
 });
