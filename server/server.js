@@ -30,6 +30,30 @@ function isCompra(cv) {
   return s === 'C' || s === 'COMPRA';
 }
 
+/* ── POST /api/auth/register ── */
+app.post('/api/auth/register', async (req, res) => {
+  const { email, senha, nome, telefone, autorizacao_whatsapp, tipo_usuario } = req.body;
+  if (!email || !senha || !nome || !telefone) return res.status(400).json({ error: 'Preencha todos os campos obrigatórios.' });
+  if (!autorizacao_whatsapp) return res.status(400).json({ error: 'É necessário autorizar o contato via WhatsApp para se cadastrar.' });
+  if (!['assessorado', 'autonomo'].includes(tipo_usuario)) return res.status(400).json({ error: 'Selecione um tipo de usuário.' });
+  try {
+    const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+    if (exists.rows.length) return res.status(409).json({ error: 'E-mail já cadastrado.' });
+    const hash = await bcrypt.hash(senha, 10);
+    const interesse_assessoria = tipo_usuario === 'assessorado';
+    const { rows } = await pool.query(
+      'INSERT INTO users (email, senha, nome, role, telefone, autorizacao_whatsapp, tipo_usuario, interesse_assessoria) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, nome, role, tipo_usuario',
+      [email.trim().toLowerCase(), hash, nome.trim(), 'user', telefone.trim(), true, tipo_usuario, interesse_assessoria]
+    );
+    const u = rows[0];
+    const token = jwt.sign({ id: u.id, email: u.email, nome: u.nome, role: u.role, tipo_usuario: u.tipo_usuario }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: u });
+  } catch (e) {
+    console.error('Register error:', e.message);
+    res.status(500).json({ error: 'Erro ao cadastrar.' });
+  }
+});
+
 /* ── POST /api/auth/login ── */
 app.post('/api/auth/login', async (req, res) => {
   const { email, senha } = req.body;
@@ -40,8 +64,8 @@ app.post('/api/auth/login', async (req, res) => {
     const user = rows[0];
     const ok = await bcrypt.compare(senha, user.senha);
     if (!ok) return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
-    const token = jwt.sign({ id: user.id, email: user.email, nome: user.nome, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, email: user.email, nome: user.nome, role: user.role } });
+    const token = jwt.sign({ id: user.id, email: user.email, nome: user.nome, role: user.role, tipo_usuario: user.tipo_usuario }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user.id, email: user.email, nome: user.nome, role: user.role, tipo_usuario: user.tipo_usuario } });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao conectar.' });
   }
@@ -697,6 +721,15 @@ pool.query(`CREATE TABLE IF NOT EXISTS limites_segmento (
   segmento TEXT UNIQUE NOT NULL,
   pct NUMERIC NOT NULL DEFAULT 0
 )`).catch((e) => console.error('Failed to create limites_segmento:', e.message));
+
+// Add new user columns (safe for existing DBs)
+const addCol = (col, def) => pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col} ${def}`).catch(() => {});
+Promise.all([
+  addCol('telefone', 'TEXT'),
+  addCol('autorizacao_whatsapp', 'BOOLEAN DEFAULT false'),
+  addCol('tipo_usuario', "TEXT DEFAULT 'autonomo'"),
+  addCol('interesse_assessoria', 'BOOLEAN DEFAULT false'),
+]).catch((e) => console.error('Failed to add user columns:', e.message));
 
 const PORT = 8000;
 app.listen(PORT, '0.0.0.0', () => {

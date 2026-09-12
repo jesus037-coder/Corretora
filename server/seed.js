@@ -67,7 +67,11 @@ async function main() {
       email TEXT UNIQUE NOT NULL,
       senha TEXT NOT NULL,
       nome TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'user'
+      role TEXT NOT NULL DEFAULT 'user',
+      telefone TEXT,
+      autorizacao_whatsapp BOOLEAN DEFAULT false,
+      tipo_usuario TEXT DEFAULT 'autonomo',
+      interesse_assessoria BOOLEAN DEFAULT false
     );
     CREATE TABLE IF NOT EXISTS ativos (
       id SERIAL PRIMARY KEY,

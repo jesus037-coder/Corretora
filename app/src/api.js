@@ -22,6 +22,13 @@ export function login(email, senha) {
   });
 }
 
+export function register(data) {
+  return request('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export function fetchClientes() {
   return request('/api/clientes');
 }

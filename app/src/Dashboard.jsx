@@ -12,6 +12,7 @@ import CalculadoraTab from './tabs/CalculadoraTab.jsx';
 import DirpfTab from './tabs/DirpfTab.jsx';
 import ComprasVendasTab from './tabs/ComprasVendasTab.jsx';
 import MovimentacaoModal from './components/MovimentacaoModal.jsx';
+import Glossario from './components/Glossario.jsx';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler);
 
@@ -39,6 +40,7 @@ export default function Dashboard({ user, onLogout }) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const isAdmin = user.role === 'admin' || user.role === 'demo';
+  const isAutonomo = user.tipo_usuario === 'autonomo';
 
   useEffect(() => {
     fetchAnos().then((r) => setAnos(r.anos)).catch(() => {});
@@ -104,6 +106,13 @@ export default function Dashboard({ user, onLogout }) {
         <div className="sb-top">
           <div className="sb-brand">Corretora do <em>Zé</em></div>
           <div className="sb-role">{roleLabel}</div>
+          {user.tipo_usuario && (
+            <div className="sb-profile">
+              <span className={`sb-profile-tag ${user.tipo_usuario}`}>
+                {user.tipo_usuario === 'assessorado' ? '🤝 Assessorado' : '🧭 Autônomo'}
+              </span>
+            </div>
+          )}
         </div>
         <div className="sb-ano">
           <label>Ano de referência</label>
@@ -162,12 +171,13 @@ export default function Dashboard({ user, onLogout }) {
 
           {loading && <div className="empty"><div className="ico">⏳</div><p>Carregando…</p></div>}
           {error && <div className="empty"><div className="ico">⚠️</div><p>{error}</p></div>}
-          {!loading && !error && data && aba === 'carteira' && <CarteiraTab data={data} ano={ano} chartColors={chartColors} onRefresh={() => setRefreshKey(k => k + 1)} />}
+          {!loading && !error && data && aba === 'carteira' && <CarteiraTab data={data} ano={ano} chartColors={chartColors} onRefresh={() => setRefreshKey(k => k + 1)} isAutonomo={isAutonomo} />}
           {!loading && !error && data && aba === 'proventos' && <ProventosTab data={data} ano={ano} chartColors={chartColors} />}
           {!loading && !error && aba === 'metas' && <MetasTab cliente={clienteForTabs} latest={latest} isDemo={user.role === 'demo'} />}
           {!loading && !error && aba === 'calc' && <CalculadoraTab latest={latest} chartColors={chartColors} />}
           {!loading && !error && aba === 'dirpf' && <DirpfTab ano={ano === 0 ? (anos.length > 0 ? Math.max(...anos) : new Date().getFullYear()) : ano} cliente={clienteForTabs} theme={theme} />}
           {!loading && !error && aba === 'comprasvendas' && <ComprasVendasTab ano={ano} cliente={clienteForTabs} chartColors={chartColors} refreshKey={refreshKey} onEditMov={(mv) => setMovModal({ mode: 'edit', mov: mv })} />}
+          {isAutonomo && <Glossario />}
         </div>
       </div>
       {movModal && (
