@@ -34,7 +34,7 @@ export default function Dashboard({ user, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [theme, setTheme] = useState('dark');
-  const [sidebarOff, setSidebarOff] = useState(false);
+  const [sidebarOff, setSidebarOff] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [aba, setAba] = useState('carteira');
   const [movModal, setMovModal] = useState(null); // null | { mode: 'create'|'edit', mov: null|{...} }
   const [refreshKey, setRefreshKey] = useState(0);
@@ -102,6 +102,7 @@ export default function Dashboard({ user, onLogout }) {
 
   return (
     <div id="app" className="on">
+      <div className={`sb-backdrop${sidebarOff ? ' off' : ''}`} onClick={() => setSidebarOff(true)} />
       <aside className={`sidebar${sidebarOff ? ' off' : ''}`} id="sidebar">
         <div className="sb-top">
           <div className="sb-brand">Corretora do <em>Zé</em></div>
@@ -125,12 +126,12 @@ export default function Dashboard({ user, onLogout }) {
         <nav className="nav-list">
           {isAdmin && (
             <>
-              <div className={`nav-item nav-ze${clienteSel === '__ZE__' ? ' on' : ''}`} onClick={() => setClienteSel('__ZE__')}>
+              <div className={`nav-item nav-ze${clienteSel === '__ZE__' ? ' on' : ''}`} onClick={() => { setClienteSel('__ZE__'); if (window.innerWidth < 768) setSidebarOff(true); }}>
                 <span className="nav-dot" style={{ background: 'var(--orange)' }} />⭐ Corretora — Zé
               </div>
               <div style={{ height: '1px', background: 'var(--border)', margin: '6px 16px' }} />
               {clientes.filter((c) => c !== '__ZE__').map((c) => (
-                <div key={c} className={`nav-item${clienteSel === c ? ' on' : ''}`} onClick={() => setClienteSel(c)}>
+                <div key={c} className={`nav-item${clienteSel === c ? ' on' : ''}`} onClick={() => { setClienteSel(c); if (window.innerWidth < 768) setSidebarOff(true); }}>
                   <span className="nav-dot" />{c}
                 </div>
               ))}
@@ -152,7 +153,7 @@ export default function Dashboard({ user, onLogout }) {
           <div className="topbar-actions">
             <div className="topbar-meta">{ano === 0 ? 'Todos os anos' : 'Ano ' + ano}</div>
             <button className="tb-btn" title="Novo lançamento" onClick={() => setMovModal({ mode: 'create', mov: null })}>
-              + Lançamento
+              + <span>Lançamento</span>
             </button>
             <button className="tb-btn icon-btn" title="Tema claro / escuro" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? '☀' : '☾'}
