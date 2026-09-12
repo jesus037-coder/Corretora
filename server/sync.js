@@ -79,6 +79,8 @@ export async function syncData() {
     }
 
     /* ── Ativos: clear + re-insert ── */
+    const SEG_MAP = { 'Açoes': 'Ações', 'açoes': 'Ações', 'FIIS': 'FIIs', 'fiis': 'FIIs', 'Cripto': 'CRIPTO', 'cripto': 'CRIPTO' };
+    const normSeg = (s) => SEG_MAP[s] || s;
     await pool.query('DELETE FROM ativos');
     for (let i = 1; i < at.length; i++) {
       const row = at[i];
@@ -86,27 +88,38 @@ export async function syncData() {
       if (!ticker) continue;
       await pool.query(
         'INSERT INTO ativos (ticker, segmento, area, valor, preco_justo, variacao, cnpj) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-        [ticker, (row[0] || '').trim(), (row[1] || '').trim(), n(row[3]), n(row[4]), (row[5] || '').trim(), (row[6] || '').trim()]
+        [ticker, normSeg((row[0] || '').trim()), (row[1] || '').trim(), n(row[3]), n(row[4]), (row[5] || '').trim(), (row[6] || '').trim()]
       );
     }
+    // Fallback: criar ativos para tickers em movimentacoes que não vieram da planilha
+    await pool.query(`
+      INSERT INTO ativos (ticker, segmento, valor, preco_justo, variacao, cnpj)
+      SELECT DISTINCT m.ticker, m.segmento, 0, 0, '', ''
+      FROM movimentacoes m
+      LEFT JOIN ativos a ON a.ticker = m.ticker
+      WHERE a.ticker IS NULL
+      ON CONFLICT DO NOTHING
+    `);
 
-    /* ── Proventos: clear + re-insert ── */
+    /* ── Proventos: clear + re-insert (skip valor_unit = 0) ── */
     await pool.query('DELETE FROM proventos');
     for (let i = 1; i < di.length; i++) {
       const row = di[i];
       const ticker = (row[0] || '').trim().toUpperCase();
       if (!ticker) continue;
+      const vu = n(row[5]);
+      if (vu <= 0) continue;
       await pool.query(
         'INSERT INTO proventos (ticker, segmento, data_com, data_pag, tipo, valor_unit) VALUES ($1,$2,$3,$4,$5,$6)',
-        [ticker, (row[1] || 'OUTROS').trim(), dt(row[2]), dt(row[3]), (row[4] || '').trim(), n(row[5])]
+        [ticker, (row[1] || 'OUTROS').trim(), dt(row[2]), dt(row[3]), (row[4] || '').trim(), vu]
       );
     }
 
     /* ── Movimentações: insert only new (preserve user-added) ── */
-    const { rows: existing } = await pool.query('SELECT cliente, ticker, data, cv, quantidade, preco, total FROM movimentacoes');
+    const { rows: existing } = await pool.query('SELECT cliente, ticker, data, cv, quantidade FROM movimentacoes');
     const existingKeys = new Set(existing.map(r => {
       const dStr = r.data instanceof Date ? r.data.toISOString().split('T')[0] : String(r.data).split('T')[0];
-      return `${r.cliente}|${r.ticker}|${dStr}|${r.cv}|${r.quantidade}|${r.preco}|${r.total}`;
+      return `${r.cliente}|${r.ticker}|${dStr}|${r.cv}|${r.quantidade}`;
     }));
     let newCount = 0;
     for (let i = 1; i < pa.length; i++) {
@@ -119,7 +132,7 @@ export async function syncData() {
       const qtd = n(row[4]);
       const preco = n(row[5]);
       const total = n(row[6]);
-      const key = `${cliente}|${ticker}|${d.toISOString().split('T')[0]}|${cv}|${qtd}|${preco}|${total}`;
+      const key = `${cliente}|${ticker}|${d.toISOString().split('T')[0]}|${cv}|${qtd}`;
       if (!existingKeys.has(key)) {
         await pool.query(
           'INSERT INTO movimentacoes (cliente, ticker, segmento, cv, quantidade, preco, total, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
