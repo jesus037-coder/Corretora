@@ -56,9 +56,9 @@ export async function syncData() {
   syncing = true;
   try {
     console.log('🔄 [Sync] Fetching Google Sheets…');
-    // Clients (users) are now managed locally — no longer synced from Sheets
-    const [pa, di, at] = await Promise.all(
-      [SHEETS.PA, SHEETS.DI, SHEETS.AT].map(fetchCSV)
+    // Clients (users) and movimentacoes are now managed locally — no longer synced from Sheets
+    const [di, at] = await Promise.all(
+      [SHEETS.DI, SHEETS.AT].map(fetchCSV)
     );
 
     /* ── Ativos: clear + re-insert ── */
@@ -98,34 +98,7 @@ export async function syncData() {
       );
     }
 
-    /* ── Movimentações: insert only new (preserve user-added) ── */
-    const { rows: existing } = await pool.query('SELECT cliente, ticker, data, cv, quantidade FROM movimentacoes');
-    const existingKeys = new Set(existing.map(r => {
-      const dStr = r.data instanceof Date ? r.data.toISOString().split('T')[0] : String(r.data).split('T')[0];
-      return `${r.cliente}|${r.ticker}|${dStr}|${r.cv}|${r.quantidade}`;
-    }));
-    let newCount = 0;
-    for (let i = 1; i < pa.length; i++) {
-      const row = pa[i];
-      const cliente = (row[0] || '').trim();
-      const ticker = (row[1] || '').trim().toUpperCase();
-      const d = dt(row[7]);
-      if (!cliente || !ticker || !d) continue;
-      const cv = (row[3] || '').trim();
-      const qtd = n(row[4]);
-      const preco = n(row[5]);
-      const total = n(row[6]);
-      const key = `${cliente}|${ticker}|${d.toISOString().split('T')[0]}|${cv}|${qtd}`;
-      if (!existingKeys.has(key)) {
-        await pool.query(
-          'INSERT INTO movimentacoes (cliente, ticker, segmento, cv, quantidade, preco, total, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-          [cliente, ticker, (row[2] || '').trim(), cv, qtd, preco, total, d]
-        );
-        newCount++;
-      }
-    }
-
-    console.log(`✅ [Sync] Done — Ativos: ${at.length - 1}, Proventos: ${di.length - 1}, New movs: ${newCount}`);
+    console.log(`✅ [Sync] Done — Ativos: ${at.length - 1}, Proventos: ${di.length - 1}`);
   } catch (e) {
     console.error('❌ [Sync] Failed:', e.message);
   } finally {

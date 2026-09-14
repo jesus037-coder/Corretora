@@ -130,24 +130,33 @@ async function main() {
     console.log('🎯 Metas already exist — skipping Sheets fetch for metas (data is local now).');
   }
 
+  /* ── Check if movimentacoes already exist (stop depending on Sheets for movimentacoes) ── */
+  const { rows: movsCount } = await pool.query('SELECT COUNT(*) FROM movimentacoes');
+  const movsExist = parseInt(movsCount[0].count) > 0;
+
+  if (movsExist) {
+    console.log('💰 Movimentacoes already exist — skipping Sheets fetch for movimentacoes (data is local now).');
+  }
+
   console.log('📡 Fetching Google Sheets…');
-  const fetches = [SHEETS.PA, SHEETS.DI, SHEETS.AT].map(fetchCSV);
+  const fetches = [SHEETS.DI, SHEETS.AT].map(fetchCSV);
   if (!usersExist) fetches.unshift(fetchCSV(SHEETS.CL));
+  if (!movsExist) fetches.unshift(fetchCSV(SHEETS.PA));
   if (!metasExist) fetches.push(fetchCSV(SHEETS.MT));
   const sheets = await Promise.all(fetches);
 
-  let cl = null, mt = null;
+  let cl = null, pa = null, mt = null;
   let idx = 0;
   if (!usersExist) { cl = sheets[idx++]; }
-  const pa = sheets[idx++];
+  if (!movsExist) { pa = sheets[idx++]; }
   const di = sheets[idx++];
   const at = sheets[idx++];
   if (!metasExist) { mt = sheets[idx++]; }
-  const skipped = [usersExist ? 'CL' : null, metasExist ? 'MT' : null].filter(Boolean).join(', ');
-  console.log(`   ${skipped ? skipped + '=skipped ' : ''}PA=${pa.length} DI=${di.length} AT=${at.length}${metasExist ? '' : ` MT=${mt.length}`} rows`);
+  const skipped = [usersExist ? 'CL' : null, movsExist ? 'PA' : null, metasExist ? 'MT' : null].filter(Boolean).join(', ');
+  console.log(`   ${skipped ? skipped + '=skipped ' : ''}DI=${di.length} AT=${at.length}${movsExist ? '' : ` PA=${pa.length}`}${metasExist ? '' : ` MT=${mt.length}`} rows`);
 
-  console.log('🧹 Truncating tables (preserving users and metas)…');
-  await pool.query('TRUNCATE ativos, movimentacoes, proventos RESTART IDENTITY CASCADE');
+  console.log('🧹 Truncating tables (preserving users, metas and movimentacoes)…');
+  await pool.query('TRUNCATE ativos, proventos RESTART IDENTITY CASCADE');
 
   /* ── Users (from CL) — only on first boot ── */
   if (!usersExist) {
@@ -186,27 +195,31 @@ async function main() {
     );
   }
 
-  /* ── Movimentações (from PA) ── */
-  console.log('💰 Seeding movimentações…');
-  let movCount = 0;
-  for (let i = 1; i < pa.length; i++) {
-    const row = pa[i];
-    const cliente = (row[0] || '').trim();
-    const ticker = (row[1] || '').trim().toUpperCase();
-    const segmento = (row[2] || '').trim();
-    const cv = (row[3] || '').trim();
-    const qtd = n(row[4]);
-    const preco = n(row[5]);
-    const total = n(row[6]);
-    const d = dt(row[7]);
-    if (!cliente || !ticker || !d) continue;
-    await pool.query(
-      'INSERT INTO movimentacoes (cliente, ticker, segmento, cv, quantidade, preco, total, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-      [cliente, ticker, segmento, cv, qtd, preco, total, d]
-    );
-    movCount++;
+  /* ── Movimentações (from PA) — only seed on first boot ── */
+  if (movsExist) {
+    console.log('💰 Movimentacoes preservadas no banco local.');
+  } else if (pa) {
+    console.log('💰 Seeding movimentacoes (first boot)…');
+    let movCount = 0;
+    for (let i = 1; i < pa.length; i++) {
+      const row = pa[i];
+      const cliente = (row[0] || '').trim();
+      const ticker = (row[1] || '').trim().toUpperCase();
+      const segmento = (row[2] || '').trim();
+      const cv = (row[3] || '').trim();
+      const qtd = n(row[4]);
+      const preco = n(row[5]);
+      const total = n(row[6]);
+      const d = dt(row[7]);
+      if (!cliente || !ticker || !d) continue;
+      await pool.query(
+        'INSERT INTO movimentacoes (cliente, ticker, segmento, cv, quantidade, preco, total, data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [cliente, ticker, segmento, cv, qtd, preco, total, d]
+      );
+      movCount++;
+    }
+    console.log(`   ${movCount} movimentacoes inseridas`);
   }
-  console.log(`   ${movCount} movimentações inseridas`);
 
   /* ── Proventos (from DI) ── */
   console.log('💵 Seeding proventos…');
