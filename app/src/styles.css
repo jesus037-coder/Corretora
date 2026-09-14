@@ -487,6 +487,17 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 .prov-detalhe-tbl tfoot td{border-top:2px solid var(--border);border-bottom:none;font-size:.85rem}
 .prov-detalhe-tbl .td-l{text-align:left}
 
+/* Lançamentos filters */
+.lanc-filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.lanc-filter{display:flex;flex-direction:column;gap:4px}
+.lanc-filter label{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.lanc-filter select,.lanc-filter input{background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:.78rem;padding:7px 10px;outline:none;cursor:pointer;transition:border-color .2s}
+.lanc-filter select:focus,.lanc-filter input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
+.lanc-filter select option{background:var(--panel)}
+.lanc-filter input[type="date"]{cursor:text}
+.lanc-filter-clear{background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:'DM Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:1px;padding:8px 12px;cursor:pointer;transition:color .15s,border-color .15s;align-self:flex-end}
+.lanc-filter-clear:hover{color:var(--red);border-color:var(--red)}
+
 /* Bar chart received/pending legend */
 .bar-legend{float:right;font-size:.7rem;font-weight:400;color:var(--muted);display:flex;align-items:center;gap:8px}
 .bl-recebido{color:#3ddc84;font-size:.9rem}
