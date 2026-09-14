@@ -903,6 +903,90 @@ app.put('/api/limites', auth, async (req, res) => {
 });
 
 /* ── POST /api/sync (manual trigger) ── */
+/* ── GET /api/profile — current user profile ── */
+app.get('/api/profile', auth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, email, nome, role, telefone, autorizacao_whatsapp, tipo_usuario FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar perfil.' });
+  }
+});
+
+/* ── PUT /api/profile/password — change password ── */
+app.put('/api/profile/password', auth, async (req, res) => {
+  const { senhaAtual, novaSenha } = req.body;
+  if (!novaSenha || novaSenha.length < 4) return res.status(400).json({ error: 'A nova senha deve ter ao menos 4 caracteres.' });
+  try {
+    const { rows } = await pool.query('SELECT senha FROM users WHERE id = $1', [req.user.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    if (senhaAtual) {
+      const ok = await bcrypt.compare(senhaAtual, rows[0].senha);
+      if (!ok) return res.status(401).json({ error: 'Senha atual incorreta.' });
+    }
+    const hash = await bcrypt.hash(novaSenha, 10);
+    await pool.query('UPDATE users SET senha = $1 WHERE id = $2', [hash, req.user.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao alterar senha.' });
+  }
+});
+
+/* ── PUT /api/profile — update profile settings ── */
+app.put('/api/profile', auth, async (req, res) => {
+  const { autorizacao_whatsapp, tipo_usuario } = req.body;
+  try {
+    const fields = [];
+    const vals = [];
+    let idx = 1;
+    if (autorizacao_whatsapp !== undefined) { fields.push(`autorizacao_whatsapp = $${idx++}`); vals.push(autorizacao_whatsapp); }
+    if (tipo_usuario && ['autonomo', 'assessorado'].includes(tipo_usuario)) {
+      fields.push(`tipo_usuario = $${idx++}`); vals.push(tipo_usuario);
+      fields.push(`interesse_assessoria = $${idx++}`); vals.push(tipo_usuario === 'assessorado');
+    }
+    if (!fields.length) return res.json({ ok: true });
+    vals.push(req.user.id);
+    await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`, vals);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+  }
+});
+
+/* ── GET /api/admin/users — list all users (admin only) ── */
+app.get('/api/admin/users', auth, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'demo') return res.status(403).json({ error: 'Apenas administradores.' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, email, nome, role, telefone, autorizacao_whatsapp, tipo_usuario FROM users ORDER BY nome'
+    );
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao listar usuários.' });
+  }
+});
+
+/* ── PUT /api/admin/users/:id — change user type (admin only) ── */
+app.put('/api/admin/users/:id', auth, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'demo') return res.status(403).json({ error: 'Apenas administradores.' });
+  const { id } = req.params;
+  const { tipo_usuario } = req.body;
+  if (!tipo_usuario || !['autonomo', 'assessorado'].includes(tipo_usuario)) return res.status(400).json({ error: 'Tipo de usuário inválido.' });
+  try {
+    await pool.query(
+      'UPDATE users SET tipo_usuario = $1, interesse_assessoria = $2 WHERE id = $3',
+      [tipo_usuario, tipo_usuario === 'assessorado', id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao atualizar usuário.' });
+  }
+});
+
 app.post('/api/sync', auth, async (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'demo') return res.status(403).json({ error: 'Apenas administradores.' });
   try { await syncData(); res.json({ ok: true }); }

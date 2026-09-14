@@ -11,6 +11,7 @@ import MetasTab from './tabs/MetasTab.jsx';
 import CalculadoraTab from './tabs/CalculadoraTab.jsx';
 import DirpfTab from './tabs/DirpfTab.jsx';
 import ComprasVendasTab from './tabs/ComprasVendasTab.jsx';
+import ContaTab from './tabs/ContaTab.jsx';
 import MovimentacaoModal from './components/MovimentacaoModal.jsx';
 import Glossario from './components/Glossario.jsx';
 
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'calc', label: 'Calculadora', icon: '⚙' },
   { id: 'dirpf', label: 'DIRPF', icon: '📋' },
   { id: 'comprasvendas', label: 'Compras e Vendas', icon: '⇅' },
+  { id: 'conta', label: 'Minha Conta', icon: '👤' },
 ];
 
 export default function Dashboard({ user, onLogout }) {
@@ -178,6 +180,7 @@ export default function Dashboard({ user, onLogout }) {
           {!loading && !error && aba === 'calc' && <CalculadoraTab latest={latest} chartColors={chartColors} />}
           {!loading && !error && aba === 'dirpf' && <DirpfTab ano={ano === 0 ? (anos.length > 0 ? Math.max(...anos) : new Date().getFullYear()) : ano} cliente={clienteForTabs} theme={theme} />}
           {!loading && !error && aba === 'comprasvendas' && <ComprasVendasTab ano={ano} cliente={clienteForTabs} chartColors={chartColors} refreshKey={refreshKey} onEditMov={(mv) => setMovModal({ mode: 'edit', mov: mv })} />}
+          {aba === 'conta' && <ContaTab user={user} />}
           {isAutonomo && <Glossario />}
         </div>
       </div>

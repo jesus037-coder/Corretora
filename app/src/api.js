@@ -93,6 +93,35 @@ export function updateMovimentacao(id, data) {
   return request('/api/movimentacoes/' + id, { method: 'PUT', body: JSON.stringify(data) });
 }
 
+export function fetchProfile() {
+  return request('/api/profile');
+}
+
+export function updateProfilePassword(senhaAtual, novaSenha) {
+  return request('/api/profile/password', {
+    method: 'PUT',
+    body: JSON.stringify({ senhaAtual, novaSenha }),
+  });
+}
+
+export function updateProfile(data) {
+  return request('/api/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function fetchAdminUsers() {
+  return request('/api/admin/users');
+}
+
+export function updateAdminUserType(id, tipo_usuario) {
+  return request(`/api/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ tipo_usuario }),
+  });
+}
+
 export function saveLimite(segmento, pct) {
   return request('/api/limites', { method: 'PUT', body: JSON.stringify({ segmento, pct }) });
 }
