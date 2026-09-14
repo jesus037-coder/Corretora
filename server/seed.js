@@ -122,19 +122,29 @@ async function main() {
     console.log('👥 Users already exist — skipping Sheets fetch for clients (data is local now).');
   }
 
+  /* ── Check if metas already exist (stop depending on Sheets for metas) ── */
+  const { rows: metasCount } = await pool.query('SELECT COUNT(*) FROM metas');
+  const metasExist = parseInt(metasCount[0].count) > 0;
+
+  if (metasExist) {
+    console.log('🎯 Metas already exist — skipping Sheets fetch for metas (data is local now).');
+  }
+
   console.log('📡 Fetching Google Sheets…');
-  const fetches = [SHEETS.PA, SHEETS.DI, SHEETS.AT, SHEETS.MT].map(fetchCSV);
+  const fetches = [SHEETS.PA, SHEETS.DI, SHEETS.AT].map(fetchCSV);
   if (!usersExist) fetches.unshift(fetchCSV(SHEETS.CL));
+  if (!metasExist) fetches.push(fetchCSV(SHEETS.MT));
   const sheets = await Promise.all(fetches);
 
-  let cl = null;
+  let cl = null, mt = null;
   let idx = 0;
   if (!usersExist) { cl = sheets[idx++]; }
   const pa = sheets[idx++];
   const di = sheets[idx++];
   const at = sheets[idx++];
-  const mt = sheets[idx++];
-  console.log(`   ${usersExist ? 'CL=skipped ' : `CL=${cl.length} `}PA=${pa.length} DI=${di.length} AT=${at.length} MT=${mt.length} rows`);
+  if (!metasExist) { mt = sheets[idx++]; }
+  const skipped = [usersExist ? 'CL' : null, metasExist ? 'MT' : null].filter(Boolean).join(', ');
+  console.log(`   ${skipped ? skipped + '=skipped ' : ''}PA=${pa.length} DI=${di.length} AT=${at.length}${metasExist ? '' : ` MT=${mt.length}`} rows`);
 
   console.log('🧹 Truncating tables (preserving users and metas)…');
   await pool.query('TRUNCATE ativos, movimentacoes, proventos RESTART IDENTITY CASCADE');
@@ -218,12 +228,11 @@ async function main() {
   }
   console.log(`   ${provCount} proventos inseridos`);
 
-  /* ── Metas (from MT) — only seed if table is empty (preserve user-added) ── */
-  const { rows: existingMetas } = await pool.query('SELECT COUNT(*) FROM metas');
-  if (parseInt(existingMetas[0].count) > 0) {
-    console.log('🎯 Metas já existem no banco — preservando.');
-  } else {
-    console.log('🎯 Seeding metas…');
+  /* ── Metas (from MT) — only seed on first boot ── */
+  if (metasExist) {
+    console.log('🎯 Metas preservadas no banco local.');
+  } else if (mt) {
+    console.log('🎯 Seeding metas (first boot)…');
     for (let i = 1; i < mt.length; i++) {
       const row = mt[i];
       const cliente = (row[0] || '').trim();
