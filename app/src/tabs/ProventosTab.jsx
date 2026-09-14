@@ -130,56 +130,69 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
   const barColor = segIdx >= 0 ? PAL[segIdx % PAL.length] : null;
   const rawBarData = selectedSeg ? (segMensal[selectedSeg] || Array(nMonths).fill(0)) : provData;
 
+  const baseColor = barColor || '#3ddc84';
+  const solidColor = baseColor + 'cc';
+  const lightColor = baseColor + '33';
+
+  // Helper: get received/pending arrays for a set of bar indices
+  const getStacked = (indices) => {
+    if (!barStatusMap) return { recv: indices.map(i => rawBarData[i] || 0), pend: indices.map(() => 0) };
+    const recv = [], pend = [];
+    indices.forEach((idx, i) => {
+      let s;
+      if (isTodos && viewMode === 'anos') {
+        s = barStatusMap.yearMap[indices[i]] || { received: 0, pending: 0 };
+      } else if (isTodos) {
+        const info = provInfo[idx];
+        s = info ? (barStatusMap.monthMap[info.year + '-' + info.month] || { received: 0, pending: 0 }) : { received: 0, pending: 0 };
+      } else {
+        s = barStatusMap.monthMap[ano + '-' + idx] || { received: 0, pending: 0 };
+      }
+      recv.push(Math.round(s.received * 100) / 100);
+      pend.push(Math.round(s.pending * 100) / 100);
+    });
+    return { recv, pend };
+  };
+
   let barLabels, barDatasets;
   if (isTodos && viewMode === 'anos') {
     const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
     barLabels = years.map(String);
-    const anosData = years.map(yr => Math.round(provInfo.reduce((s, e, i) => e && e.year === yr ? s + rawBarData[i] : s, 0) * 100) / 100);
-    barDatasets = [{ label: selectedSeg || 'Proventos', data: anosData, backgroundColor: barColor ? barColor + 'aa' : 'rgba(61,220,132,.65)', borderRadius: 4 }];
+    const { recv, pend } = getStacked(years);
+    barDatasets = [
+      { label: 'Recebido', data: recv, backgroundColor: solidColor, borderRadius: 4, stack: 'prov' },
+      { label: 'A Receber', data: pend, backgroundColor: lightColor, borderRadius: 4, stack: 'prov' },
+    ];
   } else if (isTodos && viewMode === 'ano') {
     barLabels = MES;
     const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
     barDatasets = years.map((yr, yi) => {
       const color = PAL[yi % PAL.length];
       const monthlyData = Array(12).fill(0);
+      const monthlyColors = Array(12).fill(color + 'aa');
       provInfo.forEach((e, i) => {
         if (e && e.year === yr) monthlyData[e.month] = Math.round((monthlyData[e.month] + rawBarData[i]) * 100) / 100;
       });
-      return { label: String(yr), data: monthlyData, backgroundColor: color + 'aa', borderRadius: 4 };
+      if (barStatusMap) {
+        for (let mi = 0; mi < 12; mi++) {
+          if (!monthlyData[mi]) continue;
+          const s = barStatusMap.monthMap[yr + '-' + mi] || { received: 0, pending: 0 };
+          monthlyColors[mi] = s.pending === 0 ? color + 'cc' : s.received === 0 ? color + '33' : color + '66';
+        }
+      }
+      return { label: String(yr), data: monthlyData, backgroundColor: monthlyColors, borderRadius: 4 };
     });
   } else {
     barLabels = provLabels;
-    barDatasets = [{ label: selectedSeg || 'Proventos', data: rawBarData, backgroundColor: barColor ? barColor + 'aa' : 'rgba(61,220,132,.65)', borderRadius: 4 }];
+    const indices = barLabels.map((_, i) => i);
+    const { recv, pend } = getStacked(indices);
+    barDatasets = [
+      { label: 'Recebido', data: recv, backgroundColor: solidColor, borderRadius: 4, stack: 'prov' },
+      { label: 'A Receber', data: pend, backgroundColor: lightColor, borderRadius: 4, stack: 'prov' },
+    ];
   }
 
   const barChart = { labels: barLabels, datasets: barDatasets };
-
-  // Apply received/pending coloring to bars
-  if (barStatusMap) {
-    barDatasets.forEach((ds, dsIdx) => {
-      const baseColor = (isTodos && viewMode === 'ano') ? PAL[dsIdx % PAL.length] : (barColor || '#3ddc84');
-      ds.backgroundColor = ds.data.map((val, i) => {
-        if (!val) return 'transparent';
-        let s;
-        if (isTodos && viewMode === 'ano') {
-          const yr = parseInt(ds.label);
-          s = barStatusMap.monthMap[yr + '-' + i] || { received: 0, pending: 0 };
-        } else if (isTodos && viewMode === 'anos') {
-          const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
-          s = barStatusMap.yearMap[years[i]] || { received: 0, pending: 0 };
-        } else if (isTodos) {
-          const info = provInfo[i];
-          s = info ? (barStatusMap.monthMap[info.year + '-' + info.month] || { received: 0, pending: 0 }) : { received: 0, pending: 0 };
-        } else {
-          s = barStatusMap.monthMap[ano + '-' + i] || { received: 0, pending: 0 };
-        }
-        if (s.received === 0 && s.pending === 0) return baseColor + 'aa';
-        if (s.pending === 0) return baseColor + 'cc';
-        if (s.received === 0) return baseColor + '33';
-        return baseColor + '66';
-      });
-    });
-  }
 
   // Doughnut: expanded segment → per-ativo; else → per-segment totals
   const expandedSeg = segNames.find(s => openSegs['pv-' + s.replace(/\W+/g, '-')]);
@@ -195,29 +208,39 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
   }
   const doughnutChart = { labels: dLabels, datasets: [{ data: dData, backgroundColor: dColors, borderColor: 'transparent', hoverOffset: 5 }] };
 
+  const isStacked = !(isTodos && viewMode === 'ano');
   const showLegend = isTodos && viewMode === 'ano';
   const chartOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: showLegend, labels: { color: tc, font: { size: 11 } } }, tooltip: { callbacks: { label: (c) => {
-      if (!barStatusMap) return M(c.parsed.y ?? c.parsed);
-      const i = c.dataIndex;
-      let s;
-      if (isTodos && viewMode === 'ano') {
-        const yr = parseInt(c.dataset.label);
-        s = barStatusMap.monthMap[yr + '-' + i] || { received: 0, pending: 0 };
-      } else if (isTodos && viewMode === 'anos') {
-        const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
-        s = barStatusMap.yearMap[years[i]] || { received: 0, pending: 0 };
-      } else if (isTodos) {
-        const info = provInfo[i];
-        s = info ? (barStatusMap.monthMap[info.year + '-' + info.month] || { received: 0, pending: 0 }) : { received: 0, pending: 0 };
-      } else {
-        s = barStatusMap.monthMap[ano + '-' + i] || { received: 0, pending: 0 };
-      }
-      const total = Math.round((s.received + s.pending) * 100) / 100;
-      return [`Recebido: ${M(s.received)}`, `A Receber: ${M(s.pending)}`, `Total: ${M(total)}`];
-    } } } },
-    scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: (!isTodos || viewMode === 'meses') && nMonths > 12 ? 9 : 11 } } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
+    plugins: {
+      legend: { display: showLegend, labels: { color: tc, font: { size: 11 } } },
+      tooltip: {
+        callbacks: {
+          label: (c) => {
+            if (!isStacked) {
+              // 'ano' view: per-bar colors
+              if (!barStatusMap) return M(c.parsed.y ?? c.parsed);
+              const i = c.dataIndex;
+              const yr = parseInt(c.dataset.label);
+              const s = barStatusMap.monthMap[yr + '-' + i] || { received: 0, pending: 0 };
+              const total = Math.round((s.received + s.pending) * 100) / 100;
+              return [`Recebido: ${M(s.received)}`, `A Receber: ${M(s.pending)}`, `Total: ${M(total)}`];
+            }
+            // stacked: each dataset is one part
+            return `${c.dataset.label}: ${M(c.parsed.y)}`;
+          },
+          footer: (items) => {
+            if (!isStacked) return '';
+            const total = items.reduce((s, i) => s + i.parsed.y, 0);
+            return `Total: ${M(total)}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: { stacked: isStacked, grid: { color: gc }, ticks: { color: tc, font: { size: (!isTodos || viewMode === 'meses') && nMonths > 12 ? 9 : 11 } } },
+      y: { stacked: isStacked, grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } },
+    },
   };
   const doughnutOpts = {
     responsive: true, maintainAspectRatio: false, cutout: '65%',
