@@ -223,17 +223,12 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
               const i = c.dataIndex;
               const yr = parseInt(c.dataset.label);
               const s = barStatusMap.monthMap[yr + '-' + i] || { received: 0, pending: 0 };
-              const total = Math.round((s.received + s.pending) * 100) / 100;
-              return [`Recebido: ${M(s.received)}`, `A Receber: ${M(s.pending)}`, `Total: ${M(total)}`];
+              return [`Recebido: ${M(s.received)}`, `A Receber: ${M(s.pending)}`];
             }
             // stacked: each dataset is one part
             return `${c.dataset.label}: ${M(c.parsed.y)}`;
           },
-          footer: (items) => {
-            if (!isStacked) return '';
-            const total = items.reduce((s, i) => s + i.parsed.y, 0);
-            return `Total: ${M(total)}`;
-          },
+
         },
       },
     },
