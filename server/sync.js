@@ -56,27 +56,10 @@ export async function syncData() {
   syncing = true;
   try {
     console.log('🔄 [Sync] Fetching Google Sheets…');
-    const [cl, pa, di, at] = await Promise.all(
-      [SHEETS.CL, SHEETS.PA, SHEETS.DI, SHEETS.AT].map(fetchCSV)
+    // Clients (users) are now managed locally — no longer synced from Sheets
+    const [pa, di, at] = await Promise.all(
+      [SHEETS.PA, SHEETS.DI, SHEETS.AT].map(fetchCSV)
     );
-
-    const bcrypt = (await import('bcryptjs')).default;
-
-    /* ── Upsert users (from CL) ── */
-    for (let i = 1; i < cl.length; i++) {
-      const row = cl[i];
-      const email = (row[1] || '').trim().toLowerCase();
-      const senha = (row[2] || '').trim();
-      const nome = (row[3] || '').trim();
-      const status = (row[5] || '').trim().toUpperCase();
-      if (!email || !senha) continue;
-      const role = status === 'ADMIN' ? 'admin' : status === 'DEMO' ? 'demo' : 'user';
-      const hash = await bcrypt.hash(senha, 10);
-      await pool.query(
-        'INSERT INTO users (email, senha, nome, role) VALUES ($1,$2,$3,$4) ON CONFLICT (email) DO UPDATE SET senha=$2, nome=$3, role=$4',
-        [email, hash, nome || email, role]
-      );
-    }
 
     /* ── Ativos: clear + re-insert ── */
     const SEG_MAP = { 'Açoes': 'Ações', 'açoes': 'Ações', 'FIIS': 'FIIs', 'fiis': 'FIIs', 'Cripto': 'CRIPTO', 'cripto': 'CRIPTO' };
@@ -142,7 +125,7 @@ export async function syncData() {
       }
     }
 
-    console.log(`✅ [Sync] Done — Users: ${cl.length - 1}, Ativos: ${at.length - 1}, Proventos: ${di.length - 1}, New movs: ${newCount}`);
+    console.log(`✅ [Sync] Done — Ativos: ${at.length - 1}, Proventos: ${di.length - 1}, New movs: ${newCount}`);
   } catch (e) {
     console.error('❌ [Sync] Failed:', e.message);
   } finally {

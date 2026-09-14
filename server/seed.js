@@ -52,12 +52,6 @@ async function fetchCSV(url) {
 }
 
 async function main() {
-  console.log('📡 Fetching Google Sheets…');
-  const [cl, pa, di, at, mt] = await Promise.all(
-    [SHEETS.CL, SHEETS.PA, SHEETS.DI, SHEETS.AT, SHEETS.MT].map(fetchCSV)
-  );
-  console.log(`   CL=${cl.length} PA=${pa.length} DI=${di.length} AT=${at.length} MT=${mt.length} rows`);
-
   const bcrypt = (await import('bcryptjs')).default;
 
   console.log('🗄️  Creating tables…');
@@ -120,24 +114,48 @@ async function main() {
     );
   `);
 
-  console.log('🧹 Truncating tables (preserving metas)…');
-  await pool.query('TRUNCATE users, ativos, movimentacoes, proventos RESTART IDENTITY CASCADE');
+  /* ── Check if users already exist (stop depending on Sheets for clients) ── */
+  const { rows: userCount } = await pool.query('SELECT COUNT(*) FROM users');
+  const usersExist = parseInt(userCount[0].count) > 0;
 
-  /* ── Users (from CL) ── */
-  console.log('👥 Seeding users…');
-  for (let i = 1; i < cl.length; i++) {
-    const row = cl[i];
-    const email = (row[1] || '').trim().toLowerCase();
-    const senha = (row[2] || '').trim();
-    const nome = (row[3] || '').trim();
-    const status = (row[5] || '').trim().toUpperCase();
-    if (!email || !senha) continue;
-    const role = status === 'ADMIN' ? 'admin' : status === 'DEMO' ? 'demo' : 'user';
-    const hash = await bcrypt.hash(senha, 10);
-    await pool.query(
-      'INSERT INTO users (email, senha, nome, role) VALUES ($1, $2, $3, $4)',
-      [email, hash, nome || email, role]
-    );
+  if (usersExist) {
+    console.log('👥 Users already exist — skipping Sheets fetch for clients (data is local now).');
+  }
+
+  console.log('📡 Fetching Google Sheets…');
+  const fetches = [SHEETS.PA, SHEETS.DI, SHEETS.AT, SHEETS.MT].map(fetchCSV);
+  if (!usersExist) fetches.unshift(fetchCSV(SHEETS.CL));
+  const sheets = await Promise.all(fetches);
+
+  let cl = null;
+  let idx = 0;
+  if (!usersExist) { cl = sheets[idx++]; }
+  const pa = sheets[idx++];
+  const di = sheets[idx++];
+  const at = sheets[idx++];
+  const mt = sheets[idx++];
+  console.log(`   ${usersExist ? 'CL=skipped ' : `CL=${cl.length} `}PA=${pa.length} DI=${di.length} AT=${at.length} MT=${mt.length} rows`);
+
+  console.log('🧹 Truncating tables (preserving users and metas)…');
+  await pool.query('TRUNCATE ativos, movimentacoes, proventos RESTART IDENTITY CASCADE');
+
+  /* ── Users (from CL) — only on first boot ── */
+  if (!usersExist) {
+    console.log('👥 Seeding users (first boot)…');
+    for (let i = 1; i < cl.length; i++) {
+      const row = cl[i];
+      const email = (row[1] || '').trim().toLowerCase();
+      const senha = (row[2] || '').trim();
+      const nome = (row[3] || '').trim();
+      const status = (row[5] || '').trim().toUpperCase();
+      if (!email || !senha) continue;
+      const role = status === 'ADMIN' ? 'admin' : status === 'DEMO' ? 'demo' : 'user';
+      const hash = await bcrypt.hash(senha, 10);
+      await pool.query(
+        'INSERT INTO users (email, senha, nome, role) VALUES ($1, $2, $3, $4)',
+        [email, hash, nome || email, role]
+      );
+    }
   }
 
   /* ── Ativos (from AT) ── */
