@@ -22,14 +22,57 @@ function pill(texto, cor) {
   return <span style={{ background: cor + '1a', color: cor, fontWeight: 700, fontSize: 11, letterSpacing: '.3px', padding: '3px 10px', borderRadius: 99, whiteSpace: 'nowrap' }}>{texto}</span>;
 }
 
-function ItemLinha({ header, texto, valor, isLast, cor }) {
+function ItemLinha({ texto }) {
   return (
-    <div style={{ padding: '14px 18px', borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>{header}</div>
+    <div style={{ padding: '14px 18px', borderBottom: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, fontSize: '12.5px', color: 'var(--muted)', lineHeight: 1.6 }}>{texto}</div>
         <CopyButton text={texto} />
       </div>
+    </div>
+  );
+}
+
+function GrupoRetratil({ header, itens, itemValorKey, cor, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  return (
+    <div style={{ marginBottom: 8, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ padding: '12px 16px', background: 'var(--panel)', fontWeight: 600, fontSize: '.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, userSelect: 'none' }}
+      >
+        <span style={{ fontSize: '.7rem', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none', color: 'var(--muted)' }}>▶</span>
+        {header}
+      </div>
+      {open && itens.map((it, ii) => (
+        <div key={ii} style={{ borderTop: '1px solid var(--border)' }}>
+          <div style={{ padding: '10px 18px 0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {pill(it.tk, cor)}
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>CNPJ {it.cnpj}</span>
+            <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 14 }}>{M(it[itemValorKey])}</span>
+          </div>
+          <ItemLinha texto={it.texto} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SecaoDirpf({ cor, titulo, total, children, emptyMsg }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="chart-box" style={{ marginBottom: 20 }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="chart-ttl"
+        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', fontSize: '1.05rem', fontWeight: 700, borderBottom: open ? '2px solid ' + cor + '44' : 'none', paddingBottom: 12 }}
+      >
+        <span style={{ fontSize: '.75rem', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none', color: 'var(--muted)' }}>▶</span>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: cor, boxShadow: `0 0 6px ${cor}88` }} />
+        {titulo}
+        <span style={{ marginLeft: 'auto', fontSize: '.9rem', color: cor, fontWeight: 700 }}>{M(total)}</span>
+      </div>
+      {open && (children || <div className="empty" style={{ padding: 30 }}><p>{emptyMsg}</p></div>)}
     </div>
   );
 }
@@ -60,79 +103,43 @@ export default function DirpfTab({ ano, cliente, theme }) {
       <div className="sec-head"><h3>DIRPF — Declaração de Imposto de Renda {ano}</h3><span className="tag">passo a passo</span></div>
 
       {/* Bens e Direitos */}
-      <div className="chart-box" style={{ marginBottom: 20 }}>
-        <div className="chart-ttl" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: corBens }} />
-          Bens e Direitos — Total: {M(data.totais.bens)}
-        </div>
-        {data.bens.map((grupo, gi) => (
-          <div key={gi} style={{ marginBottom: 16, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', background: 'var(--panel)', fontWeight: 600, fontSize: '.85rem' }}>
-              Grupo {grupo.grupo} · Código {grupo.codigo} — {grupo.label}
-            </div>
-            {grupo.itens.map((it, ii) => (
-              <ItemLinha
-                key={ii}
-                isLast={ii === grupo.itens.length - 1}
-                cor={corBens}
-                header={<>{pill(it.tk, corBens)}<span style={{ fontSize: 12, color: 'var(--muted)' }}>CNPJ {it.cnpj}</span><span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 14 }}>{M(it.custo)}</span></>}
-                texto={it.texto}
-              />
-            ))}
-          </div>
+      <SecaoDirpf cor={corBens} titulo="Bens e Direitos" total={data.totais.bens} emptyMsg={`Nenhum bem encontrado para ${ano}.`}>
+        {data.bens.length > 0 && data.bens.map((grupo, gi) => (
+          <GrupoRetratil
+            key={gi}
+            cor={corBens}
+            itemValorKey="custo"
+            header={`Grupo ${grupo.grupo} · Código ${grupo.codigo} — ${grupo.label}`}
+            itens={grupo.itens}
+          />
         ))}
-        {data.bens.length === 0 && <div className="empty" style={{ padding: 30 }}><p>Nenhum bem encontrado para {ano}.</p></div>}
-      </div>
+      </SecaoDirpf>
 
       {/* Rendimentos Isentos */}
-      <div className="chart-box" style={{ marginBottom: 20 }}>
-        <div className="chart-ttl" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: corIsento }} />
-          Rendimentos Isentos — Total: {M(data.totais.isentos)}
-        </div>
-        {data.rendimentos.isentos.map((cat, ci) => (
-          <div key={ci} style={{ marginBottom: 16, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', background: 'var(--panel)', fontWeight: 600, fontSize: '.85rem' }}>
-              Código {cat.label.match(/— (.+)/)?.[1] || cat.label}
-            </div>
-            {cat.itens.map((it, ii) => (
-              <ItemLinha
-                key={ii}
-                isLast={ii === cat.itens.length - 1}
-                cor={corIsento}
-                header={<>{pill(it.tk, corIsento)}<span style={{ fontSize: 12, color: 'var(--muted)' }}>CNPJ {it.cnpj}</span><span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 14 }}>{M(it.valor)}</span></>}
-                texto={it.texto}
-              />
-            ))}
-          </div>
+      <SecaoDirpf cor={corIsento} titulo="Rendimentos Isentos" total={data.totais.isentos} emptyMsg="Nenhum rendimento isento encontrado.">
+        {data.rendimentos.isentos.length > 0 && data.rendimentos.isentos.map((cat, ci) => (
+          <GrupoRetratil
+            key={ci}
+            cor={corIsento}
+            itemValorKey="valor"
+            header={`Código ${cat.label.match(/— (.+)/)?.[1] || cat.label}`}
+            itens={cat.itens}
+          />
         ))}
-        {data.rendimentos.isentos.length === 0 && <div className="empty" style={{ padding: 30 }}><p>Nenhum rendimento isento encontrado.</p></div>}
-      </div>
+      </SecaoDirpf>
 
       {/* Rendimentos Tributação Exclusiva */}
-      <div className="chart-box" style={{ marginBottom: 20 }}>
-        <div className="chart-ttl" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: corExclusiva }} />
-          Tributação Exclusiva — Total: {M(data.totais.exclusiva)}
-        </div>
-        {data.rendimentos.exclusiva.map((cat, ci) => (
-          <div key={ci} style={{ marginBottom: 16, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', background: 'var(--panel)', fontWeight: 600, fontSize: '.85rem' }}>
-              Código {cat.label.match(/— (.+)/)?.[1] || cat.label}
-            </div>
-            {cat.itens.map((it, ii) => (
-              <ItemLinha
-                key={ii}
-                isLast={ii === cat.itens.length - 1}
-                cor={corExclusiva}
-                header={<>{pill(it.tk, corExclusiva)}<span style={{ fontSize: 12, color: 'var(--muted)' }}>CNPJ {it.cnpj}</span><span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 14 }}>{M(it.valor)}</span></>}
-                texto={it.texto}
-              />
-            ))}
-          </div>
+      <SecaoDirpf cor={corExclusiva} titulo="Tributação Exclusiva" total={data.totais.exclusiva} emptyMsg="Nenhum rendimento com tributação exclusiva encontrado.">
+        {data.rendimentos.exclusiva.length > 0 && data.rendimentos.exclusiva.map((cat, ci) => (
+          <GrupoRetratil
+            key={ci}
+            cor={corExclusiva}
+            itemValorKey="valor"
+            header={`Código ${cat.label.match(/— (.+)/)?.[1] || cat.label}`}
+            itens={cat.itens}
+          />
         ))}
-        {data.rendimentos.exclusiva.length === 0 && <div className="empty" style={{ padding: 30 }}><p>Nenhum rendimento com tributação exclusiva encontrado.</p></div>}
-      </div>
+      </SecaoDirpf>
     </>
   );
 }
