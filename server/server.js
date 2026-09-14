@@ -1034,7 +1034,7 @@ ensureSchema()
       // Auto-sync market prices from Brapi on startup (delayed) and periodically
       setTimeout(() => syncMarketData(), 15000);
       setInterval(() => syncMarketData(), MARKET_SYNC_INTERVAL);
-      console.log(`🔄 Sheet sync every ${SYNC_INTERVAL / 60000} min | Market sync every ${MARKET_SYNC_INTERVAL / 60000} min`);
+      console.log(`🔄 Local sync every ${SYNC_INTERVAL / 60000} min | Market sync every ${MARKET_SYNC_INTERVAL / 60000} min`);
     });
   })
   .catch((e) => {

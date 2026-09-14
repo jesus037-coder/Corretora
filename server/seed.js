@@ -138,25 +138,52 @@ async function main() {
     console.log('💰 Movimentacoes already exist — skipping Sheets fetch for movimentacoes (data is local now).');
   }
 
-  console.log('📡 Fetching Google Sheets…');
-  const fetches = [SHEETS.DI, SHEETS.AT].map(fetchCSV);
-  if (!usersExist) fetches.unshift(fetchCSV(SHEETS.CL));
-  if (!movsExist) fetches.unshift(fetchCSV(SHEETS.PA));
-  if (!metasExist) fetches.push(fetchCSV(SHEETS.MT));
-  const sheets = await Promise.all(fetches);
+  /* ── Check if ativos already exist (stop depending on Sheets for ativos) ── */
+  const { rows: ativosCount } = await pool.query('SELECT COUNT(*) FROM ativos');
+  const ativosExist = parseInt(ativosCount[0].count) > 0;
 
-  let cl = null, pa = null, mt = null;
-  let idx = 0;
-  if (!usersExist) { cl = sheets[idx++]; }
-  if (!movsExist) { pa = sheets[idx++]; }
-  const di = sheets[idx++];
-  const at = sheets[idx++];
-  if (!metasExist) { mt = sheets[idx++]; }
-  const skipped = [usersExist ? 'CL' : null, movsExist ? 'PA' : null, metasExist ? 'MT' : null].filter(Boolean).join(', ');
-  console.log(`   ${skipped ? skipped + '=skipped ' : ''}DI=${di.length} AT=${at.length}${movsExist ? '' : ` PA=${pa.length}`}${metasExist ? '' : ` MT=${mt.length}`} rows`);
+  if (ativosExist) {
+    console.log('📈 Ativos already exist — skipping Sheets fetch for ativos (data is local now).');
+  }
 
-  console.log('🧹 Truncating tables (preserving users, metas and movimentacoes)…');
-  await pool.query('TRUNCATE ativos, proventos RESTART IDENTITY CASCADE');
+  /* ── Check if proventos already exist (stop depending on Sheets for proventos) ── */
+  const { rows: provsCount } = await pool.query('SELECT COUNT(*) FROM proventos');
+  const provsExist = parseInt(provsCount[0].count) > 0;
+
+  if (provsExist) {
+    console.log('💵 Proventos already exist — skipping Sheets fetch for proventos (data is local now).');
+  }
+
+  /* ── Only fetch from Google Sheets on first boot (all data is local after that) ── */
+  const allExist = usersExist && movsExist && metasExist && ativosExist && provsExist;
+  let cl = null, pa = null, di = null, at = null, mt = null;
+
+  if (allExist) {
+    console.log('📡 All tables already have data — 100% local, no Google Sheets fetch needed.');
+  } else {
+    console.log('📡 Fetching Google Sheets (first boot only)…');
+    const fetches = [];
+    if (!usersExist) fetches.push(fetchCSV(SHEETS.CL));
+    if (!movsExist) fetches.push(fetchCSV(SHEETS.PA));
+    if (!provsExist) fetches.push(fetchCSV(SHEETS.DI));
+    if (!ativosExist) fetches.push(fetchCSV(SHEETS.AT));
+    if (!metasExist) fetches.push(fetchCSV(SHEETS.MT));
+    const sheets = await Promise.all(fetches);
+    let idx = 0;
+    if (!usersExist) { cl = sheets[idx++]; }
+    if (!movsExist) { pa = sheets[idx++]; }
+    if (!provsExist) { di = sheets[idx++]; }
+    if (!ativosExist) { at = sheets[idx++]; }
+    if (!metasExist) { mt = sheets[idx++]; }
+    const fetched = [!usersExist ? 'CL' : null, !movsExist ? 'PA' : null, !provsExist ? 'DI' : null, !ativosExist ? 'AT' : null, !metasExist ? 'MT' : null].filter(Boolean).join(', ');
+    console.log(`   Fetched: ${fetched}`);
+  }
+
+  if (!allExist) {
+    console.log('🧹 Truncating empty tables only…');
+    if (!ativosExist) await pool.query('TRUNCATE ativos RESTART IDENTITY CASCADE');
+    if (!provsExist) await pool.query('TRUNCATE proventos RESTART IDENTITY CASCADE');
+  }
 
   /* ── Users (from CL) — only on first boot ── */
   if (!usersExist) {
@@ -177,22 +204,26 @@ async function main() {
     }
   }
 
-  /* ── Ativos (from AT) ── */
-  console.log('📈 Seeding ativos…');
-  for (let i = 1; i < at.length; i++) {
-    const row = at[i];
-    const segmento = (row[0] || '').trim();
-    const area = (row[1] || '').trim();
-    const ticker = (row[2] || '').trim().toUpperCase();
-    const valor = n(row[3]);
-    const precoJusto = n(row[4]);
-    const variacao = (row[5] || '').trim();
-    const cnpj = (row[6] || '').trim();
-    if (!ticker) continue;
-    await pool.query(
-      'INSERT INTO ativos (ticker, segmento, area, valor, preco_justo, variacao, cnpj) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [ticker, segmento, area, valor, precoJusto, variacao, cnpj]
-    );
+  /* ── Ativos (from AT) — only seed on first boot ── */
+  if (ativosExist) {
+    console.log('📈 Ativos preservados no banco local.');
+  } else if (at) {
+    console.log('📈 Seeding ativos (first boot)…');
+    for (let i = 1; i < at.length; i++) {
+      const row = at[i];
+      const segmento = (row[0] || '').trim();
+      const area = (row[1] || '').trim();
+      const ticker = (row[2] || '').trim().toUpperCase();
+      const valor = n(row[3]);
+      const precoJusto = n(row[4]);
+      const variacao = (row[5] || '').trim();
+      const cnpj = (row[6] || '').trim();
+      if (!ticker) continue;
+      await pool.query(
+        'INSERT INTO ativos (ticker, segmento, area, valor, preco_justo, variacao, cnpj) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [ticker, segmento, area, valor, precoJusto, variacao, cnpj]
+      );
+    }
   }
 
   /* ── Movimentações (from PA) — only seed on first boot ── */
@@ -221,25 +252,29 @@ async function main() {
     console.log(`   ${movCount} movimentacoes inseridas`);
   }
 
-  /* ── Proventos (from DI) ── */
-  console.log('💵 Seeding proventos…');
-  let provCount = 0;
-  for (let i = 1; i < di.length; i++) {
-    const row = di[i];
-    const ticker = (row[0] || '').trim().toUpperCase();
-    const segmento = (row[1] || 'OUTROS').trim();
-    const dCom = dt(row[2]);
-    const dPag = dt(row[3]);
-    const tipo = (row[4] || '').trim();
-    const vu = n(row[5]);
-    if (!ticker) continue;
-    await pool.query(
-      'INSERT INTO proventos (ticker, segmento, data_com, data_pag, tipo, valor_unit) VALUES ($1,$2,$3,$4,$5,$6)',
-      [ticker, segmento, dCom, dPag, tipo, vu]
-    );
-    provCount++;
+  /* ── Proventos (from DI) — only seed on first boot ── */
+  if (provsExist) {
+    console.log('💵 Proventos preservados no banco local.');
+  } else if (di) {
+    console.log('💵 Seeding proventos (first boot)…');
+    let provCount = 0;
+    for (let i = 1; i < di.length; i++) {
+      const row = di[i];
+      const ticker = (row[0] || '').trim().toUpperCase();
+      const segmento = (row[1] || 'OUTROS').trim();
+      const dCom = dt(row[2]);
+      const dPag = dt(row[3]);
+      const tipo = (row[4] || '').trim();
+      const vu = n(row[5]);
+      if (!ticker) continue;
+      await pool.query(
+        'INSERT INTO proventos (ticker, segmento, data_com, data_pag, tipo, valor_unit) VALUES ($1,$2,$3,$4,$5,$6)',
+        [ticker, segmento, dCom, dPag, tipo, vu]
+      );
+      provCount++;
+    }
+    console.log(`   ${provCount} proventos inseridos`);
   }
-  console.log(`   ${provCount} proventos inseridos`);
 
   /* ── Metas (from MT) — only seed on first boot ── */
   if (metasExist) {

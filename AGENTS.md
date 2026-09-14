@@ -16,8 +16,8 @@ docker compose -f docker-compose.base44.yml up -d
 The `api` service runs `npm install && node seed.js && nodemon server.js` on start — seeds the DB from the public Google Sheets on every boot. The `web` service runs Vite dev with live reload.
 
 ## Data source
-Clients (users), metas and movimentacoes are now managed locally in PostgreSQL — no longer seeded or synced from Google Sheets. They persist across restarts.
-Other data (ativos, proventos) still fetches from public Google Sheets (published-as-CSV URLs in `server/seed.js` and `sync.js`). No credentials needed — these are public URLs.
+All data is now managed locally in PostgreSQL — the app is 100% self-hosted with no Google Sheets dependency. Data persists across restarts.
+On first boot (empty database), seed.js fetches from Google Sheets once to populate initial data. On subsequent boots, no external fetch occurs.
 
 ## Login credentials (from Google Sheets)
 - Admin: `gabriel.321jesus@gmail.com` / `123126`

@@ -1,81 +1,15 @@
 import pool from './db.js';
 
-const SHEETS = {
-  CL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=42982816&single=true&output=csv',
-  PA: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=1605208368&single=true&output=csv',
-  DI: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=948257245&single=true&output=csv',
-  AT: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=713165597&single=true&output=csv',
-  MT: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTSK8g8oRJz0bjVrf1h-VkiexuxLkn1G089uORtY7ZZH-nJdjIB4PMUnqx9y8N0CA1ujpi9e5aV_XKf/pub?gid=1743696611&single=true&output=csv',
-};
-
-function parseCSV(t) {
-  const rows = [];
-  for (const line of t.split('\n')) {
-    if (!line.trim()) continue;
-    const cols = [];
-    let cur = '', q = false;
-    for (let j = 0; j < line.length; j++) {
-      const c = line[j];
-      if (c === '"') { q = !q; continue; }
-      if (c === ',' && !q) { cols.push(cur.trim()); cur = ''; }
-      else cur += c;
-    }
-    cols.push(cur.trim());
-    rows.push(cols);
-  }
-  return rows;
-}
-
-function n(v) {
-  if (v === null || v === undefined || v === '') return 0;
-  if (typeof v === 'number') return v;
-  const x = parseFloat(v.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
-  return isNaN(x) ? 0 : x;
-}
-
-function dt(s) {
-  if (!s) return null;
-  s = s.toString().trim();
-  if (s.includes('/')) {
-    const p = s.split('/');
-    if (p.length === 3) return new Date(+p[2], +p[1] - 1, +p[0]);
-  }
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-async function fetchCSV(url) {
-  const res = await fetch(url);
-  return parseCSV(await res.text());
-}
-
 let syncing = false;
 
 export async function syncData() {
   if (syncing) { console.log('🔄 [Sync] Already running, skipping…'); return; }
   syncing = true;
   try {
-    console.log('🔄 [Sync] Fetching Google Sheets…');
-    // Clients (users) and movimentacoes are now managed locally — no longer synced from Sheets
-    const [di, at] = await Promise.all(
-      [SHEETS.DI, SHEETS.AT].map(fetchCSV)
-    );
-
-    /* ── Ativos: clear + re-insert ── */
-    const SEG_MAP = { 'Açoes': 'Ações', 'açoes': 'Ações', 'FIIS': 'FIIs', 'fiis': 'FIIs', 'Cripto': 'CRIPTO', 'cripto': 'CRIPTO' };
-    const normSeg = (s) => SEG_MAP[s] || s;
-    await pool.query('DELETE FROM ativos');
-    for (let i = 1; i < at.length; i++) {
-      const row = at[i];
-      const ticker = (row[2] || '').trim().toUpperCase();
-      if (!ticker) continue;
-      await pool.query(
-        'INSERT INTO ativos (ticker, segmento, area, valor, preco_justo, variacao, cnpj) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-        [ticker, normSeg((row[0] || '').trim()), (row[1] || '').trim(), n(row[3]), n(row[4]), (row[5] || '').trim(), (row[6] || '').trim()]
-      );
-    }
-    // Fallback: criar ativos para tickers em movimentacoes que não vieram da planilha
-    await pool.query(`
+    console.log('🔄 [Sync] Running local sync…');
+    // All data is now managed locally — no Google Sheets dependency.
+    // Fallback: create ativos entries for tickers in movimentacoes that don't exist yet.
+    const { rowCount } = await pool.query(`
       INSERT INTO ativos (ticker, segmento, valor, preco_justo, variacao, cnpj)
       SELECT DISTINCT m.ticker, m.segmento, 0, 0, '', ''
       FROM movimentacoes m
@@ -83,22 +17,7 @@ export async function syncData() {
       WHERE a.ticker IS NULL
       ON CONFLICT DO NOTHING
     `);
-
-    /* ── Proventos: clear + re-insert (skip valor_unit = 0) ── */
-    await pool.query('DELETE FROM proventos');
-    for (let i = 1; i < di.length; i++) {
-      const row = di[i];
-      const ticker = (row[0] || '').trim().toUpperCase();
-      if (!ticker) continue;
-      const vu = n(row[5]);
-      if (vu <= 0) continue;
-      await pool.query(
-        'INSERT INTO proventos (ticker, segmento, data_com, data_pag, tipo, valor_unit) VALUES ($1,$2,$3,$4,$5,$6)',
-        [ticker, (row[1] || 'OUTROS').trim(), dt(row[2]), dt(row[3]), (row[4] || '').trim(), vu]
-      );
-    }
-
-    console.log(`✅ [Sync] Done — Ativos: ${at.length - 1}, Proventos: ${di.length - 1}`);
+    console.log(`✅ [Sync] Done — created ${rowCount || 0} missing ativo(s) from local movimentacoes`);
   } catch (e) {
     console.error('❌ [Sync] Failed:', e.message);
   } finally {
