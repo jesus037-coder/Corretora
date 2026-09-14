@@ -2,9 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { MES, M } from '../shared.jsx';
 import { fetchProventosDetalhe } from '../api.js';
 
-export default function ProventosDetalhe({ ano, cliente }) {
-  const [provData, setProvData] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function ProventosDetalhe({ ano, cliente, prefetched }) {
+  const [provData, setProvData] = useState(prefetched || null);
+  const [loading, setLoading] = useState(!prefetched);
   const [filtroMes, setFiltroMes] = useState('todos');
   const [filtroAno, setFiltroAno] = useState('todos');
   const [filtroTicker, setFiltroTicker] = useState('todos');
@@ -12,12 +12,13 @@ export default function ProventosDetalhe({ ano, cliente }) {
   const isTodos = ano === 0;
 
   useEffect(() => {
+    if (prefetched) { setProvData(prefetched); setLoading(false); return; }
     setLoading(true);
     fetchProventosDetalhe(ano, cliente)
       .then((r) => setProvData(r))
       .catch(() => setProvData(null))
       .finally(() => setLoading(false));
-  }, [ano, cliente]);
+  }, [ano, cliente, prefetched]);
 
   // Reset filters when year changes
   useEffect(() => {

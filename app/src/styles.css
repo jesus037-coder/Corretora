@@ -486,3 +486,8 @@ tfoot .td-l{background:var(--panel)!important;color:var(--accent)!important;text
 .prov-detalhe-tbl td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--border);white-space:nowrap}
 .prov-detalhe-tbl tfoot td{border-top:2px solid var(--border);border-bottom:none;font-size:.85rem}
 .prov-detalhe-tbl .td-l{text-align:left}
+
+/* Bar chart received/pending legend */
+.bar-legend{float:right;font-size:.7rem;font-weight:400;color:var(--muted);display:flex;align-items:center;gap:8px}
+.bl-recebido{color:#3ddc84;font-size:.9rem}
+.bl-pendente{color:var(--muted);font-size:.9rem;opacity:.4}

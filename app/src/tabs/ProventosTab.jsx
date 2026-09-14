@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { MES, M, PAL, KpiCard } from '../shared.jsx';
 import ProventosDetalhe from '../components/ProventosDetalhe.jsx';
+import { fetchProventosDetalhe } from '../api.js';
 
 export default function ProventosTab({ data, ano, chartColors, cliente }) {
   const { gc, tc } = chartColors;
@@ -18,6 +19,14 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
   const [selectedSeg, setSelectedSeg] = useState(null);
   const [openSegs, setOpenSegs] = useState({});
   const [detailMonth, setDetailMonth] = useState(null);
+
+  // Fetch detailed proventos for received/pending chart coloring
+  const [provDetalhe, setProvDetalhe] = useState(null);
+  useEffect(() => {
+    fetchProventosDetalhe(ano, cliente)
+      .then(setProvDetalhe)
+      .catch(() => setProvDetalhe(null));
+  }, [ano, cliente]);
 
   // KPIs
   const hoje = new Date();
@@ -91,6 +100,31 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
     return null;
   }) : null;
 
+  // Compute received/pending per month and year for chart coloring
+  const barStatusMap = useMemo(() => {
+    if (!provDetalhe?.proventos) return null;
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    let provs = provDetalhe.proventos;
+    if (selectedSeg) provs = provs.filter(p => p.segmento === selectedSeg);
+
+    const monthMap = {}, yearMap = {};
+    provs.forEach(p => {
+      const isReceived = p.data_pag && new Date(p.data_pag + 'T23:59:59') <= hoje;
+      const mk = p.anoRef + '-' + p.mes;
+      if (!monthMap[mk]) monthMap[mk] = { received: 0, pending: 0 };
+      if (!yearMap[p.anoRef]) yearMap[p.anoRef] = { received: 0, pending: 0 };
+      if (isReceived) {
+        monthMap[mk].received = Math.round((monthMap[mk].received + p.valor_total) * 100) / 100;
+        yearMap[p.anoRef].received = Math.round((yearMap[p.anoRef].received + p.valor_total) * 100) / 100;
+      } else {
+        monthMap[mk].pending = Math.round((monthMap[mk].pending + p.valor_total) * 100) / 100;
+        yearMap[p.anoRef].pending = Math.round((yearMap[p.anoRef].pending + p.valor_total) * 100) / 100;
+      }
+    });
+    return { monthMap, yearMap };
+  }, [provDetalhe, selectedSeg]);
+
   // Bar chart: selected segment or total, with view mode
   const segIdx = selectedSeg ? segNames.indexOf(selectedSeg) : -1;
   const barColor = segIdx >= 0 ? PAL[segIdx % PAL.length] : null;
@@ -120,6 +154,33 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
 
   const barChart = { labels: barLabels, datasets: barDatasets };
 
+  // Apply received/pending coloring to bars
+  if (barStatusMap) {
+    barDatasets.forEach((ds, dsIdx) => {
+      const baseColor = (isTodos && viewMode === 'ano') ? PAL[dsIdx % PAL.length] : (barColor || '#3ddc84');
+      ds.backgroundColor = ds.data.map((val, i) => {
+        if (!val) return 'transparent';
+        let s;
+        if (isTodos && viewMode === 'ano') {
+          const yr = parseInt(ds.label);
+          s = barStatusMap.monthMap[yr + '-' + i] || { received: 0, pending: 0 };
+        } else if (isTodos && viewMode === 'anos') {
+          const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
+          s = barStatusMap.yearMap[years[i]] || { received: 0, pending: 0 };
+        } else if (isTodos) {
+          const info = provInfo[i];
+          s = info ? (barStatusMap.monthMap[info.year + '-' + info.month] || { received: 0, pending: 0 }) : { received: 0, pending: 0 };
+        } else {
+          s = barStatusMap.monthMap[ano + '-' + i] || { received: 0, pending: 0 };
+        }
+        if (s.received === 0 && s.pending === 0) return baseColor + 'aa';
+        if (s.pending === 0) return baseColor + 'cc';
+        if (s.received === 0) return baseColor + '33';
+        return baseColor + '66';
+      });
+    });
+  }
+
   // Doughnut: expanded segment → per-ativo; else → per-segment totals
   const expandedSeg = segNames.find(s => openSegs['pv-' + s.replace(/\W+/g, '-')]);
   let dLabels, dData, dColors;
@@ -137,7 +198,25 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
   const showLegend = isTodos && viewMode === 'ano';
   const chartOpts = {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: showLegend, labels: { color: tc, font: { size: 11 } } }, tooltip: { callbacks: { label: (c) => M(c.parsed.y ?? c.parsed) } } },
+    plugins: { legend: { display: showLegend, labels: { color: tc, font: { size: 11 } } }, tooltip: { callbacks: { label: (c) => {
+      if (!barStatusMap) return M(c.parsed.y ?? c.parsed);
+      const i = c.dataIndex;
+      let s;
+      if (isTodos && viewMode === 'ano') {
+        const yr = parseInt(c.dataset.label);
+        s = barStatusMap.monthMap[yr + '-' + i] || { received: 0, pending: 0 };
+      } else if (isTodos && viewMode === 'anos') {
+        const years = [...new Set(provInfo.filter(Boolean).map(e => e.year))].sort();
+        s = barStatusMap.yearMap[years[i]] || { received: 0, pending: 0 };
+      } else if (isTodos) {
+        const info = provInfo[i];
+        s = info ? (barStatusMap.monthMap[info.year + '-' + info.month] || { received: 0, pending: 0 }) : { received: 0, pending: 0 };
+      } else {
+        s = barStatusMap.monthMap[ano + '-' + i] || { received: 0, pending: 0 };
+      }
+      const total = Math.round((s.received + s.pending) * 100) / 100;
+      return [`Recebido: ${M(s.received)}`, `A Receber: ${M(s.pending)}`, `Total: ${M(total)}`];
+    } } } },
     scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: (!isTodos || viewMode === 'meses') && nMonths > 12 ? 9 : 11 } } }, y: { grid: { color: gc }, ticks: { color: tc, callback: (v) => M(v) } } },
   };
   const doughnutOpts = {
@@ -174,7 +253,7 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
       </div>
       <div className="chart-duo">
         <div className="chart-box" style={{ marginBottom: 0 }}>
-          <div className="chart-ttl">{selectedSeg ? `${selectedSeg} — Mensal` : 'Distribuição Mensal (R$)'}</div>
+          <div className="chart-ttl">{selectedSeg ? `${selectedSeg} — Mensal` : 'Distribuição Mensal (R$)'} <span className="bar-legend"><span className="bl-recebido">■</span> Recebido <span className="bl-pendente">▢</span> A Receber</span></div>
           <div style={{ height: 190 }}><Bar data={barChart} options={chartOpts} /></div>
         </div>
         <div className="chart-box" style={{ marginBottom: 0 }}>
@@ -286,7 +365,7 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
           </table>
         </div>
       </div>
-      <ProventosDetalhe ano={ano} cliente={cliente} />
+      <ProventosDetalhe ano={ano} cliente={cliente} prefetched={provDetalhe} />
     </>
   );
 }
