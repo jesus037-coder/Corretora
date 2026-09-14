@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchProfile, updateProfilePassword, updateProfile, fetchAdminUsers, updateAdminUserType } from '../api.js';
 
-export default function ContaTab({ user }) {
+export default function ContaTab({ user, onProfileUpdate }) {
   const isAdmin = user.role === 'admin' || user.role === 'demo';
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,6 +18,42 @@ export default function ContaTab({ user }) {
   // WhatsApp toggle
   const [wppLoading, setWppLoading] = useState(false);
   const [wppMsg, setWppMsg] = useState('');
+
+  // Edit profile form
+  const [editing, setEditing] = useState(false);
+  const [editNome, setEditNome] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editTelefone, setEditTelefone] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editMsg, setEditMsg] = useState('');
+  const [editErr, setEditErr] = useState('');
+
+  const startEdit = () => {
+    setEditNome(profile.nome);
+    setEditEmail(profile.email);
+    setEditTelefone(profile.telefone || '');
+    setEditMsg(''); setEditErr('');
+    setEditing(true);
+  };
+
+  const salvarEdicao = async () => {
+    setEditMsg(''); setEditErr('');
+    if (!editNome.trim()) { setEditErr('O nome não pode ficar vazio.'); return; }
+    if (!editEmail.trim()) { setEditErr('O e-mail não pode ficar vazio.'); return; }
+    setEditLoading(true);
+    try {
+      await updateProfile({ nome: editNome, email: editEmail, telefone: editTelefone });
+      const updated = { ...profile, nome: editNome.trim(), email: editEmail.trim().toLowerCase(), telefone: editTelefone.trim() };
+      setProfile(updated);
+      setEditing(false);
+      setEditMsg('Dados atualizados com sucesso! Seus lançamentos acompanham sua conta.');
+      if (onProfileUpdate) onProfileUpdate(updated);
+    } catch (e) {
+      setEditErr(e.message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   // Admin users
   const [users, setUsers] = useState(null);
@@ -87,43 +123,83 @@ export default function ContaTab({ user }) {
   return (
     <>
       {/* Meus dados */}
-      <div className="sec-head"><h3>Meus Dados</h3></div>
-      <div className="tbl-wrap" style={{ marginBottom: 22 }}>
-        <div className="tbl-scroll">
-          <table className="prov-detalhe-tbl">
-            <tbody>
-              <tr>
-                <td className="td-l" style={{ fontWeight: 700 }}>Nome</td>
-                <td style={{ textAlign: 'left' }}>{profile.nome}</td>
-              </tr>
-              <tr>
-                <td className="td-l" style={{ fontWeight: 700 }}>E-mail</td>
-                <td style={{ textAlign: 'left' }}>{profile.email}</td>
-              </tr>
-              <tr>
-                <td className="td-l" style={{ fontWeight: 700 }}>Tipo de Conta</td>
-                <td style={{ textAlign: 'left' }}>
-                  <span className={`sb-profile-tag ${profile.tipo_usuario}`}>
-                    {profile.tipo_usuario === 'assessorado' ? '🤝 Assessorado' : '🧭 Autônomo'}
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td className="td-l" style={{ fontWeight: 700 }}>Telefone</td>
-                <td style={{ textAlign: 'left' }}>{profile.telefone || '—'}</td>
-              </tr>
-              <tr>
-                <td className="td-l" style={{ fontWeight: 700 }}>Contato WhatsApp</td>
-                <td style={{ textAlign: 'left' }}>
-                  <span style={{ color: profile.autorizacao_whatsapp ? 'var(--accent)' : 'var(--red)', fontWeight: 600 }}>
-                    {profile.autorizacao_whatsapp ? '✓ Autorizado' : '✗ Não autorizado'}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <div className="sec-head">
+        <h3>Meus Dados</h3>
+        {!editing && (
+          <button className="btn-lancar-meta" onClick={startEdit} style={{ margin: 0, cursor: 'pointer' }}>✏️ Editar</button>
+        )}
       </div>
+      {editing ? (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 22, marginBottom: 22 }}>
+          <div className="meta-form-row" style={{ marginBottom: 14 }}>
+            <div className="meta-field">
+              <label>Nome</label>
+              <input type="text" value={editNome} onChange={e => setEditNome(e.target.value)} placeholder="Seu nome" />
+            </div>
+            <div className="meta-field">
+              <label>E-mail</label>
+              <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="seu@email.com" />
+            </div>
+          </div>
+          <div className="meta-form-row" style={{ marginBottom: 14 }}>
+            <div className="meta-field">
+              <label>Telefone</label>
+              <input type="tel" value={editTelefone} onChange={e => setEditTelefone(e.target.value)} placeholder="(11) 99999-9999" />
+            </div>
+          </div>
+          <div style={{ fontSize: '.72rem', color: 'var(--muted)', marginBottom: 14 }}>
+            ⚠️ Ao alterar seu nome, seus lançamentos e metas serão automaticamente migrados para o novo nome.
+          </div>
+          {editErr && <div className="meta-msg err">{editErr}</div>}
+          {editMsg && <div className="meta-msg ok">{editMsg}</div>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+            <button className="btn-salvar-meta" onClick={salvarEdicao} disabled={editLoading} style={{ maxWidth: 150 }}>
+              {editLoading ? 'Salvando...' : 'Salvar'}
+            </button>
+            <button className="btn-lancar-meta cancelar" onClick={() => setEditing(false)} style={{ margin: 0, cursor: 'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {editMsg && <div className="meta-msg ok" style={{ marginBottom: 14 }}>{editMsg}</div>}
+          <div className="tbl-wrap" style={{ marginBottom: 22 }}>
+            <div className="tbl-scroll">
+              <table className="prov-detalhe-tbl">
+                <tbody>
+                  <tr>
+                    <td className="td-l" style={{ fontWeight: 700 }}>Nome</td>
+                    <td style={{ textAlign: 'left' }}>{profile.nome}</td>
+                  </tr>
+                  <tr>
+                    <td className="td-l" style={{ fontWeight: 700 }}>E-mail</td>
+                    <td style={{ textAlign: 'left' }}>{profile.email}</td>
+                  </tr>
+                  <tr>
+                    <td className="td-l" style={{ fontWeight: 700 }}>Tipo de Conta</td>
+                    <td style={{ textAlign: 'left' }}>
+                      <span className={`sb-profile-tag ${profile.tipo_usuario}`}>
+                        {profile.tipo_usuario === 'assessorado' ? '🤝 Assessorado' : '🧭 Autônomo'}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="td-l" style={{ fontWeight: 700 }}>Telefone</td>
+                    <td style={{ textAlign: 'left' }}>{profile.telefone || '—'}</td>
+                  </tr>
+                  <tr>
+                    <td className="td-l" style={{ fontWeight: 700 }}>Contato WhatsApp</td>
+                    <td style={{ textAlign: 'left' }}>
+                      <span style={{ color: profile.autorizacao_whatsapp ? 'var(--accent)' : 'var(--red)', fontWeight: 600 }}>
+                        {profile.autorizacao_whatsapp ? '✓ Autorizado' : '✗ Não autorizado'}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* WhatsApp toggle */}
       <div className="calc-card" style={{ marginBottom: 16 }}>

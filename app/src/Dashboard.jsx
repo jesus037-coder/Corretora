@@ -180,7 +180,13 @@ export default function Dashboard({ user, onLogout }) {
           {!loading && !error && aba === 'calc' && <CalculadoraTab latest={latest} chartColors={chartColors} />}
           {!loading && !error && aba === 'dirpf' && <DirpfTab ano={ano === 0 ? (anos.length > 0 ? Math.max(...anos) : new Date().getFullYear()) : ano} cliente={clienteForTabs} theme={theme} />}
           {!loading && !error && aba === 'comprasvendas' && <ComprasVendasTab ano={ano} cliente={clienteForTabs} chartColors={chartColors} refreshKey={refreshKey} onEditMov={(mv) => setMovModal({ mode: 'edit', mov: mv })} />}
-          {aba === 'conta' && <ContaTab user={user} />}
+          {aba === 'conta' && <ContaTab user={user} onProfileUpdate={(updated) => {
+            if (updated.nome && updated.nome !== user.nome) {
+              setClienteSel(updated.nome);
+              user.nome = updated.nome;
+            }
+            if (updated.email) user.email = updated.email;
+          }} />}
           {isAutonomo && <Glossario />}
         </div>
       </div>

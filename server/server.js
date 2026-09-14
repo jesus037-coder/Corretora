@@ -938,19 +938,37 @@ app.put('/api/profile/password', auth, async (req, res) => {
 
 /* ── PUT /api/profile — update profile settings ── */
 app.put('/api/profile', auth, async (req, res) => {
-  const { autorizacao_whatsapp, tipo_usuario } = req.body;
+  const { nome, email, telefone, autorizacao_whatsapp, tipo_usuario } = req.body;
   try {
     const fields = [];
     const vals = [];
     let idx = 1;
+    if (nome !== undefined && nome.trim()) { fields.push(`nome = $${idx++}`); vals.push(nome.trim()); }
+    if (email !== undefined && email.trim()) {
+      const dup = await pool.query('SELECT 1 FROM users WHERE email = $1 AND id <> $2', [email.trim().toLowerCase(), req.user.id]);
+      if (dup.rows.length) return res.status(409).json({ error: 'E-mail já cadastrado por outro usuário.' });
+      fields.push(`email = $${idx++}`); vals.push(email.trim().toLowerCase());
+    }
+    if (telefone !== undefined) { fields.push(`telefone = $${idx++}`); vals.push(telefone.trim() || null); }
     if (autorizacao_whatsapp !== undefined) { fields.push(`autorizacao_whatsapp = $${idx++}`); vals.push(autorizacao_whatsapp); }
     if (tipo_usuario && ['autonomo', 'assessorado'].includes(tipo_usuario)) {
       fields.push(`tipo_usuario = $${idx++}`); vals.push(tipo_usuario);
       fields.push(`interesse_assessoria = $${idx++}`); vals.push(tipo_usuario === 'assessorado');
     }
     if (!fields.length) return res.json({ ok: true });
+
+    // If nome is changing, cascade to movimentacoes and metas
+    const oldUser = await pool.query('SELECT nome FROM users WHERE id = $1', [req.user.id]);
+    const oldNome = oldUser.rows.length ? oldUser.rows[0].nome : null;
+
     vals.push(req.user.id);
     await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`, vals);
+
+    if (nome && oldNome && nome.trim() !== oldNome) {
+      await pool.query('UPDATE movimentacoes SET cliente = $1 WHERE cliente = $2', [nome.trim(), oldNome]);
+      await pool.query('UPDATE metas SET cliente = $1 WHERE cliente = $2', [nome.trim(), oldNome]);
+    }
+
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao atualizar perfil.' });
