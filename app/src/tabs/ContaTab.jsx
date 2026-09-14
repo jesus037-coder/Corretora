@@ -21,7 +21,6 @@ export default function ContaTab({ user, onProfileUpdate }) {
 
   // Edit profile form
   const [editing, setEditing] = useState(false);
-  const [editNome, setEditNome] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editTelefone, setEditTelefone] = useState('');
   const [editLoading, setEditLoading] = useState(false);
@@ -29,7 +28,6 @@ export default function ContaTab({ user, onProfileUpdate }) {
   const [editErr, setEditErr] = useState('');
 
   const startEdit = () => {
-    setEditNome(profile.nome);
     setEditEmail(profile.email);
     setEditTelefone(profile.telefone || '');
     setEditMsg(''); setEditErr('');
@@ -38,15 +36,14 @@ export default function ContaTab({ user, onProfileUpdate }) {
 
   const salvarEdicao = async () => {
     setEditMsg(''); setEditErr('');
-    if (!editNome.trim()) { setEditErr('O nome não pode ficar vazio.'); return; }
     if (!editEmail.trim()) { setEditErr('O e-mail não pode ficar vazio.'); return; }
     setEditLoading(true);
     try {
-      await updateProfile({ nome: editNome, email: editEmail, telefone: editTelefone });
-      const updated = { ...profile, nome: editNome.trim(), email: editEmail.trim().toLowerCase(), telefone: editTelefone.trim() };
+      await updateProfile({ email: editEmail, telefone: editTelefone });
+      const updated = { ...profile, email: editEmail.trim().toLowerCase(), telefone: editTelefone.trim() };
       setProfile(updated);
       setEditing(false);
-      setEditMsg('Dados atualizados com sucesso! Seus lançamentos acompanham sua conta.');
+      setEditMsg('Dados atualizados com sucesso!');
       if (onProfileUpdate) onProfileUpdate(updated);
     } catch (e) {
       setEditErr(e.message);
@@ -131,24 +128,18 @@ export default function ContaTab({ user, onProfileUpdate }) {
       </div>
       {editing ? (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 22, marginBottom: 22 }}>
+          <div style={{ fontSize: '.78rem', color: 'var(--muted)', marginBottom: 14 }}>
+            🔒 O nome não pode ser alterado pois identifica sua carteira.
+          </div>
           <div className="meta-form-row" style={{ marginBottom: 14 }}>
-            <div className="meta-field">
-              <label>Nome</label>
-              <input type="text" value={editNome} onChange={e => setEditNome(e.target.value)} placeholder="Seu nome" />
-            </div>
             <div className="meta-field">
               <label>E-mail</label>
               <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="seu@email.com" />
             </div>
-          </div>
-          <div className="meta-form-row" style={{ marginBottom: 14 }}>
             <div className="meta-field">
               <label>Telefone</label>
               <input type="tel" value={editTelefone} onChange={e => setEditTelefone(e.target.value)} placeholder="(11) 99999-9999" />
             </div>
-          </div>
-          <div style={{ fontSize: '.72rem', color: 'var(--muted)', marginBottom: 14 }}>
-            ⚠️ Ao alterar seu nome, seus lançamentos e metas serão automaticamente migrados para o novo nome.
           </div>
           {editErr && <div className="meta-msg err">{editErr}</div>}
           {editMsg && <div className="meta-msg ok">{editMsg}</div>}

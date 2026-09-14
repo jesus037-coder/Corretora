@@ -18,6 +18,7 @@ export default function Register({ onRegister, onBack }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [nome, setNome] = useState('');
+  const [sobrenome, setSobrenome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [autorizacaoWpp, setAutorizacaoWpp] = useState(false);
   const [tipoUsuario, setTipoUsuario] = useState('');
@@ -28,6 +29,7 @@ export default function Register({ onRegister, onBack }) {
     e?.preventDefault();
     setError('');
     if (!nome.trim()) { setError('Informe seu nome.'); return; }
+    if (!sobrenome.trim()) { setError('Informe seu sobrenome.'); return; }
     if (!email.trim()) { setError('Informe seu e-mail.'); return; }
     if (!senha) { setError('Crie uma senha.'); return; }
     if (!validPhone(telefone)) { setError('Telefone inválido. Use DDD + número.'); return; }
@@ -36,7 +38,7 @@ export default function Register({ onRegister, onBack }) {
     setLoading(true);
     try {
       const { token, user } = await register({
-        email, senha, nome, telefone,
+        email, senha, nome: `${nome.trim()} ${sobrenome.trim()}`, telefone,
         autorizacao_whatsapp: autorizacaoWpp,
         tipo_usuario: tipoUsuario,
       });
@@ -58,9 +60,15 @@ export default function Register({ onRegister, onBack }) {
         <form className="login-card" onSubmit={submit}>
           <h2>Cadastro</h2>
           <p className="sub">Preencha os dados para começar</p>
-          <div className="field">
-            <label>Nome Completo</label>
-            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Seu nome" />
+          <div className="field-row" style={{ display: 'flex', gap: 12 }}>
+            <div className="field" style={{ flex: 1 }}>
+              <label>Nome</label>
+              <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Seu nome" />
+            </div>
+            <div className="field" style={{ flex: 1 }}>
+              <label>Sobrenome</label>
+              <input type="text" value={sobrenome} onChange={(e) => setSobrenome(e.target.value)} placeholder="Seu sobrenome" />
+            </div>
           </div>
           <div className="field">
             <label>E-mail</label>
