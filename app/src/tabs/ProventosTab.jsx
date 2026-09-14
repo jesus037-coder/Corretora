@@ -100,29 +100,13 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
     return null;
   }) : null;
 
-  // Compute received/pending per segment (all segments, for table display)
-  const segStatusMap = useMemo(() => {
-    if (!provDetalhe?.proventos) return null;
-    const hoje = new Date();
-    hoje.setHours(23, 59, 59, 999);
-    const map = {};
-    provDetalhe.proventos.forEach(p => {
-      const seg = (p.segmento || '').toUpperCase();
-      if (!map[seg]) map[seg] = { received: 0, pending: 0 };
-      const isReceived = p.data_pag && new Date(p.data_pag + 'T23:59:59') <= hoje;
-      if (isReceived) map[seg].received = Math.round((map[seg].received + p.valor_total) * 100) / 100;
-      else map[seg].pending = Math.round((map[seg].pending + p.valor_total) * 100) / 100;
-    });
-    return map;
-  }, [provDetalhe]);
-
   // Compute received/pending per month and year for chart coloring
   const barStatusMap = useMemo(() => {
     if (!provDetalhe?.proventos) return null;
     const hoje = new Date();
     hoje.setHours(23, 59, 59, 999);
     let provs = provDetalhe.proventos;
-    if (selectedSeg) provs = provs.filter(p => p.segmento === selectedSeg);
+    if (selectedSeg) provs = provs.filter(p => (p.segmento || '').toUpperCase() === selectedSeg.toUpperCase());
 
     const monthMap = {}, yearMap = {};
     provs.forEach(p => {
@@ -323,12 +307,6 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
                         <tr className="seg-hdr" onClick={() => toggleSeg(sg)}>
                           <td colSpan={yearlyData.years.length + 2} style={{ borderLeft: `3px solid ${segColor}` }}>
                             {isOpen ? '▾' : '▸'} {sg}
-                            {isOpen && segStatusMap?.[sg.toUpperCase()] && (
-                              <span style={{ marginLeft: 16, fontSize: '.6rem', fontWeight: 400 }}>
-                                <span style={{ color: '#3ddc84' }}>■ Recebido: {M(segStatusMap[sg.toUpperCase()].received)}</span>
-                                <span style={{ color: 'var(--muted)', marginLeft: 12 }}>▢ A Receber: {M(segStatusMap[sg.toUpperCase()].pending)}</span>
-                              </span>
-                            )}
                           </td>
                         </tr>
                         {yearlyData.segYearly[sg].map((at) => (
@@ -373,12 +351,6 @@ export default function ProventosTab({ data, ano, chartColors, cliente }) {
                         <tr className="seg-hdr" onClick={() => toggleSeg(sg)}>
                           <td colSpan={nMonths + 1} style={{ borderLeft: `3px solid ${segColor}` }}>
                             {isOpen ? '▾' : '▸'} {sg}
-                            {isOpen && segStatusMap?.[sg.toUpperCase()] && (
-                              <span style={{ marginLeft: 16, fontSize: '.6rem', fontWeight: 400 }}>
-                                <span style={{ color: '#3ddc84' }}>■ Recebido: {M(segStatusMap[sg.toUpperCase()].received)}</span>
-                                <span style={{ color: 'var(--muted)', marginLeft: 12 }}>▢ A Receber: {M(segStatusMap[sg.toUpperCase()].pending)}</span>
-                              </span>
-                            )}
                           </td>
                         </tr>
                         {detalhe[sg].map((at) => (
