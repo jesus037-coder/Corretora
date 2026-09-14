@@ -73,6 +73,12 @@ export function fetchDirpf(ano, cliente) {
   return request('/api/dirpf?' + params);
 }
 
+export function fetchProventosDetalhe(ano, cliente) {
+  const params = new URLSearchParams({ ano });
+  if (cliente) params.set('cliente', cliente);
+  return request('/api/proventos-detalhe?' + params);
+}
+
 export function fetchComprasVendas(ano, cliente) {
   const params = new URLSearchParams({ ano });
   if (cliente) params.set('cliente', cliente);

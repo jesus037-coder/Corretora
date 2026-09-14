@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import { M, MES, PAL, KpiCard } from '../shared.jsx';
 import { saveLimite } from '../api.js';
-import HelpIcon from '../components/HelpIcon.jsx';
 
 const COLS = [
   { key: 'ticker',   label: 'Ativo',       type: 'text' },
@@ -229,11 +228,11 @@ export default function CarteiraTab({ data, ano, chartColors, onRefresh, isAuton
   return (
     <>
       <div className="kpi-row">
-        <KpiCard label={<>Valor Aplicado {isAutonomo && <HelpIcon text="É o total em dinheiro que você investiu na carteira (somatório de todas as compras)." />}</>} value={M(kpis.valorAplicado)} />
-        <KpiCard label={<>Valor de Mercado {isAutonomo && <HelpIcon text="É quanto sua carteira vale hoje com base na cotação atual de cada ativo." />}</>} value={M(kpis.valorMercado)} valCls="g" />
-        <KpiCard label={<>L / P Total {isAutonomo && <HelpIcon text="É a diferença entre o valor de mercado atual e o valor aplicado. Positivo = lucro; negativo = prejuízo." />}</>} value={M(kpis.lp)} valCls={kpis.lp >= 0 ? 'g' : 'r'} />
+        <KpiCard label="Valor Aplicado" value={M(kpis.valorAplicado)} />
+        <KpiCard label="Valor de Mercado" value={M(kpis.valorMercado)} valCls="g" />
+        <KpiCard label="L / P Total" value={M(kpis.lp)} valCls={kpis.lp >= 0 ? 'g' : 'r'} />
         <KpiCard label={`Proventos ${ano === 0 ? 'Total' : ano}`} value={M(kpis.proventos)} valCls="g" />
-        <KpiCard label={<>Rentabilidade {isAutonomo && <HelpIcon text="É o percentual de ganho ou perda da carteira em relação ao valor aplicado." />}</>} value={M(kpis.lpT)} hint={`${kpis.rentabilidade >= 0 ? '▲' : '▼'} ${Math.abs(kpis.rentabilidade || 0).toFixed(2)}%`} bad={kpis.lpT < 0} valCls={kpis.lpT >= 0 ? 'g' : 'r'} />
+        <KpiCard label="Rentabilidade" value={M(kpis.lpT)} hint={`${kpis.rentabilidade >= 0 ? '▲' : '▼'} ${Math.abs(kpis.rentabilidade || 0).toFixed(2)}%`} bad={kpis.lpT < 0} valCls={kpis.lpT >= 0 ? 'g' : 'r'} />
       </div>
       <div className="sec-head">
         <h3>Evolução do Patrimônio</h3>

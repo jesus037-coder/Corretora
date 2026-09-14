@@ -532,6 +532,102 @@ function getRendimentosCategory(ticker, segmento, tipoProvento) {
   return { secao: 'EXCLUSIVA', codigo: '99', label: 'Tributação exclusiva — Outros' };
 }
 
+/* ── GET /api/proventos-detalhe?ano=&cliente= ── */
+app.get('/api/proventos-detalhe', auth, async (req, res) => {
+  try {
+    const anoRaw = parseInt(req.query.ano);
+    const ano = isNaN(anoRaw) ? new Date().getFullYear() : anoRaw;
+    const isTodos = ano === 0;
+
+    let clienteFilter = null;
+    if (req.user.role === 'admin' || req.user.role === 'demo') {
+      clienteFilter = req.query.cliente === '__ZE__' || !req.query.cliente ? null : req.query.cliente;
+    } else {
+      clienteFilter = req.user.nome;
+    }
+
+    // Fetch proventos for the year (or all years)
+    let provQuery = 'SELECT ticker, segmento, data_com, data_pag, tipo, valor_unit FROM proventos';
+    let provParams = [];
+    if (!isTodos) {
+      provQuery += ' WHERE EXTRACT(YEAR FROM COALESCE(data_pag, data_com)) = $1';
+      provParams.push(ano);
+    }
+    provQuery += ' ORDER BY COALESCE(data_pag, data_com) ASC';
+    const provRes = await pool.query(provQuery, provParams);
+
+    // Fetch movimentacoes for quantity calculation
+    let movsQuery = 'SELECT cliente, ticker, cv, quantidade, data FROM movimentacoes WHERE 1=1';
+    const movsParams = [];
+    if (!isTodos) { movsQuery += ' AND EXTRACT(YEAR FROM data) <= $' + (movsParams.length + 1); movsParams.push(ano); }
+    if (clienteFilter) { movsQuery += ' AND cliente = $' + (movsParams.length + 1); movsParams.push(clienteFilter); }
+    movsQuery += ' ORDER BY data ASC';
+    const movsRes = await pool.query(movsQuery, movsParams);
+    const movs = movsRes.rows.map((r) => ({ ...r, quantidade: parseFloat(r.quantidade) }));
+
+    const result = [];
+    for (const row of provRes.rows) {
+      const dCom = row.data_com ? new Date(row.data_com) : null;
+      if (!dCom) continue;
+      const vu = parseFloat(row.valor_unit) || 0;
+      if (vu <= 0) continue;
+
+      // Quantity per client on ex-date (sum positive positions only)
+      const qdByClient = {};
+      for (const mv of movs) {
+        if (mv.ticker !== row.ticker) continue;
+        const dm = new Date(mv.data);
+        if (dm <= dCom) {
+          const c = mv.cliente || '__ZE__';
+          if (!qdByClient[c]) qdByClient[c] = 0;
+          qdByClient[c] += isCompra(mv.cv) ? mv.quantidade : -mv.quantidade;
+        }
+      }
+      let cotas = 0;
+      for (const c of Object.keys(qdByClient)) {
+        if (qdByClient[c] > 0) cotas += qdByClient[c];
+      }
+      if (cotas <= 0) continue;
+
+      // Adjusted value per share (tax factors)
+      const seg = (row.segmento || '').toUpperCase();
+      const tipo = (row.tipo || '').toUpperCase();
+      let f = 1;
+      if (seg.includes('ETF')) f = 0.85;
+      else if (seg.includes('BDR') || tipo.includes('EXTERIOR')) f = 0.70;
+      else if (tipo.includes('JCP') || tipo.includes('JSCP')) f = 0.85;
+      const valorReceber = Math.round(vu * f * 100) / 100;
+      const valorTotal = Math.round(cotas * valorReceber * 100) / 100;
+
+      const dPag = row.data_pag ? new Date(row.data_pag) : null;
+      result.push({
+        ticker: row.ticker,
+        segmento: row.segmento || 'OUTROS',
+        tipo: row.tipo || '',
+        data_com: dCom.toISOString().split('T')[0],
+        data_pag: dPag ? dPag.toISOString().split('T')[0] : null,
+        mes: (dPag || dCom).getMonth(),
+        anoRef: (dPag || dCom).getFullYear(),
+        cotas: Math.round(cotas * 100) / 100,
+        valor_cota: vu,
+        valor_receber: valorReceber,
+        valor_total: valorTotal,
+      });
+    }
+
+    // Available months and tickers for filters
+    const mesesDisponiveis = [...new Set(result.map(r => r.mes + '-' + r.anoRef))]
+      .map(s => { const [m, a] = s.split('-').map(Number); return { mes: m, ano: a }; })
+      .sort((a, b) => a.ano - b.ano || a.mes - b.mes);
+    const tickersDisponiveis = [...new Set(result.map(r => r.ticker))].sort();
+
+    res.json({ proventos: result, mesesDisponiveis, tickersDisponiveis });
+  } catch (e) {
+    console.error('Proventos detalhe error:', e);
+    res.status(500).json({ error: 'Erro ao buscar proventos detalhados.' });
+  }
+});
+
 /* ── GET /api/metas?cliente= ── */
 app.get('/api/metas', auth, async (req, res) => {
   try {

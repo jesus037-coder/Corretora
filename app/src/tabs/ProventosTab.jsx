@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { MES, M, PAL, KpiCard } from '../shared.jsx';
+import ProventosDetalhe from '../components/ProventosDetalhe.jsx';
 
-export default function ProventosTab({ data, ano, chartColors }) {
+export default function ProventosTab({ data, ano, chartColors, cliente }) {
   const { gc, tc } = chartColors;
   const kpis = data?.kpis || {};
   const provLabels = data?.proventosMensais?.labels || MES;
@@ -285,6 +286,7 @@ export default function ProventosTab({ data, ano, chartColors }) {
           </table>
         </div>
       </div>
+      <ProventosDetalhe ano={ano} cliente={cliente} />
     </>
   );
 }
